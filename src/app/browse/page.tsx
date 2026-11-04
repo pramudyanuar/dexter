@@ -3,21 +3,21 @@
 import Link from 'next/link';
 import * as React from 'react';
 
+import { toTarget } from '@/lib/browse';
+import useStoredState from '@/lib/useStoredState';
+
 import AuthGate, { useAuth } from '@/components/AuthGate';
 
-/** Anything that is not clearly an address becomes a search. */
-function toTarget(input: string): string | null {
-  const value = input.trim();
-  if (!value) return null;
-  if (/^https?:\/\//i.test(value)) return value;
-  if (!/\s/.test(value) && /^[\w-]+(\.[\w-]+)+(:\d+)?([/?#].*)?$/.test(value)) {
-    return `https://${value}`;
-  }
-  return `https://html.duckduckgo.com/html/?q=${encodeURIComponent(value)}`;
-}
+import { DEFAULT_ENGINE, SEARCH_ENGINES } from '@/constant/search';
 
 function Browse() {
   const { logout, expire } = useAuth();
+  const [engineId, setEngineId] = useStoredState<string>(
+    'browse-engine',
+    DEFAULT_ENGINE,
+  );
+  const engine =
+    SEARCH_ENGINES.find((e) => e.id === engineId) ?? SEARCH_ENGINES[0];
   const [input, setInput] = React.useState('');
   const [src, setSrc] = React.useState<string | null>(null);
   const [title, setTitle] = React.useState('');
@@ -42,7 +42,7 @@ function Browse() {
 
   const go = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const target = toTarget(input);
+    const target = toTarget(input, engine.url);
     if (!target) return;
 
     setError('');
@@ -93,6 +93,19 @@ function Browse() {
             spellCheck={false}
             className='min-w-0 flex-1 border-0 bg-transparent p-0 placeholder:text-mute focus:ring-0 focus:outline-none'
           />
+          <select
+            value={engine.id}
+            onChange={(e) => setEngineId(e.target.value)}
+            aria-label='Mesin pencari'
+            title='Mesin pencari untuk kata kunci'
+            className='rounded-sm border-line bg-transparent py-0.5 pr-7 pl-2 text-xs text-mute focus:border-accent focus:ring-0 focus:outline-none'
+          >
+            {SEARCH_ENGINES.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.label}
+              </option>
+            ))}
+          </select>
           <button
             type='submit'
             disabled={loading || !input.trim()}
@@ -131,6 +144,10 @@ function Browse() {
           </p>
           <p className='mt-2 text-mute'>
             # Cocok untuk artikel, dokumentasi, dan halaman statis.
+          </p>
+          <p className='mt-2 text-mute'>
+            # Kata kunci dicari lewat mesin pilihan di kanan. Kalau hasilnya
+            berupa tantangan bot atau halaman kosong, ganti mesinnya.
           </p>
         </main>
       )}

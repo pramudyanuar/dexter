@@ -35,6 +35,41 @@ describe('proxify', () => {
   });
 });
 
+describe('proxify unwraps search engine tracking redirects', () => {
+  const target = 'https://www.rust-lang.org/learn?x=1&y=2';
+  const u = 'a1' + Buffer.from(target).toString('base64url');
+
+  it('goes straight to the real target', () => {
+    const link = `https://www.bing.com/ck/a?!&&p=abc&ptn=3&u=${u}&ntb=1`;
+    expect(proxify(link, ctx)).toBe(`/api/proxy?url=${enc(target)}&t=TOK`);
+  });
+
+  it('leaves other bing links and undecodable ones alone', () => {
+    expect(proxify('https://www.bing.com/images/search?q=x', ctx)).toBe(
+      `/api/proxy?url=${enc('https://www.bing.com/images/search?q=x')}&t=TOK`,
+    );
+    const bad = 'https://www.bing.com/ck/a?u=zzz';
+    expect(proxify(bad, ctx)).toBe(`/api/proxy?url=${enc(bad)}&t=TOK`);
+  });
+});
+
+describe('proxify unwraps Yahoo tracking redirects', () => {
+  it('goes straight to the real target', () => {
+    const link =
+      'https://r.search.yahoo.com/_ylt=A2RTiDqj/RV=2/RE=1794993571/RO=10/RU=https%3a%2f%2frust-lang.org%2flearn%3fa%3d1/RK=2/RS=abc-';
+    expect(proxify(link, ctx)).toBe(
+      `/api/proxy?url=${enc('https://rust-lang.org/learn?a=1')}&t=TOK`,
+    );
+  });
+
+  it('refuses to unwrap to a non-http target', () => {
+    const link =
+      'https://r.search.yahoo.com/RV=2/RU=javascript%3aalert(1)/RK=2';
+    // falls back to the original link, which the proxy then fetches as normal
+    expect(proxify(link, ctx)).toBe(`/api/proxy?url=${enc(link)}&t=TOK`);
+  });
+});
+
 describe('rewriteCss', () => {
   it('rewrites url() and @import', () => {
     const out = rewriteCss(

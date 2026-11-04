@@ -14,6 +14,42 @@ export interface RewriteContext {
   nonce: string;
 }
 
+/**
+ * Some result pages link through a tracking redirect that only works with
+ * JavaScript. Where the real target is encoded in the link, go straight to it.
+ */
+function unwrapRedirect(url: URL): URL {
+  // Bing: /ck/a?...&u=a1<base64 of the target>
+  if (/(^|\.)bing\.com$/.test(url.hostname) && url.pathname === '/ck/a') {
+    const u = url.searchParams.get('u');
+    if (u?.startsWith('a1')) {
+      try {
+        return new URL(
+          Buffer.from(u.slice(2), 'base64').toString('utf8'),
+          url.origin,
+        );
+      } catch {
+        // not decodable: keep the original link
+      }
+    }
+  }
+  // Yahoo: r.search.yahoo.com/.../RU=<encoded target>/RK=...
+  if (/(^|\.)r\.search\.yahoo\.com$/.test(url.hostname)) {
+    const match = url.pathname.match(/\/RU=([^/]+)/);
+    if (match) {
+      try {
+        const target = new URL(decodeURIComponent(match[1]));
+        if (target.protocol === 'http:' || target.protocol === 'https:') {
+          return target;
+        }
+      } catch {
+        // not decodable: keep the original link
+      }
+    }
+  }
+  return url;
+}
+
 /** Turns a URL found in a page into a URL that goes through the proxy. */
 export function proxify(
   raw: string,
@@ -24,7 +60,7 @@ export function proxify(
   if (/^data:image\//i.test(value)) return raw;
 
   try {
-    const abs = new URL(value, ctx.base);
+    const abs = unwrapRedirect(new URL(value, ctx.base));
     if (abs.protocol !== 'http:' && abs.protocol !== 'https:') return '#';
     const hash = abs.hash;
     abs.hash = '';
