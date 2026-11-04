@@ -26,6 +26,74 @@
   --animate-shimmer: shimmer 1.3s linear infinite;
 }
 
+/* Chat palette: terminal, GitHub-style light/dark */
+:root {
+  --paper: #ffffff;
+  --card: #f6f8fa;
+  --ink: #1f2328;
+  --mute: #656d76;
+  --line: #d0d7de;
+  --accent: #1a7f37;
+  --hash: #9a6700;
+  --info: #0969da;
+  --err: #cf222e;
+  --code: #f6f8fa;
+  --code-ink: #1f2328;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0d1117;
+    --card: #161b22;
+    --ink: #c9d1d9;
+    --mute: #8b949e;
+    --line: #30363d;
+    --accent: #7ee787;
+    --hash: #e3b341;
+    --info: #79c0ff;
+    --err: #ff7b72;
+    --code: #010409;
+    --code-ink: #c9d1d9;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-mute: var(--mute);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-hash: var(--hash);
+  --color-info: var(--info);
+  --color-err: var(--err);
+  --color-code: var(--code);
+  --color-code-ink: var(--code-ink);
+  --font-mono:
+    ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .caret {
+    animation: caret-blink 1s steps(1) infinite;
+  }
+}
+
 /* Animation keyframes */
 @keyframes flicker {
   0%,
