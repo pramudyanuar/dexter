@@ -42,3 +42,6 @@ sitemap.xml
 sitemap-*.xml
 # next.js generated types
 next-env.d.ts
+
+# local file transfer storage (dev only)
+.data/
