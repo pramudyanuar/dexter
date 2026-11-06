@@ -30,7 +30,15 @@ export const APPS: readonly AppEntry[] = [
   {
     id: 'games',
     href: '/games',
-    description: 'Wordle, ular, dan 2048. Skor tersimpan di browser ini.',
-    tags: ['wordle', 'ular', '2048'],
+    description:
+      'Wordle, ular, 2048, minesweeper, tetris, serta connect4, suit, dan uno online. Terbuka tanpa login.',
+    tags: ['publik'],
+  },
+  {
+    id: 'send',
+    href: '/send',
+    description:
+      'Kirim file antar device: unggah di satu device, unduh di device lain. File hilang otomatis setelah 24 jam.',
+    tags: ['vercel blob'],
   },
 ];

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
 
@@ -139,7 +140,12 @@ export default function Cheatsheet() {
 
           <p className='border-t border-line pt-6 text-xs text-mute'>
             Referensi singkat; perilaku bisa berbeda antar versi. Cek
-            dokumentasi resmi masing-masing alat untuk detailnya.
+            dokumentasi resmi masing-masing alat untuk detailnya. Butuh jeda
+            sebentar?{' '}
+            <Link href='/games' className='underline hover:text-ink'>
+              Main game
+            </Link>
+            .
           </p>
         </main>
       </div>

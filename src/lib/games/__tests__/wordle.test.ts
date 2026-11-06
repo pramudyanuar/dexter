@@ -1,4 +1,9 @@
-import { evaluate, keyboardStates, pickAnswer } from '@/lib/games/wordle';
+import {
+  evaluate,
+  isValidWord,
+  keyboardStates,
+  pickAnswer,
+} from '@/lib/games/wordle';
 
 import { WORDLE_ANSWERS } from '@/constant/wordle-words';
 
@@ -77,5 +82,24 @@ describe('keyboardStates', () => {
     expect(states.r).toBe('correct');
     expect(states.k).toBe('absent');
     expect(states.a).toBe('correct'); // present in "kotak", correct in "rumah"
+  });
+});
+
+describe('isValidWord', () => {
+  it('accepts every answer word', () => {
+    for (const w of WORDLE_ANSWERS) expect(isValidWord(w)).toBe(true);
+  });
+
+  it('accepts real words that are not in the answer pool', () => {
+    // dictionary words that are not among the 335 answers
+    expect(WORDLE_ANSWERS).not.toContain('abadi');
+    expect(isValidWord('abadi')).toBe(true);
+    expect(isValidWord('ABADI')).toBe(true);
+  });
+
+  it('rejects made-up strings', () => {
+    for (const w of ['zzzzz', 'qwert', 'xxxxx', 'asdfg', 'bkkbn']) {
+      expect(isValidWord(w)).toBe(false);
+    }
   });
 });

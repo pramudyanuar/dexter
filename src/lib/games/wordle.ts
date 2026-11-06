@@ -1,9 +1,21 @@
+import { WORDLE_VALID_WORDS } from '@/constant/wordle-valid';
 import { WORDLE_ANSWERS } from '@/constant/wordle-words';
 
 export const WORD_LENGTH = 5;
 export const MAX_GUESSES = 6;
 
 export type LetterState = 'correct' | 'present' | 'absent';
+
+let validWords: Set<string> | null = null;
+
+/** Whether a guess is a real word: in the dictionary, or an answer word. */
+export function isValidWord(word: string): boolean {
+  validWords ??= new Set([
+    ...WORDLE_VALID_WORDS.split(' ').filter(Boolean),
+    ...WORDLE_ANSWERS,
+  ]);
+  return validWords.has(word.toLowerCase());
+}
 
 export function pickAnswer(rng: () => number = Math.random): string {
   return WORDLE_ANSWERS[Math.floor(rng() * WORDLE_ANSWERS.length)];

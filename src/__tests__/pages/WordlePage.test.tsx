@@ -52,6 +52,22 @@ describe('Wordle page', () => {
     expect(tiles(1)[0].getAttribute('data-state')).toBe('empty');
   });
 
+  it('rejects a string that is not a word, without using a guess', async () => {
+    render(<WordlePage />);
+    await screen.findByRole('grid');
+
+    type('zzzzz');
+    expect(
+      await screen.findByText('Bukan kata dalam kamus'),
+    ).toBeInTheDocument();
+    expect(tiles(0)[0].getAttribute('data-state')).toBe('typing');
+    expect(localStorage.getItem('wordle-stats')).toBeNull();
+
+    // the typed letters stay, so one backspace fixes a typo
+    fireEvent.keyDown(window, { key: 'Backspace' });
+    expect(tiles(0)[4].getAttribute('data-state')).toBe('empty');
+  });
+
   it('reveals the answer after six misses and resets the streak', async () => {
     localStorage.setItem(
       'wordle-stats',

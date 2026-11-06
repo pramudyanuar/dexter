@@ -14,7 +14,6 @@ import {
 import useMounted from '@/lib/useMounted';
 import useStoredState from '@/lib/useStoredState';
 
-import AuthGate from '@/components/AuthGate';
 import GameShell from '@/components/games/GameShell';
 
 interface Game {
@@ -170,9 +169,5 @@ function Game2048() {
 export default function Page2048() {
   const mounted = useMounted();
 
-  return (
-    <AuthGate>
-      <GameShell name='2048'>{mounted ? <Game2048 /> : null}</GameShell>
-    </AuthGate>
-  );
+  return <GameShell name='2048'>{mounted ? <Game2048 /> : null}</GameShell>;
 }

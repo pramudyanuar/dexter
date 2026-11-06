@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import {
   evaluate,
+  isValidWord,
   keyboardStates,
   LetterState,
   MAX_GUESSES,
@@ -12,7 +13,6 @@ import {
 } from '@/lib/games/wordle';
 import useStoredState from '@/lib/useStoredState';
 
-import AuthGate from '@/components/AuthGate';
 import GameShell from '@/components/games/GameShell';
 
 interface Game {
@@ -57,6 +57,7 @@ function Wordle() {
   const submit = () => {
     if (over) return;
     if (current.length < WORD_LENGTH) return flash('Kurang huruf');
+    if (!isValidWord(current)) return flash('Bukan kata dalam kamus');
 
     const secret = game?.answer ?? pickAnswer();
     const next = [...guesses, current];
@@ -210,10 +211,8 @@ function Wordle() {
 
 export default function WordlePage() {
   return (
-    <AuthGate>
-      <GameShell name='wordle'>
-        <Wordle />
-      </GameShell>
-    </AuthGate>
+    <GameShell name='wordle'>
+      <Wordle />
+    </GameShell>
   );
 }

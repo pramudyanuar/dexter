@@ -13,7 +13,6 @@ import {
 } from '@/lib/games/snake';
 import useStoredState from '@/lib/useStoredState';
 
-import AuthGate from '@/components/AuthGate';
 import GameShell from '@/components/games/GameShell';
 
 const CELL = 20;
@@ -228,10 +227,8 @@ function Snake() {
 
 export default function SnakePage() {
   return (
-    <AuthGate>
-      <GameShell name='snake'>
-        <Snake />
-      </GameShell>
-    </AuthGate>
+    <GameShell name='snake'>
+      <Snake />
+    </GameShell>
   );
 }
