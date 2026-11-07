@@ -1,4 +1,15 @@
-export type GameId = 'connect4' | 'suit' | 'uno';
+export type GameId =
+  | 'connect4'
+  | 'suit'
+  | 'uno'
+  | 'battleship'
+  | 'gomoku'
+  | 'checkers'
+  | 'chess'
+  | 'dice'
+  | 'domino'
+  | 'quiz'
+  | 'pictionary';
 export type RoomStatus = 'waiting' | 'playing' | 'over';
 
 /**

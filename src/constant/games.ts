@@ -57,4 +57,58 @@ export const GAMES: readonly GameEntry[] = [
     description: 'Uno online untuk 2 sampai 4 pemain di device berbeda.',
     controls: 'pembuat room memulai setelah semua bergabung',
   },
+  {
+    id: 'battleship',
+    href: '/games/battleship',
+    description:
+      'Kapal perang online untuk dua pemain. Tembak armada rahasia lawan.',
+    controls: 'susun armada, lalu klik petak untuk menembak',
+  },
+  {
+    id: 'gomoku',
+    href: '/games/gomoku',
+    description: 'Lima berjajar di papan 15x15 untuk dua pemain.',
+    controls: 'klik petak kosong, hitam jalan duluan',
+  },
+  {
+    id: 'dam',
+    href: '/games/checkers',
+    description:
+      'Dam (checkers) online untuk dua pemain. Wajib memakan bidak lawan.',
+    controls: 'klik bidak lalu petak tujuan',
+  },
+  {
+    id: 'catur',
+    href: '/games/chess',
+    description:
+      'Catur lengkap online untuk dua pemain: rokade, en passant, promosi.',
+    controls: 'klik bidak lalu petak tujuan',
+  },
+  {
+    id: 'dadu-bohong',
+    href: '/games/dice',
+    description:
+      'Tawar-menawar dadu rahasia untuk 2 sampai 4 pemain. Berani bilang bohong?',
+    controls: 'tawar jumlah dan angka, atau tantang "bohong!"',
+  },
+  {
+    id: 'domino',
+    href: '/games/domino',
+    description: 'Domino online untuk 2 sampai 4 pemain.',
+    controls: 'klik kartu yang menyala, tarik dari tumpukan kalau buntu',
+  },
+  {
+    id: 'kuis',
+    href: '/games/quiz',
+    description:
+      'Kuis cepat untuk 2 sampai 6 pemain. Yang benar dan tercepat dapat poin terbanyak.',
+    controls: '10 soal, 15 detik per soal',
+  },
+  {
+    id: 'tebak-gambar',
+    href: '/games/pictionary',
+    description:
+      'Gambar kata rahasia dan biarkan temanmu menebak. 2 sampai 6 pemain.',
+    controls: 'gambar dengan mouse atau jari, tebak lewat kolom teks',
+  },
 ];

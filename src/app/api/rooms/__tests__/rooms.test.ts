@@ -70,7 +70,19 @@ describe('creating', () => {
     expect(JSON.stringify(json.room)).not.toContain(json.token);
   });
 
-  it.each(['connect4', 'suit', 'uno'])('can create a %s room', async (game) => {
+  it.each([
+    'connect4',
+    'suit',
+    'uno',
+    'battleship',
+    'gomoku',
+    'checkers',
+    'chess',
+    'dice',
+    'domino',
+    'quiz',
+    'pictionary',
+  ])('can create a %s room', async (game) => {
     expect((await (await make(game)).json()).room.game).toBe(game);
   });
 
