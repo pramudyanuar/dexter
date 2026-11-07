@@ -13,6 +13,7 @@ import {
 } from '@/lib/games/wordle';
 import useStoredState from '@/lib/useStoredState';
 
+import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 
 interface Game {
@@ -41,6 +42,7 @@ function Wordle() {
   const [stats, setStats] = useStoredState<Stats>('wordle-stats', NO_STATS);
   const [current, setCurrent] = React.useState('');
   const [message, setMessage] = React.useState('');
+  const [shake, setShake] = React.useState(0);
 
   const guesses = React.useMemo(() => game?.guesses ?? [], [game]);
   const answer = game?.answer ?? '';
@@ -50,6 +52,7 @@ function Wordle() {
   const letters = keyboardStates(guesses, answer);
 
   const flash = (text: string) => {
+    setShake((n) => n + 1);
     setMessage(text);
     setTimeout(() => setMessage(''), 1600);
   };
@@ -118,17 +121,28 @@ function Wordle() {
         className='mx-auto grid w-full max-w-[18rem] gap-1.5'
       >
         {rows.map((row, i) => (
-          <div key={i} role='row' className='grid grid-cols-5 gap-1.5'>
+          <div
+            key={i === guesses.length ? `typing-${shake}` : i}
+            role='row'
+            className={`grid grid-cols-5 gap-1.5 ${
+              i === guesses.length && shake ? 'a-shake' : ''
+            }`}
+          >
             {row.map((tile, j) => (
               <div
-                key={j}
+                key={`${j}-${tile.ch}`}
                 role='gridcell'
                 data-state={tile.state ?? (tile.ch ? 'typing' : 'empty')}
-                className={`flex aspect-square items-center justify-center rounded-sm border text-2xl font-bold uppercase ${
+                style={
+                  tile.state && i === guesses.length - 1
+                    ? { animationDelay: `${j * 0.15}s` }
+                    : undefined
+                }
+                className={`flex aspect-square items-center justify-center rounded-md border-2 text-2xl font-bold uppercase transition-colors ${
                   tile.state
-                    ? TILE[tile.state]
+                    ? `${TILE[tile.state]} ${i === guesses.length - 1 ? 'a-flip' : ''}`
                     : tile.ch
-                      ? 'border-ink/60'
+                      ? 'a-pop border-ink/60'
                       : 'border-line'
                 }`}
               >
@@ -138,6 +152,8 @@ function Wordle() {
           </div>
         ))}
       </div>
+
+      {won && <Confetti />}
 
       <div className='mt-4 min-h-12 text-center text-sm' aria-live='polite'>
         {won && (
@@ -180,7 +196,7 @@ function Wordle() {
                 key={key}
                 type='button'
                 onClick={() => type(key)}
-                className={`h-11 min-w-0 flex-1 rounded-sm border text-sm uppercase ${
+                className={`h-11 min-w-0 flex-1 rounded-md border text-sm uppercase transition-colors duration-300 active:scale-90 ${
                   letters[key] ? TILE[letters[key]] : 'border-line bg-card'
                 }`}
               >

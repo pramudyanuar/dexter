@@ -46,7 +46,7 @@ function PadButton({ label, onPress }: { label: string; onPress: () => void }) {
       type='button'
       aria-label={label}
       onClick={onPress}
-      className='h-12 flex-1 rounded-sm border border-line bg-card text-lg'
+      className='h-12 flex-1 rounded-md border border-line bg-card text-lg transition-transform active:scale-90 active:bg-accent/20'
     >
       {label}
     </button>
@@ -61,6 +61,7 @@ function Tetris() {
   const [stats, setStats] = React.useState({ score: 0, lines: 0, level: 1 });
   const [best, setBest] = useStoredState<number>('tetris-best', 0);
 
+  /** Beveled block: light top-left edge, dark bottom-right, bright core. */
   const drawBlock = (
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -69,9 +70,24 @@ function Tetris() {
     color: string,
     alpha = 1,
   ) => {
+    const px = x * size + 1;
+    const py = y * size + 1;
+    const w = size - 2;
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
-    ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    ctx.beginPath();
+    ctx.roundRect(px, py, w, w, 3);
+    ctx.fill();
+    const grad = ctx.createLinearGradient(px, py, px + w, py + w);
+    grad.addColorStop(0, 'rgb(255 255 255 / 0.45)');
+    grad.addColorStop(0.5, 'rgb(255 255 255 / 0)');
+    grad.addColorStop(1, 'rgb(0 0 0 / 0.3)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(px, py, w, w, 3);
+    ctx.fill();
+    ctx.fillStyle = 'rgb(255 255 255 / 0.25)';
+    ctx.fillRect(px + 3, py + 3, w - 6, 2);
     ctx.globalAlpha = 1;
   };
 
@@ -83,6 +99,20 @@ function Tetris() {
     const css = getComputedStyle(document.documentElement);
     ctx.fillStyle = css.getPropertyValue('--card').trim();
     ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = css.getPropertyValue('--line').trim();
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 1; x < COLS; x++) {
+      ctx.moveTo(x * CELL + 0.5, 0);
+      ctx.lineTo(x * CELL + 0.5, H);
+    }
+    for (let y = 1; y < ROWS; y++) {
+      ctx.moveTo(0, y * CELL + 0.5);
+      ctx.lineTo(W, y * CELL + 0.5);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
 
     state.board.forEach((row, y) =>
       row.forEach((cell, x) => {
@@ -227,10 +257,12 @@ function Tetris() {
             className='aspect-[1/2] w-full rounded-sm border border-line'
           />
           {status !== 'running' && (
-            <div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-paper/70 px-4 text-center'>
+            <div className='a-fade absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-sm bg-paper/70 px-4 text-center backdrop-blur-[2px]'>
               {status === 'over' ? (
                 <>
-                  <p className='text-err'>Game over. Skor {stats.score}.</p>
+                  <p className='a-pop text-err'>
+                    Game over. Skor {stats.score}.
+                  </p>
                   <button
                     type='button'
                     onClick={restart}
@@ -240,7 +272,7 @@ function Tetris() {
                   </button>
                 </>
               ) : (
-                <p className='text-mute'>
+                <p className='a-bob text-mute'>
                   {status === 'paused'
                     ? 'Jeda. Tekan P atau gerakkan bidak untuk lanjut.'
                     : 'Tekan panah atau spasi untuk mulai.'}
@@ -263,7 +295,9 @@ function Tetris() {
           </div>
           <div>
             <p className='text-mute'>skor</p>
-            <p className='text-ink'>{stats.score}</p>
+            <p key={stats.score} className='a-pop text-ink'>
+              {stats.score}
+            </p>
           </div>
           <div>
             <p className='text-mute'>baris</p>

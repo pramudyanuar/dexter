@@ -7,12 +7,17 @@ import type { Connect4State } from '@/lib/games/connect4-online';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
+import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 import RoomBar from '@/components/games/RoomBar';
 import RoomLobby from '@/components/games/RoomLobby';
 
 // seat 0 created the room, seat 1 joined it
 const DISC = ['bg-accent', 'bg-hash'] as const;
+const DISC_FX = [
+  'radial-gradient(circle at 32% 30%, #b6f5bd, #2da44e 55%, #116329)',
+  'radial-gradient(circle at 32% 30%, #fff1b0, #e3b341 55%, #8a6500)',
+] as const;
 const NAME = ['hijau', 'kuning'] as const;
 
 function Connect4() {
@@ -74,14 +79,20 @@ function Connect4() {
         }
       />
 
-      <p className='mb-3 text-center text-sm' aria-live='polite'>
+      {state?.status === 'won' && state.winner === you && <Confetti />}
+
+      <p
+        key={`${room?.status}-${state?.turn}-${state?.status}`}
+        className='a-slide-up mb-3 text-center text-sm'
+        aria-live='polite'
+      >
         {status}
       </p>
 
       <div
         role='grid'
         aria-label='Papan Connect Four'
-        className='grid grid-cols-7 gap-1.5 rounded-sm border border-line bg-card p-2'
+        className='grid grid-cols-7 gap-1.5 rounded-xl border-2 border-info/40 bg-info/15 p-2 shadow-lg'
       >
         {Array.from({ length: COLS }, (_, c) => (
           <button
@@ -90,9 +101,9 @@ function Connect4() {
             aria-label={`Kolom ${c + 1}`}
             disabled={!myTurn || r.busy}
             onClick={() => r.move({ col: c })}
-            className={`flex flex-col gap-1.5 rounded-sm ${
+            className={`group flex flex-col gap-1.5 rounded-md transition-colors ${
               myTurn && !r.busy
-                ? 'cursor-pointer hover:bg-line/50'
+                ? 'cursor-pointer hover:bg-white/15'
                 : 'cursor-default'
             }`}
           >
@@ -103,9 +114,17 @@ function Connect4() {
                   key={row}
                   role='gridcell'
                   data-owner={owner}
+                  style={
+                    {
+                      '--from': `-${(row + 1) * 112}%`,
+                      ...(owner ? { background: DISC_FX[owner - 1] } : {}),
+                    } as React.CSSProperties
+                  }
                   className={`aspect-square w-full rounded-full ${
-                    owner ? DISC[owner - 1] : 'bg-paper'
-                  } ${winning.has(`${row},${c}`) ? 'ring-2 ring-ink' : ''}`}
+                    owner
+                      ? 'a-drop shadow-[inset_0_-3px_6px_rgb(0_0_0/0.35),0_1px_2px_rgb(0_0_0/0.3)]'
+                      : 'bg-paper shadow-[inset_0_3px_6px_rgb(0_0_0/0.35)] group-enabled:group-hover:bg-paper/70'
+                  } ${winning.has(`${row},${c}`) ? 'a-bob ring-4 ring-ink' : ''}`}
                 />
               );
             })}

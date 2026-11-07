@@ -13,11 +13,15 @@ export default function GamesPage() {
         <span className='text-accent select-none'>$</span> ls games/
       </p>
       <ul className='mt-3'>
-        {GAMES.map((game) => (
-          <li key={game.id}>
+        {GAMES.map((game, i) => (
+          <li
+            key={game.id}
+            className='a-slide-up'
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
             <Link
               href={game.href}
-              className='group -mx-2 block rounded-sm px-2 py-2.5 outline-none hover:bg-card focus-visible:bg-card'
+              className='group -mx-2 block rounded-sm px-2 py-2.5 transition-all duration-200 outline-none hover:translate-x-1 hover:bg-card focus-visible:bg-card'
             >
               <span className='font-semibold text-info'>{game.id}/</span>{' '}
               <span className='text-mute group-hover:text-accent'>main →</span>

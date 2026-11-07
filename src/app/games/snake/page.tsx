@@ -39,6 +39,10 @@ function Snake() {
   const [score, setScore] = React.useState(0);
   const [best, setBest] = useStoredState<number>('snake-best', 0);
 
+  const particles = React.useRef<
+    { x: number; y: number; vx: number; vy: number; life: number }[]
+  >([]);
+
   const draw = React.useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
     const state = game.current;
@@ -47,25 +51,109 @@ function Snake() {
     // colours come from the theme, so light and dark both work
     const css = getComputedStyle(document.documentElement);
     const color = (name: string) => css.getPropertyValue(name).trim();
+    const now = performance.now();
 
+    // checkerboard
     ctx.fillStyle = color('--card');
     ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillStyle = color('--line');
+    ctx.globalAlpha = 0.22;
+    for (let y = 0; y < GRID; y++) {
+      for (let x = 0; x < GRID; x++) {
+        if ((x + y) % 2) ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+      }
+    }
+    ctx.globalAlpha = 1;
 
+    // food: a pulsing apple with a leaf
+    const pulse = 1 + Math.sin(now / 160) * 0.1;
+    const fx = state.food.x * CELL + CELL / 2;
+    const fy = state.food.y * CELL + CELL / 2 + 1;
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.scale(pulse, pulse);
+    ctx.shadowColor = color('--err');
+    ctx.shadowBlur = 10;
     ctx.fillStyle = color('--err');
-    ctx.fillRect(
-      state.food.x * CELL + 3,
-      state.food.y * CELL + 3,
-      CELL - 6,
-      CELL - 6,
-    );
-
+    ctx.beginPath();
+    ctx.arc(0, 0, CELL / 2 - 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgb(255 255 255 / 0.55)';
+    ctx.beginPath();
+    ctx.arc(-3, -3, 2, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = color('--accent');
-    state.snake.forEach((p, i) => {
-      ctx.globalAlpha = i === 0 ? 1 : 0.75;
-      ctx.fillRect(p.x * CELL + 1, p.y * CELL + 1, CELL - 2, CELL - 2);
-    });
+    ctx.beginPath();
+    ctx.ellipse(3, -CELL / 2 + 2, 4, 2, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // body: rounded segments that fade towards the tail
+    const total = state.snake.length;
+    ctx.fillStyle = color('--accent');
+    for (let i = total - 1; i >= 0; i--) {
+      const p = state.snake[i];
+      const inset = i === 0 ? 0.5 : 1.5 + (i / total) * 1.5;
+      ctx.globalAlpha = i === 0 ? 1 : 0.9 - (i / total) * 0.4;
+      ctx.beginPath();
+      ctx.roundRect(
+        p.x * CELL + inset,
+        p.y * CELL + inset,
+        CELL - inset * 2,
+        CELL - inset * 2,
+        i === 0 ? 7 : 5,
+      );
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // eyes follow the direction of travel
+    const head = state.snake[0];
+    const look = {
+      up: [0, -1],
+      down: [0, 1],
+      left: [-1, 0],
+      right: [1, 0],
+    }[state.dir];
+    const cx = head.x * CELL + CELL / 2;
+    const cy = head.y * CELL + CELL / 2;
+    for (const side of [-1, 1]) {
+      const ex = cx + look[0] * 3 + -look[1] * side * 4;
+      const ey = cy + look[1] * 3 + look[0] * side * 4;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(ex + look[0], ey + look[1], 1.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // sparkles when the apple is eaten
+    particles.current = particles.current.filter((q) => q.life > 0);
+    for (const q of particles.current) {
+      q.x += q.vx;
+      q.y += q.vy;
+      q.life -= 0.04;
+      ctx.globalAlpha = Math.max(q.life, 0);
+      ctx.fillStyle = color('--err');
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, 2.5 * q.life + 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
   }, []);
+
+  // keep redrawing so the apple pulses and the sparkles move
+  React.useEffect(() => {
+    let frame = requestAnimationFrame(function loop() {
+      draw();
+      frame = requestAnimationFrame(loop);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [draw]);
 
   React.useEffect(() => {
     game.current = initialSnake();
@@ -82,7 +170,19 @@ function Snake() {
       const after = step(before);
       game.current = after;
       draw();
-      if (after.score !== before.score) setScore(after.score);
+      if (after.score !== before.score) {
+        setScore(after.score);
+        for (let i = 0; i < 12; i++) {
+          const angle = (i / 12) * Math.PI * 2;
+          particles.current.push({
+            x: before.food.x * CELL + CELL / 2,
+            y: before.food.y * CELL + CELL / 2,
+            vx: Math.cos(angle) * (1 + (i % 3) * 0.5),
+            vy: Math.sin(angle) * (1 + (i % 3) * 0.5),
+            life: 1,
+          });
+        }
+      }
 
       if (after.dead) {
         setStatus('over');
@@ -159,7 +259,7 @@ function Snake() {
       type='button'
       aria-label={dir}
       onClick={() => steer(dir)}
-      className={`h-12 rounded-sm border border-line bg-card text-lg ${extra}`}
+      className={`h-12 rounded-md border border-line bg-card text-lg transition-transform active:scale-90 active:bg-accent/20 ${extra}`}
     >
       {label}
     </button>
@@ -192,10 +292,10 @@ function Snake() {
           className='aspect-square w-full touch-none rounded-sm border border-line'
         />
         {status !== 'running' && (
-          <div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-paper/70 text-center'>
+          <div className='a-fade absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-sm bg-paper/70 text-center backdrop-blur-[2px]'>
             {status === 'over' ? (
               <>
-                <p className='text-err'>Game over. Skor {score}.</p>
+                <p className='a-pop text-err'>Game over. Skor {score}.</p>
                 <button
                   type='button'
                   onClick={restart}
@@ -205,7 +305,7 @@ function Snake() {
                 </button>
               </>
             ) : (
-              <p className='px-6 text-mute'>
+              <p className='a-bob px-6 text-mute'>
                 {status === 'paused'
                   ? 'Jeda. Tekan spasi atau panah untuk lanjut.'
                   : 'Tekan panah atau WASD untuk mulai.'}

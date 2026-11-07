@@ -14,6 +14,7 @@ import {
 import useMounted from '@/lib/useMounted';
 import useStoredState from '@/lib/useStoredState';
 
+import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 
 interface Game {
@@ -35,13 +36,31 @@ const KEYS: Record<string, Move> = {
 
 const fresh = (): Game => ({ board: newBoard(), score: 0, over: false });
 
-/** Tiles get darker/greener as the value grows, in either theme. */
+const TILE_BG: Record<number, string> = {
+  2: '#eee4da',
+  4: '#ede0c8',
+  8: '#f2b179',
+  16: '#f59563',
+  32: '#f67c5f',
+  64: '#f65e3b',
+  128: '#edcf72',
+  256: '#edcc61',
+  512: '#edc850',
+  1024: '#edc53f',
+  2048: '#edc22e',
+};
+
+/** Classic warm palette; fixed colours keep the numbers readable in both themes. */
 function tileStyle(value: number): React.CSSProperties {
   if (!value) return { background: 'var(--card)' };
-  const level = Math.log2(value);
+  const glow =
+    value >= 128
+      ? `0 0 ${Math.min(24, Math.log2(value) * 2)}px color-mix(in oklab, ${TILE_BG[Math.min(value, 2048)] ?? '#3c3a32'} 70%, transparent)`
+      : undefined;
   return {
-    background: `color-mix(in oklab, var(--accent) ${Math.min(95, level * 9)}%, var(--card))`,
-    color: level >= 6 ? 'var(--paper)' : 'var(--ink)',
+    background: TILE_BG[value] ?? '#3c3a32',
+    color: value <= 4 ? '#776e65' : '#f9f6f2',
+    boxShadow: glow,
   };
 }
 
@@ -130,10 +149,12 @@ function Game2048() {
       >
         {game.board.flat().map((value, i) => (
           <div
-            key={i}
+            key={`${i}-${value}`}
             role='gridcell'
             style={tileStyle(value)}
-            className={`flex aspect-square items-center justify-center rounded-sm font-bold transition-colors ${
+            className={`flex aspect-square items-center justify-center rounded-md font-bold ${
+              value ? 'a-pop' : ''
+            } ${
               value >= 1000 ? 'text-lg' : value >= 100 ? 'text-xl' : 'text-2xl'
             }`}
           >
@@ -142,7 +163,7 @@ function Game2048() {
         ))}
 
         {game.over && (
-          <div className='absolute inset-0 flex flex-col items-center justify-center gap-2 bg-paper/80'>
+          <div className='a-fade absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-sm bg-paper/80 backdrop-blur-[2px]'>
             <p className='text-err'>
               Tidak ada gerakan lagi. Skor {game.score}.
             </p>
@@ -157,6 +178,7 @@ function Game2048() {
         )}
       </div>
 
+      {reached >= 2048 && <Confetti count={24} />}
       <p className='mt-4 text-center text-xs text-mute'>
         {reached >= 2048
           ? `Sampai ${reached}! Lanjutkan kalau masih mau.`

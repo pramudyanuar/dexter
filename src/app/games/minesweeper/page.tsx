@@ -13,6 +13,7 @@ import {
 } from '@/lib/games/minesweeper';
 import useStoredState from '@/lib/useStoredState';
 
+import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 
 type Best = Partial<Record<Level, number>>;
@@ -108,6 +109,8 @@ function Minesweeper() {
 
   return (
     <>
+      {game.status === 'won' && <Confetti />}
+
       <div className='mb-3 flex justify-center gap-4 text-xs'>
         {(Object.keys(LEVELS) as Level[]).map((name) => (
           <button
@@ -149,7 +152,9 @@ function Minesweeper() {
         aria-label='Papan Minesweeper'
         onContextMenu={(e) => e.preventDefault()}
         style={{ gridTemplateColumns: `repeat(${width}, minmax(0, 1fr))` }}
-        className='grid touch-manipulation gap-px rounded-sm border border-line bg-line/40 select-none'
+        className={`grid touch-manipulation gap-px overflow-hidden rounded-md border border-line bg-line/40 select-none ${
+          game.status === 'lost' ? 'a-shake' : ''
+        }`}
       >
         {game.cells.map((cell, i) => {
           const x = i % width;
@@ -180,17 +185,30 @@ function Minesweeper() {
               onTouchStart={() => holdStart(x, y)}
               onTouchEnd={holdEnd}
               onTouchMove={holdEnd}
-              className={`flex aspect-square items-center justify-center font-bold ${
+              className={`flex aspect-square items-center justify-center font-bold transition-colors ${
                 small ? 'text-[11px]' : 'text-sm'
               } ${
                 isOpen
                   ? cell.mine
-                    ? 'bg-err/30 text-err'
-                    : `bg-paper ${NUMBER_COLOR[cell.adjacent] ?? ''}`
-                  : 'bg-card hover:bg-line/60'
+                    ? 'bg-err/40 text-err'
+                    : `a-pop bg-paper ${NUMBER_COLOR[cell.adjacent] ?? ''}`
+                  : 'bg-card shadow-[inset_1px_1px_0_rgb(255_255_255/0.25),inset_-1px_-1px_0_rgb(0_0_0/0.18)] hover:bg-line/60 active:scale-90'
               } ${cell.state === 'flag' ? (wrongFlag ? 'text-err' : 'text-hash') : ''}`}
             >
-              {label}
+              {cell.state === 'flag' && !wrongFlag ? (
+                <span key='flag' className='a-wiggle inline-block'>
+                  {label}
+                </span>
+              ) : isOpen && cell.mine ? (
+                <span
+                  className='a-reveal inline-block text-base'
+                  style={{ animationDelay: `${(i % 9) * 0.05}s` }}
+                >
+                  💣
+                </span>
+              ) : (
+                label
+              )}
             </button>
           );
         })}
@@ -210,7 +228,7 @@ function Minesweeper() {
         </span>
       </div>
 
-      <p className='mt-3 text-center text-sm' aria-live='polite'>
+      <p className='a-slide-up mt-3 text-center text-sm' aria-live='polite'>
         {game.status === 'won' && (
           <span className='text-accent'>
             Selamat! Selesai dalam {seconds} detik.
