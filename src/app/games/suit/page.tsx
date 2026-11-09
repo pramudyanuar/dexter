@@ -9,6 +9,7 @@ import useMounted from '@/lib/useMounted';
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 import RoomBar from '@/components/games/RoomBar';
+import { NameEditor, PlayerStrip } from '@/components/games/RoomGate';
 import RoomLobby from '@/components/games/RoomLobby';
 
 const SHAPE: Record<Pick, { icon: string; label: string }> = {
@@ -96,10 +97,11 @@ function Suit() {
   if (!r.session) {
     return (
       <RoomLobby
-        command='suit --online'
         blurb='# Batu, gunting, kertas untuk dua pemain di device berbeda. Siapa yang menang dua ronde lebih dulu, menang.'
         busy={r.busy}
         error={r.error}
+        name={r.name}
+        onName={r.setName}
         onCreate={r.create}
         onJoin={r.join}
       />
@@ -141,6 +143,11 @@ function Suit() {
         share={room?.status === 'waiting'}
         onLeave={r.leave}
       />
+
+      {room && (
+        <PlayerStrip names={room.names} joined={room.joined} you={you} />
+      )}
+      {room?.status === 'waiting' && <NameEditor r={r} />}
 
       {state && (
         <>
@@ -249,7 +256,7 @@ function Suit() {
           disabled={r.busy}
           className='mt-5 self-center text-xs text-info hover:underline'
         >
-          [main lagi]
+          main lagi
         </button>
       )}
 

@@ -131,7 +131,7 @@ function BidPanel({
           onClick={() => onBid(qty, face)}
           className='text-accent hover:underline disabled:opacity-40'
         >
-          [tawar {qty} × {face}]
+          tawar {qty} × {face}
         </button>
         {bid && (
           <button
@@ -140,7 +140,7 @@ function BidPanel({
             onClick={onCall}
             className='a-wiggle text-err hover:underline'
           >
-            [bohong!]
+            bohong!
           </button>
         )}
       </div>
@@ -159,7 +159,6 @@ function Dice() {
   return (
     <RoomGate
       r={r}
-      command='dadu-bohong --online'
       blurb='# Dadu bohong untuk 2 sampai 4 pemain. Tawar jumlah dadu yang ada di meja (angka 1 jadi joker), atau tantang "bohong!" kalau kamu tidak percaya.'
     >
       {({ room, you }) => {
@@ -190,7 +189,7 @@ function Dice() {
                         : 'border-line text-mute'
                     } ${count === 0 ? 'line-through opacity-40' : ''}`}
                   >
-                    <p>{seatLabel(seat, you)}</p>
+                    <p>{seatLabel(seat, you, room.names)}</p>
                     <p
                       className='mt-1 flex justify-center gap-0.5'
                       aria-label={`${count} dadu`}
@@ -220,7 +219,7 @@ function Dice() {
                   </span>
                 ) : (
                   <span className='text-err'>
-                    {seatLabel(v.winner!, you)} menang.
+                    {seatLabel(v.winner!, you, room.names)} menang.
                   </span>
                 )
               ) : !mineLeft ? (
@@ -231,7 +230,7 @@ function Dice() {
                 <span className='text-accent'>Giliranmu</span>
               ) : (
                 <span className='text-mute'>
-                  Giliran {seatLabel(v.turn, you)}…
+                  Giliran {seatLabel(v.turn, you, room.names)}…
                 </span>
               )}
             </p>
@@ -243,21 +242,21 @@ function Dice() {
                 data-testid='reveal'
               >
                 <p className='mb-2 text-center text-xs'>
-                  {seatLabel(rv.caller, you)} menantang tawaran{' '}
-                  {seatLabel(rv.bid.seat, you)}:{' '}
+                  {seatLabel(rv.caller, you, room.names)} menantang tawaran{' '}
+                  {seatLabel(rv.bid.seat, you, room.names)}:{' '}
                   <b>
                     {rv.bid.qty} × {rv.bid.face}
                   </b>
                   . Ternyata ada <b className='text-hash'>{rv.total}</b>.{' '}
                   <span className='text-err'>
-                    {seatLabel(rv.loser, you)} kehilangan 1 dadu.
+                    {seatLabel(rv.loser, you, room.names)} kehilangan 1 dadu.
                   </span>
                 </p>
                 <div className='space-y-1.5'>
                   {rv.dice.map((dice, seat) => (
                     <div key={seat} className='flex items-center gap-2'>
                       <span className='w-16 shrink-0 text-xs text-mute'>
-                        {seatLabel(seat, you)}
+                        {seatLabel(seat, you, room.names)}
                       </span>
                       <span className='flex flex-wrap gap-1'>
                         {dice.map((d, i) => (
@@ -296,7 +295,7 @@ function Dice() {
                   >
                     <b>{v.bid.qty}</b> × <Die value={v.bid.face} size='sm' />
                     <span className='text-xs text-mute'>
-                      oleh {seatLabel(v.bid.seat, you)}
+                      oleh {seatLabel(v.bid.seat, you, room.names)}
                     </span>
                   </p>
                 ) : (

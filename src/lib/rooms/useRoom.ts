@@ -45,6 +45,8 @@ export function useRoom<V>(game: GameId) {
     `room-session-${game}`,
     null,
   );
+  // one name for every game, so it only has to be typed once
+  const [name, setName] = useStoredState<string>('player-name', '');
   const [room, setRoom] = React.useState<RoomView<V> | null>(null);
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -114,7 +116,7 @@ export function useRoom<V>(game: GameId) {
 
   const create = () =>
     run(async () => {
-      const data = await call('/api/rooms', { body: { game } });
+      const data = await call('/api/rooms', { body: { game, name } });
       setSession({ code: data.code, token: data.token, you: data.you });
       adopt(data.room);
     });
@@ -123,18 +125,18 @@ export function useRoom<V>(game: GameId) {
     run(async () => {
       const target = normalizeCode(input);
       const data = await call(`/api/rooms/${target}`, {
-        body: { action: 'join' },
+        body: { action: 'join', name },
       });
       setSession({ code: target, token: data.token, you: data.you });
       adopt(data.room);
       window.history.replaceState(null, '', window.location.pathname);
     });
 
-  const act = (action: string, move?: unknown) =>
+  const act = (action: string, extra: Record<string, unknown> = {}) =>
     run(async () => {
       if (!session) return;
       const data = await call(`/api/rooms/${session.code}`, {
-        body: { action, token: session.token, move },
+        body: { action, token: session.token, ...extra },
       });
       adopt(data.room);
     });
@@ -142,13 +144,20 @@ export function useRoom<V>(game: GameId) {
   return {
     session,
     room,
+    name,
+    setName,
     error,
     busy,
     leave: () => leave(),
     create,
     join,
     start: () => act('start'),
-    move: (move: unknown) => act('move', move),
+    move: (move: unknown) => act('move', { move }),
+    /** Changes your name, also in the room you are in */
+    rename: (next: string) => {
+      setName(next);
+      return act('rename', { name: next });
+    },
     rematch: () => act('rematch'),
   };
 }

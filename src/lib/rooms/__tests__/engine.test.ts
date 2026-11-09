@@ -1,9 +1,11 @@
 /** @jest-environment node */
 import {
   act,
+  cleanName,
   join,
   newRoom,
   rematch,
+  rename,
   seated,
   seatOf,
   start,
@@ -282,5 +284,41 @@ describe('views', () => {
     expect(JSON.stringify(toView(room, B))).not.toContain('batu');
     expect(JSON.stringify(toView(room, 'stranger'))).not.toContain('batu');
     expect(JSON.stringify(toView(room, A))).toContain('batu');
+  });
+});
+
+describe('player names', () => {
+  it('cleans what players type', () => {
+    expect(cleanName('  Eka   Nuar ')).toBe('Eka Nuar');
+    expect(cleanName('a\u0000b\u200bc')).toBe('abc');
+    expect(cleanName('x'.repeat(40))).toBe('x'.repeat(16));
+    expect([cleanName('   '), cleanName(42), cleanName(undefined)]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it('stores a name per seat and shows it to everyone', () => {
+    let room = newRoom('uno', 'ABCDE', A, 0, 'Eka');
+    room = join(room, undefined, B, undefined, 'Budi').room;
+    room = join(room, undefined, C).room;
+    expect(toView(room, C).names).toEqual(['Eka', 'Budi', null, null]);
+    expect(toView(room).names).toEqual(['Eka', 'Budi', null, null]);
+  });
+
+  it('lets a player rename only their own seat', () => {
+    const room = join(newRoom('suit', 'ABCDE', A), undefined, B).room;
+    const renamed = rename(room, B, ' Sari ');
+    expect(renamed.names).toEqual([null, 'Sari']);
+    expect(renamed.version).toBe(room.version + 1);
+    expect(rename(renamed, B, 'Sari')).toBe(renamed);
+    expect(errorOf(() => rename(room, 'stranger', 'x'))).toBe(403);
+  });
+
+  it('copes with rooms stored before names existed', () => {
+    const { names: _, ...old } = connect4();
+    expect(toView(old as Room, A).names).toEqual([null, null]);
+    expect(rename(old as Room, A, 'Eka').names).toEqual(['Eka', null]);
   });
 });

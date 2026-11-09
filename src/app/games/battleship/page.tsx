@@ -144,7 +144,7 @@ function Placing({
             }}
             className='text-info hover:underline'
           >
-            [acak ulang]
+            acak ulang
           </button>
           <button
             type='button'
@@ -152,7 +152,7 @@ function Placing({
             onClick={() => onReady(fleet)}
             className='text-accent hover:underline disabled:opacity-40'
           >
-            [siap tempur]
+            siap tempur
           </button>
         </div>
       )}
@@ -166,7 +166,6 @@ function Battleship() {
   return (
     <RoomGate
       r={r}
-      command='battleship --online'
       blurb='# Kapal perang untuk dua pemain di device berbeda. Susun armada rahasia, lalu tembak bergantian sampai semua kapal lawan tenggelam.'
     >
       {({ room, you }) => {

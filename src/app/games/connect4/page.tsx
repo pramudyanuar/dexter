@@ -10,6 +10,7 @@ import useMounted from '@/lib/useMounted';
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 import RoomBar from '@/components/games/RoomBar';
+import { NameEditor, PlayerStrip } from '@/components/games/RoomGate';
 import RoomLobby from '@/components/games/RoomLobby';
 
 // seat 0 created the room, seat 1 joined it
@@ -26,10 +27,11 @@ function Connect4() {
   if (!r.session) {
     return (
       <RoomLobby
-        command='connect4 --online'
         blurb='# Empat berjajar untuk dua pemain di device berbeda. Satu membuat room, yang lain memasukkan kodenya.'
         busy={r.busy}
         error={r.error}
+        name={r.name}
+        onName={r.setName}
         onCreate={r.create}
         onJoin={r.join}
       />
@@ -78,6 +80,11 @@ function Connect4() {
           </span>
         }
       />
+
+      {room && (
+        <PlayerStrip names={room.names} joined={room.joined} you={you} />
+      )}
+      {room?.status === 'waiting' && <NameEditor r={r} />}
 
       {state?.status === 'won' && state.winner === you && <Confetti />}
 
@@ -139,7 +146,7 @@ function Connect4() {
           disabled={r.busy}
           className='mt-4 self-center text-xs text-info hover:underline'
         >
-          [main lagi]
+          main lagi
         </button>
       )}
 

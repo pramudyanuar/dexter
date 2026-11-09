@@ -247,7 +247,10 @@ function PlayArea({
             </span>
           ) : (
             <span className='text-err'>
-              {v.winners!.map((w) => seatLabel(w, you)).join(' & ')} juara.
+              {v
+                .winners!.map((w) => seatLabel(w, you, r.room?.names))
+                .join(' & ')}{' '}
+              juara.
             </span>
           )}
         </p>
@@ -262,7 +265,7 @@ function PlayArea({
               style={{ animationDelay: `${i * 120}ms` }}
             >
               <span>
-                {i + 1}. {seatLabel(seat, you)}
+                {i + 1}. {seatLabel(seat, you, r.room?.names)}
               </span>
               <span>{score}</span>
             </li>
@@ -291,7 +294,7 @@ function PlayArea({
           >
             <p>
               {seat === v.drawer && '✏️ '}
-              {seatLabel(seat, you)}
+              {seatLabel(seat, you, r.room?.names)}
               {v.solved.includes(seat) && (
                 <span className='a-pop ml-1 inline-block text-accent'>✓</span>
               )}
@@ -325,7 +328,7 @@ function PlayArea({
           </p>
         ) : (
           <p className='mt-1 text-sm'>
-            {seatLabel(v.drawer, you)} menggambar:{' '}
+            {seatLabel(v.drawer, you, r.room?.names)} menggambar:{' '}
             <b className='font-mono text-xl tracking-widest' data-testid='hint'>
               {v.hint}
             </b>
@@ -397,14 +400,14 @@ function PlayArea({
             }}
             className='text-xs text-info hover:underline'
           >
-            [hapus]
+            hapus
           </button>
           <button
             type='button'
             onClick={() => r.move({ type: 'next', round: v.round })}
             className='text-xs text-mute hover:text-err'
           >
-            [lewati kata]
+            lewati kata
           </button>
         </div>
       ) : (
@@ -439,7 +442,7 @@ function PlayArea({
                 disabled={!text.trim()}
                 className='text-info hover:underline disabled:opacity-40'
               >
-                [tebak]
+                tebak
               </button>
             </>
           )}
@@ -455,11 +458,11 @@ function PlayArea({
           <li key={`${i}-${g.seat}-${g.text}`} className='a-slide-in'>
             {g.correct ? (
               <span className='text-accent'>
-                🎉 {seatLabel(g.seat, you)} menebak dengan benar!
+                🎉 {seatLabel(g.seat, you, r.room?.names)} menebak dengan benar!
               </span>
             ) : (
               <span className='text-mute'>
-                {seatLabel(g.seat, you)}:{' '}
+                {seatLabel(g.seat, you, r.room?.names)}:{' '}
                 <span className='text-ink'>{g.text}</span>
               </span>
             )}
@@ -476,7 +479,6 @@ function Pictionary() {
   return (
     <RoomGate
       r={r}
-      command='tebak-gambar --online'
       blurb='# Tebak gambar untuk 2 sampai 6 pemain. Bergantian menggambar kata rahasia, yang lain menebak secepatnya. Yang lebih cepat dapat poin lebih banyak.'
     >
       {({ room, you }) => (

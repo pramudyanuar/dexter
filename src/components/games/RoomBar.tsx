@@ -41,14 +41,14 @@ export default function RoomBar({
             onClick={() => copy('code', code)}
             className='text-info hover:underline'
           >
-            [{copied === 'code' ? 'tersalin' : 'salin kode'}]
+            {copied === 'code' ? 'tersalin' : 'salin kode'}
           </button>
           <button
             type='button'
             onClick={() => copy('link', link)}
             className='text-info hover:underline'
           >
-            [{copied === 'link' ? 'tersalin' : 'salin link'}]
+            {copied === 'link' ? 'tersalin' : 'salin link'}
           </button>
         </span>
       )}
@@ -58,7 +58,7 @@ export default function RoomBar({
         onClick={onLeave}
         className='text-mute hover:text-err'
       >
-        [keluar]
+        keluar
       </button>
     </div>
   );

@@ -126,9 +126,9 @@ function Game2048() {
         <button
           type='button'
           onClick={() => setGame(fresh())}
-          className='hover:text-accent'
+          className='text-info'
         >
-          [game baru]
+          game baru
         </button>
         <span>
           terbaik <span className='text-ink'>{best}</span>
@@ -172,7 +172,7 @@ function Game2048() {
               onClick={() => setGame(fresh())}
               className='text-info hover:underline'
             >
-              [main lagi]
+              main lagi
             </button>
           </div>
         )}

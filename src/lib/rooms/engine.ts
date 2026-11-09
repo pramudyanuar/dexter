@@ -2,18 +2,45 @@ import { GAMES } from '@/lib/rooms/games';
 import type { GameId } from '@/lib/rooms/types';
 import { Room, RoomError, RoomView } from '@/lib/rooms/types';
 
+export const NAME_MAX = 16;
+
+/**
+ * A display name as typed by a player: trimmed, single-spaced, without control
+ * characters and at most NAME_MAX characters. Null when nothing is left.
+ */
+export function cleanName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const name = Array.from(
+    raw
+      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  )
+    .slice(0, NAME_MAX)
+    .join('')
+    .trim();
+  return name || null;
+}
+
+const namesOf = (room: Room) =>
+  room.names ?? Array<string | null>(room.tokens.length).fill(null);
+
 export function newRoom(
   game: GameId,
   code: string,
   token: string,
   now = Date.now(),
+  name?: unknown,
 ): Room {
   const tokens: (string | null)[] = Array(GAMES[game].maxPlayers).fill(null);
   tokens[0] = token;
+  const names: (string | null)[] = Array(tokens.length).fill(null);
+  names[0] = cleanName(name);
   return {
     code,
     game,
     tokens,
+    names,
     status: 'waiting',
     state: null,
     version: 1,
@@ -48,6 +75,7 @@ export function join(
   existingToken: unknown,
   newToken: string,
   rng?: () => number,
+  name?: unknown,
 ): { room: Room; token: string; you: number } {
   const seat = seatOf(room, existingToken);
   if (seat !== null) return { room, token: existingToken as string, you: seat };
@@ -59,7 +87,9 @@ export function join(
 
   const tokens = [...room.tokens];
   tokens[free] = newToken;
-  let next: Room = { ...room, tokens, version: room.version + 1 };
+  const names = [...namesOf(room)];
+  names[free] = cleanName(name);
+  let next: Room = { ...room, tokens, names, version: room.version + 1 };
   if (GAMES[room.game].autoStart && tokens.every(Boolean))
     next = begin(next, rng);
   return { room: next, token: newToken, you: free };
@@ -101,6 +131,17 @@ export function act(
   };
 }
 
+/** Changes the display name of the token's seat. */
+export function rename(room: Room, token: unknown, name: unknown): Room {
+  const seat = seatOf(room, token);
+  if (seat === null) throw new RoomError('Kamu bukan pemain di room ini', 403);
+  const names = [...namesOf(room)];
+  const clean = cleanName(name);
+  if (names[seat] === clean) return room;
+  names[seat] = clean;
+  return { ...room, names, version: room.version + 1 };
+}
+
 /** Starts another round once one has ended. */
 export function rematch(room: Room, token: unknown, rng?: () => number): Room {
   if (seatOf(room, token) === null)
@@ -126,6 +167,7 @@ export function toView(room: Room, token?: unknown): RoomView {
     status: room.status,
     seat,
     joined: room.tokens.map(Boolean),
+    names: namesOf(room),
     capacity: room.tokens.length,
     minPlayers: def.minPlayers,
     version: room.version,

@@ -22,7 +22,6 @@ function Gomoku() {
   return (
     <RoomGate
       r={r}
-      command='gomoku --online'
       blurb='# Lima berjajar di papan 15x15 untuk dua pemain di device berbeda. Hitam jalan duluan.'
       barRight={
         r.session && (

@@ -404,8 +404,10 @@ describe('whole games', () => {
     const reference = deck().map(key).sort().join();
     let steps = 0;
 
-    while (s.winner === null && steps++ < 4000) {
+    while (!unoGame.isOver(s) && steps++ < 8000) {
       const seat = s.turn;
+      if (s.places?.includes(seat))
+        throw new Error(`turn went to finished seat ${seat}`);
       const v = view(s, seat);
       let m: unknown;
       if (v.playable.length) {
@@ -430,14 +432,23 @@ describe('whole games', () => {
         .join();
       if (all !== reference)
         throw new Error(`cards changed at step ${steps} (seed ${seed})`);
-      if (s.hands.some((h) => h.length === 0) && s.winner === null)
-        throw new Error('empty hand without a winner');
+      if (
+        s.hands.some((h, seat) => h.length === 0 && !s.places?.includes(seat))
+      )
+        throw new Error('empty hand without a place');
     }
-    return s.winner !== null;
+    if (unoGame.isOver(s)) {
+      // everyone is ranked exactly once
+      expect([...s.places!].sort()).toEqual(
+        Array.from({ length: players }, (_, i) => i),
+      );
+      expect(s.winner).toBe(s.places![0]);
+    }
+    return unoGame.isOver(s);
   }
 
   it.each([2, 3, 4])(
-    'keeps all 108 cards and ends with a winner (%d players)',
+    'keeps all 108 cards and plays on until everyone is ranked (%d players)',
     (players) => {
       let finished = 0;
       for (let seed = 1; seed <= 25; seed++) {
@@ -446,4 +457,108 @@ describe('whole games', () => {
       expect(finished).toBeGreaterThanOrEqual(24);
     },
   );
+});
+
+describe('playing on after a winner', () => {
+  const three = (
+    hands: string[][],
+    extra: Partial<UnoState> = {},
+  ): UnoState => ({
+    ...game({ hands, top: 'R5' }),
+    places: [],
+    ...extra,
+  });
+
+  it('keeps the game going for the others when one player runs out', () => {
+    const s = play(three([['R1'], ['B2', 'R7'], ['G3', 'R8']]), 0, 0);
+    expect(s.winner).toBe(0);
+    expect(s.places).toEqual([0]);
+    expect(unoGame.isOver(s)).toBe(false);
+    expect(s.turn).toBe(1);
+
+    const v = view(s, 0);
+    expect([v.places, v.playable, v.canDraw]).toEqual([[0], [], false]);
+    expect(errorOf(() => move(s, 0, { type: 'draw' }))?.status).toBe(409);
+  });
+
+  it('skips finished players when passing the turn', () => {
+    let s = three(
+      [
+        ['R1', 'R2'],
+        ['R7', 'R9'],
+        ['R8', 'R3'],
+      ],
+      {
+        places: [1],
+        hands: [[c('R1'), c('R2')], [], [c('R8'), c('R3')]],
+      },
+    );
+    s = play(s, 0, 0);
+    expect(s.turn).toBe(2);
+    s = play(s, 2, 0);
+    expect(s.turn).toBe(0);
+  });
+
+  it('ends once only one player still has cards, and ranks them last', () => {
+    let s = play(three([['R1'], ['R7'], ['G3', 'B8']]), 0, 0);
+    s = play(s, 1, 0);
+    expect(unoGame.isOver(s)).toBe(true);
+    expect(s.places).toEqual([0, 1, 2]);
+    expect(s.winner).toBe(0);
+  });
+
+  it('applies a finishing action card to the next player still in', () => {
+    const s = play(three([['RD'], ['B2', 'B4'], ['G3', 'G4']]), 0, 0);
+    expect(s.hands[1]).toHaveLength(4); // drew two
+    expect(s.turn).toBe(2); // and was skipped
+  });
+
+  it('treats a reverse as a skip when two players are left', () => {
+    const s = play(
+      three([['RV', 'R2'], [], ['G3', 'G4']], {
+        places: [1],
+        hands: [[c('RV'), c('R2')], [], [c('G3'), c('G4')]],
+      }),
+      0,
+      0,
+    );
+    expect(s.turn).toBe(0);
+  });
+
+  it('lets the first winner open the next round', () => {
+    let s = play(three([['R7'], ['R1'], ['R3', 'B8']], { turn: 1 }), 1, 0);
+    s = play(s, 2, 0);
+    s = play(s, 0, 0);
+    expect(unoGame.isOver(s)).toBe(true);
+    expect(s.places).toEqual([1, 0, 2]);
+    const next = unoGame.restart(s, 3, rng);
+    expect([next.turn, next.winner, next.places]).toEqual([1, null, []]);
+  });
+});
+
+describe('with nothing to play', () => {
+  it('says so, and drawing an unplayable card passes the turn', () => {
+    const s = game({
+      hands: [['B2', 'G7'], ['R1']],
+      top: 'R5',
+      draw: ['Y9'],
+    });
+    const v = view(s, 0);
+    expect([v.stuck, v.canDraw, v.playable]).toEqual([true, true, []]);
+
+    const next = move(s, 0, { type: 'draw' });
+    expect(next.hands[0]).toHaveLength(3);
+    expect(next.turn).toBe(1);
+    expect(next.last).toEqual({ seat: 0, kind: 'draw', passed: true });
+  });
+
+  it('is not stuck after drawing a card that fits', () => {
+    const s = move(
+      game({ hands: [['B2'], ['R1']], top: 'R5', draw: ['R9'] }),
+      0,
+      { type: 'draw' },
+    );
+    const v = view(s, 0);
+    expect([v.stuck, v.canPass, v.playable]).toEqual([false, true, [1]]);
+  });
 });

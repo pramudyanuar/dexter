@@ -174,7 +174,7 @@ function Wordle() {
             onClick={playAgain}
             className='mt-1 text-info hover:underline'
           >
-            [main lagi]
+            main lagi
           </button>
         )}
       </div>

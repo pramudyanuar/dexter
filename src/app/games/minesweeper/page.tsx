@@ -118,10 +118,10 @@ function Minesweeper() {
             type='button'
             onClick={() => start(name)}
             className={
-              name === level ? 'text-accent' : 'text-mute hover:text-ink'
+              name === level ? 'text-info' : 'text-mute hover:text-ink'
             }
           >
-            [{name}]
+            {name}
           </button>
         ))}
       </div>
@@ -134,13 +134,13 @@ function Minesweeper() {
         <button
           type='button'
           onClick={() => start(level)}
-          className='hover:text-accent'
+          className='text-info'
         >
           {game.status === 'lost'
-            ? '[:( main lagi]'
+            ? '😵 main lagi'
             : game.status === 'won'
-              ? '[:D main lagi]'
-              : '[mulai ulang]'}
+              ? '😎 main lagi'
+              : 'mulai ulang'}
         </button>
         <span>
           waktu <span className='text-ink'>{pad(seconds)}</span>
@@ -219,9 +219,9 @@ function Minesweeper() {
           type='button'
           onClick={() => setFlagMode((m) => !m)}
           aria-pressed={flagMode}
-          className={flagMode ? 'text-hash' : 'text-mute hover:text-ink'}
+          className={flagMode ? 'text-info' : 'text-mute hover:text-ink'}
         >
-          [mode: {flagMode ? 'bendera ⚑' : 'buka'}]
+          mode: {flagMode ? 'bendera ⚑' : 'buka'}
         </button>
         <span className='text-mute'>
           rekor {level}: {best[level] ? `${best[level]}s` : '-'}
