@@ -17,14 +17,14 @@ const BG: Record<Card['c'], string> = {
   Y: 'hsl(46 95% 52%)',
   G: 'hsl(135 55% 40%)',
   B: 'hsl(215 75% 52%)',
-  W: 'hsl(258 38% 30%)',
+  W: 'hsl(0 0% 14%)',
 };
 const DARK: Record<Card['c'], string> = {
   R: 'hsl(2 75% 36%)',
   Y: 'hsl(40 90% 40%)',
   G: 'hsl(135 55% 26%)',
   B: 'hsl(215 75% 36%)',
-  W: 'hsl(258 42% 22%)',
+  W: 'hsl(0 0% 7%)',
 };
 const SYMBOL: Record<string, string> = {
   S: '⊘',
