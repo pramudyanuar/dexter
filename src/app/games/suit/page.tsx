@@ -97,7 +97,6 @@ function Suit() {
   if (!r.session) {
     return (
       <RoomLobby
-        command='suit --online'
         blurb='# Batu, gunting, kertas untuk dua pemain di device berbeda. Siapa yang menang dua ronde lebih dulu, menang.'
         busy={r.busy}
         error={r.error}
@@ -257,7 +256,7 @@ function Suit() {
           disabled={r.busy}
           className='mt-5 self-center text-xs text-info hover:underline'
         >
-          [main lagi]
+          main lagi
         </button>
       )}
 

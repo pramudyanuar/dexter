@@ -58,7 +58,6 @@ function Chess() {
   return (
     <RoomGate
       r={r}
-      command='catur --online'
       blurb='# Catur lengkap (rokade, en passant, promosi) untuk dua pemain di device berbeda. Pembuat room memegang putih.'
       barRight={
         r.session && (

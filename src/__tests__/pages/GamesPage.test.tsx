@@ -11,13 +11,13 @@ describe('Games menu', () => {
   it('is public: lists every game without asking for a session', () => {
     render(<GamesPage />);
 
-    expect(screen.getByText(/ls games/)).toBeInTheDocument();
+    expect(screen.getByText(/Mau main apa/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Kode OTP/i)).not.toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
 
     for (const game of GAMES) {
       expect(
-        screen.getByRole('link', { name: new RegExp(`^${game.id}/`) }),
+        screen.getByRole('link', { name: new RegExp(`^${game.title}:`) }),
       ).toHaveAttribute('href', game.href);
     }
   });
@@ -31,7 +31,7 @@ describe('Games menu', () => {
 
   it('links home from the header without exposing the app launcher', () => {
     render(<GamesPage />);
-    expect(screen.getByRole('link', { name: '~' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Beranda' })).toHaveAttribute(
       'href',
       '/',
     );

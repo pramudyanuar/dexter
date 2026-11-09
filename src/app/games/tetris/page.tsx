@@ -268,7 +268,7 @@ function Tetris() {
                     onClick={restart}
                     className='text-info hover:underline'
                   >
-                    [main lagi]
+                    main lagi
                   </button>
                 </>
               ) : (

@@ -24,7 +24,6 @@ function Checkers() {
   return (
     <RoomGate
       r={r}
-      command='dam --online'
       blurb='# Dam (checkers) untuk dua pemain di device berbeda. Wajib memakan bidak lawan kalau bisa. Merah jalan duluan.'
       barRight={
         r.session && (

@@ -98,7 +98,6 @@ function Domino() {
   return (
     <RoomGate
       r={r}
-      command='domino --online'
       blurb='# Domino untuk 2 sampai 4 pemain. Sambung angka yang sama di ujung rantai; habiskan kartu lebih dulu untuk menang.'
     >
       {({ room, you }) => {
@@ -250,7 +249,7 @@ function Domino() {
                   disabled={r.busy}
                   className='a-bob text-info hover:underline'
                 >
-                  [tarik kartu]
+                  tarik kartu
                 </button>
               )}
               {v.canPass && (
@@ -260,7 +259,7 @@ function Domino() {
                   disabled={r.busy}
                   className='text-info hover:underline'
                 >
-                  [lewati giliran]
+                  lewati giliran
                 </button>
               )}
             </div>

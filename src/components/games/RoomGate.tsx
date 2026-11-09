@@ -44,7 +44,7 @@ export function NameEditor({
       }}
       className='mx-auto mt-4 flex items-center justify-center gap-2 text-xs'
     >
-      <span className='text-accent select-none'>nama:</span>
+      <span className='text-mute select-none'>Nama</span>
       <input
         value={draft}
         onChange={(e) => setDraft(e.target.value.slice(0, NAME_MAX))}
@@ -59,7 +59,7 @@ export function NameEditor({
         disabled={r.busy || draft.trim() === r.name.trim()}
         className='text-info hover:underline disabled:opacity-40'
       >
-        [simpan]
+        simpan
       </button>
     </form>
   );
@@ -106,13 +106,11 @@ type Room<V> = ReturnType<typeof useRoom<V>>;
  */
 export default function RoomGate<V>({
   r,
-  command,
   blurb,
   barRight,
   children,
 }: {
   r: Room<V>;
-  command: string;
   blurb: string;
   barRight?: React.ReactNode;
   children: (ctx: {
@@ -124,7 +122,6 @@ export default function RoomGate<V>({
   if (!r.session) {
     return (
       <RoomLobby
-        command={command}
         blurb={blurb}
         busy={r.busy}
         error={r.error}
@@ -175,7 +172,7 @@ export default function RoomGate<V>({
                 disabled={r.busy || joined < room.minPlayers}
                 className='text-info hover:underline disabled:opacity-40'
               >
-                [mulai dengan {joined} pemain]
+                mulai dengan {joined} pemain
               </button>
             ) : (
               <span className='text-mute'>Menunggu pembuat room memulai…</span>
@@ -238,7 +235,7 @@ export function Rematch({ r }: { r: { busy: boolean; rematch: () => void } }) {
       disabled={r.busy}
       className='a-slide-up mt-4 self-center text-xs text-info hover:underline'
     >
-      [main lagi]
+      main lagi
     </button>
   );
 }

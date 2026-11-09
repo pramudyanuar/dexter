@@ -26,7 +26,6 @@ function Quiz() {
   return (
     <RoomGate
       r={r}
-      command='kuis --online'
       blurb='# Kuis cepat untuk 2 sampai 6 pemain. 10 soal, jawab benar dan lebih cepat dari yang lain untuk dapat poin lebih banyak (3, 2, lalu 1).'
     >
       {({ room, you }) => {

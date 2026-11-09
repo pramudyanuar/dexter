@@ -17,14 +17,14 @@ const BG: Record<Card['c'], string> = {
   Y: 'hsl(46 95% 52%)',
   G: 'hsl(135 55% 40%)',
   B: 'hsl(215 75% 52%)',
-  W: 'hsl(0 0% 14%)',
+  W: 'hsl(258 38% 30%)',
 };
 const DARK: Record<Card['c'], string> = {
   R: 'hsl(2 75% 36%)',
   Y: 'hsl(40 90% 40%)',
   G: 'hsl(135 55% 26%)',
   B: 'hsl(215 75% 36%)',
-  W: 'hsl(0 0% 6%)',
+  W: 'hsl(258 42% 22%)',
 };
 const SYMBOL: Record<string, string> = {
   S: '⊘',
@@ -197,7 +197,10 @@ function CardBack({
   return (
     <span
       aria-hidden
-      style={{ background: DARK.W, ...style }}
+      style={{
+        background: `linear-gradient(145deg, ${BG.W}, ${DARK.W})`,
+        ...style,
+      }}
       className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg border-[3px] border-white font-black shadow-md ${dims} ${className}`}
     >
       <span className='absolute inset-x-[8%] top-[10%] bottom-[10%] -rotate-[24deg] rounded-[50%] bg-err' />
@@ -355,7 +358,6 @@ function Uno() {
   if (!r.session) {
     return (
       <RoomLobby
-        command='uno --online'
         blurb='# Uno untuk 2 sampai 4 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.'
         busy={r.busy}
         error={r.error}
@@ -406,7 +408,7 @@ function Uno() {
               disabled={r.busy || joined < room.minPlayers}
               className='text-info hover:underline disabled:opacity-40'
             >
-              [mulai dengan {joined} pemain]
+              mulai dengan {joined} pemain
             </button>
           ) : (
             <span className='text-mute'>Menunggu pembuat room memulai…</span>
@@ -667,7 +669,7 @@ function Uno() {
               onClick={() => setChoosing(null)}
               className='px-2 text-xs text-mute hover:text-ink'
             >
-              [batal]
+              batal
             </button>
           </div>
         </div>
@@ -681,7 +683,7 @@ function Uno() {
             disabled={r.busy}
             className='a-bob text-info hover:underline'
           >
-            [tarik kartu]
+            tarik kartu
           </button>
         )}
         {view.canPass && (
@@ -691,7 +693,7 @@ function Uno() {
             disabled={r.busy}
             className='text-info hover:underline'
           >
-            [lewati, simpan kartunya]
+            lewati, simpan kartunya
           </button>
         )}
         {over && (
@@ -701,7 +703,7 @@ function Uno() {
             disabled={r.busy}
             className='text-info hover:underline'
           >
-            [main lagi]
+            main lagi
           </button>
         )}
       </div>

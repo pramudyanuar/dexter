@@ -131,7 +131,7 @@ function BidPanel({
           onClick={() => onBid(qty, face)}
           className='text-accent hover:underline disabled:opacity-40'
         >
-          [tawar {qty} × {face}]
+          tawar {qty} × {face}
         </button>
         {bid && (
           <button
@@ -140,7 +140,7 @@ function BidPanel({
             onClick={onCall}
             className='a-wiggle text-err hover:underline'
           >
-            [bohong!]
+            bohong!
           </button>
         )}
       </div>
@@ -159,7 +159,6 @@ function Dice() {
   return (
     <RoomGate
       r={r}
-      command='dadu-bohong --online'
       blurb='# Dadu bohong untuk 2 sampai 4 pemain. Tawar jumlah dadu yang ada di meja (angka 1 jadi joker), atau tantang "bohong!" kalau kamu tidak percaya.'
     >
       {({ room, you }) => {

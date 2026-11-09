@@ -27,7 +27,6 @@ function Connect4() {
   if (!r.session) {
     return (
       <RoomLobby
-        command='connect4 --online'
         blurb='# Empat berjajar untuk dua pemain di device berbeda. Satu membuat room, yang lain memasukkan kodenya.'
         busy={r.busy}
         error={r.error}
@@ -147,7 +146,7 @@ function Connect4() {
           disabled={r.busy}
           className='mt-4 self-center text-xs text-info hover:underline'
         >
-          [main lagi]
+          main lagi
         </button>
       )}
 

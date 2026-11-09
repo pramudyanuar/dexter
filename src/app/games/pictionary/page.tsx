@@ -400,14 +400,14 @@ function PlayArea({
             }}
             className='text-xs text-info hover:underline'
           >
-            [hapus]
+            hapus
           </button>
           <button
             type='button'
             onClick={() => r.move({ type: 'next', round: v.round })}
             className='text-xs text-mute hover:text-err'
           >
-            [lewati kata]
+            lewati kata
           </button>
         </div>
       ) : (
@@ -442,7 +442,7 @@ function PlayArea({
                 disabled={!text.trim()}
                 className='text-info hover:underline disabled:opacity-40'
               >
-                [tebak]
+                tebak
               </button>
             </>
           )}
@@ -479,7 +479,6 @@ function Pictionary() {
   return (
     <RoomGate
       r={r}
-      command='tebak-gambar --online'
       blurb='# Tebak gambar untuk 2 sampai 6 pemain. Bergantian menggambar kata rahasia, yang lain menebak secepatnya. Yang lebih cepat dapat poin lebih banyak.'
     >
       {({ room, you }) => (

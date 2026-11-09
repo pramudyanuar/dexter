@@ -229,6 +229,106 @@
 }
 
 /* ---------------------------------------------------------------- games */
+/*
+ * The games get a softer, more playful look than the terminal pages: warm
+ * colours, a gently tinted background instead of near-black, a regular sans
+ * font, and rounded "pill" buttons. Everything is scoped to `.games-ui`.
+ */
+.games-ui {
+  --paper: #fbf8ff;
+  --card: #ffffff;
+  --ink: #2a2540;
+  --mute: #776f93;
+  --line: #e7e1f5;
+  --accent: #16a34a;
+  --hash: #d97706;
+  --info: #6d4aff;
+  --err: #e11d48;
+  --pill: color-mix(in oklab, var(--info) 12%, transparent);
+  --pill-hover: color-mix(in oklab, var(--info) 22%, transparent);
+  --glow-a: #ffd6e8;
+  --glow-b: #d4e4ff;
+  --glow-c: #fff1c7;
+  background:
+    radial-gradient(60rem 30rem at 0% 0%, var(--glow-a), transparent 60%),
+    radial-gradient(50rem 30rem at 100% 10%, var(--glow-b), transparent 60%),
+    radial-gradient(50rem 30rem at 50% 100%, var(--glow-c), transparent 60%),
+    var(--paper);
+  background-attachment: fixed;
+  font-family: var(--font-primary);
+  font-feature-settings: 'tnum';
+}
+
+@media (prefers-color-scheme: dark) {
+  .games-ui {
+    --paper: #1d1b33;
+    --card: #2a2747;
+    --ink: #eeeaff;
+    --mute: #aaa3cf;
+    --line: #403c66;
+    --accent: #5ee08f;
+    --hash: #fbbf24;
+    --info: #a996ff;
+    --err: #ff7a9a;
+    --glow-a: #3d2458;
+    --glow-b: #1f3466;
+    --glow-c: #2e2a52;
+  }
+}
+
+/* text-style action buttons become friendly pills */
+.games-ui button:is(.text-info, .text-mute, .text-err):not(:has(svg)) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  border-radius: 9999px;
+  padding: 0.45em 1.1em;
+  background: var(--pill);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.games-ui button.text-info:not(:has(svg)) {
+  background: var(--info);
+  color: #fff;
+  box-shadow: 0 4px 14px -4px color-mix(in oklab, var(--info) 70%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .games-ui button.text-info:not(:has(svg)) {
+    color: #1d1b33;
+  }
+}
+.games-ui
+  button:is(.text-info, .text-mute, .text-err):not(:has(svg)):hover:not(
+    :disabled
+  ) {
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+.games-ui button.text-mute:not(:has(svg)):hover:not(:disabled),
+.games-ui button.text-err:not(:has(svg)):hover:not(:disabled) {
+  background: var(--pill-hover);
+}
+.games-ui
+  button:is(.text-info, .text-mute, .text-err):not(:has(svg)):active:not(
+    :disabled
+  ) {
+  transform: scale(0.96);
+}
+.games-ui button:is(.text-info, .text-mute, .text-err):not(:has(svg)):disabled {
+  box-shadow: none;
+}
+
+.games-ui input:not([type='checkbox'], [type='radio'], [type='range']) {
+  border-radius: 0.75rem;
+  background: var(--card);
+  padding: 0.45em 0.8em;
+}
+
 @keyframes g-pop {
   0% {
     transform: scale(0.4);
