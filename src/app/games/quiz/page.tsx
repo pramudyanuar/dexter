@@ -55,7 +55,7 @@ function Quiz() {
                   }`}
                 >
                   <p>
-                    {seatLabel(seat, you)}{' '}
+                    {seatLabel(seat, you, room.names)}{' '}
                     {!done && v.answered[seat] && (
                       <span className='a-pop inline-block text-accent'>✓</span>
                     )}
@@ -81,7 +81,7 @@ function Quiz() {
                 <p className='mt-1 flex flex-wrap gap-x-3 text-mute'>
                   {last.gains.map((g, seat) => (
                     <span key={seat} className={g ? 'text-accent' : ''}>
-                      {seatLabel(seat, you)}{' '}
+                      {seatLabel(seat, you, room.names)}{' '}
                       {g
                         ? `+${g}`
                         : last.answers[seat] === -1
@@ -104,7 +104,9 @@ function Quiz() {
                     </span>
                   ) : (
                     <span className='text-err'>
-                      {v.winners!.map((w) => seatLabel(w, you)).join(' & ')}{' '}
+                      {v
+                        .winners!.map((w) => seatLabel(w, you, room.names))
+                        .join(' & ')}{' '}
                       juara.
                     </span>
                   )}
@@ -117,7 +119,7 @@ function Quiz() {
                       style={{ animationDelay: `${i * 120}ms` }}
                     >
                       <span>
-                        {i + 1}. {seatLabel(seat, you)}
+                        {i + 1}. {seatLabel(seat, you, room.names)}
                       </span>
                       <span>{score}</span>
                     </li>

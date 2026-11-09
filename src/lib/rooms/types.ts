@@ -21,6 +21,8 @@ export interface Room {
   game: GameId;
   /** One slot per seat; seat 0 is the host who created the room */
   tokens: (string | null)[];
+  /** Display name per seat, chosen by the player (older rooms may lack it) */
+  names?: (string | null)[];
   status: RoomStatus;
   /** Game-specific, null until the game starts */
   state: unknown | null;
@@ -38,6 +40,8 @@ export interface RoomView<V = unknown> {
   seat: number | null;
   /** Whether each seat is taken */
   joined: boolean[];
+  /** Each seat's display name, or null when the player gave none */
+  names: (string | null)[];
   capacity: number;
   minPlayers: number;
   version: number;

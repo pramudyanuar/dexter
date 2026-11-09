@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 
 import { CODE_PATTERN, newToken, normalizeCode } from '@/lib/rooms/codes';
-import { act, join, rematch, seatOf, start, toView } from '@/lib/rooms/engine';
+import {
+  act,
+  join,
+  rematch,
+  rename,
+  seatOf,
+  start,
+  toView,
+} from '@/lib/rooms/engine';
 import { getRoomStore } from '@/lib/rooms/store';
 import { RoomError } from '@/lib/rooms/types';
 
@@ -65,7 +73,7 @@ export async function GET(req: Request, { params }: Context) {
   }
 }
 
-/** Actions: join, start, move, rematch. Everything but join needs the player's token. */
+/** Actions: join, start, move, rename, rematch. Everything but join needs the player's token. */
 export async function POST(req: Request, { params }: Context) {
   const store = getRoomStore();
   if (!store)
@@ -90,7 +98,7 @@ export async function POST(req: Request, { params }: Context) {
 
     switch (body.action) {
       case 'join': {
-        const joined = join(room, body.token, newToken());
+        const joined = join(room, body.token, newToken(), undefined, body.name);
         if (joined.room !== room) {
           await store.save(joined.room);
           // two people joining at once: only the one that really got the seat stays
@@ -119,6 +127,14 @@ export async function POST(req: Request, { params }: Context) {
       case 'move': {
         const next = act(room, body.token, body.move);
         await store.save(next);
+        return NextResponse.json(
+          { room: toView(next, body.token) },
+          { headers: NO_STORE },
+        );
+      }
+      case 'rename': {
+        const next = rename(room, body.token, body.name);
+        if (next !== room) await store.save(next);
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },

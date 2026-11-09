@@ -6,10 +6,95 @@ import type { RoomView } from '@/lib/rooms/types';
 import type { useRoom } from '@/lib/rooms/useRoom';
 
 import RoomBar from '@/components/games/RoomBar';
-import RoomLobby from '@/components/games/RoomLobby';
+import RoomLobby, { NAME_MAX } from '@/components/games/RoomLobby';
 
-export const seatLabel = (seat: number, you: number) =>
-  seat === you ? 'Kamu' : `Pemain ${seat + 1}`;
+/** "Kamu" for yourself, otherwise the player's name (or "Pemain N"). */
+export const seatLabel = (
+  seat: number,
+  you: number,
+  names?: (string | null)[],
+) => (seat === you ? 'Kamu' : names?.[seat] || `Pemain ${seat + 1}`);
+
+/** A name for the seat list: the player's name, with "(kamu)" on your own. */
+export const seatTitle = (
+  seat: number,
+  you: number,
+  names?: (string | null)[],
+) => {
+  const name = names?.[seat];
+  if (seat === you) return name ? `${name} (kamu)` : 'Kamu';
+  return name || `Pemain ${seat + 1}`;
+};
+
+/** Edit your name from the waiting room. Saves on blur or Enter. */
+export function NameEditor({
+  r,
+}: {
+  r: { name: string; busy: boolean; rename: (name: string) => unknown };
+}) {
+  const [draft, setDraft] = React.useState(r.name);
+  const save = () => {
+    if (draft.trim() !== r.name.trim()) r.rename(draft);
+  };
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+      className='mx-auto mt-4 flex items-center justify-center gap-2 text-xs'
+    >
+      <span className='text-accent select-none'>nama:</span>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.slice(0, NAME_MAX))}
+        onBlur={save}
+        placeholder='username kamu'
+        aria-label='Ganti username'
+        maxLength={NAME_MAX}
+        className='w-36 rounded-sm border border-line bg-transparent px-2 py-1 placeholder:text-mute focus:border-accent focus:ring-0 focus:outline-none'
+      />
+      <button
+        type='submit'
+        disabled={r.busy || draft.trim() === r.name.trim()}
+        className='text-info hover:underline disabled:opacity-40'
+      >
+        [simpan]
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Who is in the room, shown above a running game so two-player games (which
+ * otherwise only say "lawan") show who you are up against.
+ */
+export function PlayerStrip({
+  names,
+  joined,
+  you,
+}: {
+  names: (string | null)[];
+  joined: boolean[];
+  you: number;
+}) {
+  const seats = joined.flatMap((taken, seat) => (taken ? [seat] : []));
+  if (!seats.some((seat) => names[seat])) return null;
+  return (
+    <p className='mb-3 text-center text-xs text-mute' aria-label='Pemain'>
+      {seats.map((seat, i) => (
+        <React.Fragment key={seat}>
+          {i > 0 && (
+            <span className='px-1.5'>{seats.length === 2 ? 'vs' : '·'}</span>
+          )}
+          <span className={seat === you ? 'text-accent' : 'text-ink'}>
+            {seatTitle(seat, you, names)}
+          </span>
+        </React.Fragment>
+      ))}
+    </p>
+  );
+}
 
 type Room<V> = ReturnType<typeof useRoom<V>>;
 
@@ -43,6 +128,8 @@ export default function RoomGate<V>({
         blurb={blurb}
         busy={r.busy}
         error={r.error}
+        name={r.name}
+        onName={r.setName}
         onCreate={r.create}
         onJoin={r.join}
       />
@@ -68,7 +155,9 @@ export default function RoomGate<V>({
               className={`flex justify-between py-2 text-sm ${taken ? 'a-pop' : ''}`}
             >
               <span className={taken ? '' : 'text-mute'}>
-                {taken ? seatLabel(seat, you) : `kursi ${seat + 1} kosong`}
+                {taken
+                  ? seatTitle(seat, you, room.names)
+                  : `kursi ${seat + 1} kosong`}
               </span>
               {seat === 0 && taken && (
                 <span className='text-hash'>pembuat</span>
@@ -102,6 +191,7 @@ export default function RoomGate<V>({
             </p>
           )}
         </div>
+        <NameEditor r={r} />
         {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
       </>
     );
@@ -125,6 +215,10 @@ export default function RoomGate<V>({
         onLeave={r.leave}
         right={barRight}
       />
+      {/* games for more players list everyone with their names already */}
+      {room.capacity === 2 && (
+        <PlayerStrip names={room.names} joined={room.joined} you={you} />
+      )}
       {children({
         room: room as RoomView<V> & { state: V },
         you,

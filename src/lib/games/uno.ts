@@ -73,7 +73,13 @@ export interface UnoState {
   dir: 1 | -1;
   /** The colour in play: the top card's, or the one chosen for a wild */
   color: Color;
+  /** The first player to empty their hand */
   winner: number | null;
+  /**
+   * Seats in the order they emptied their hands. Play goes on without them
+   * until one player is left, who is added last. Missing in older states.
+   */
+  places?: number[];
   /** After drawing a playable card, its owner may play exactly that one */
   pending: { seat: number; index: number } | null;
   last: UnoEvent | null;
@@ -81,8 +87,24 @@ export interface UnoState {
 
 const isNumber = (card: Card) => card.c !== 'W' && /^[0-9]$/.test(card.v);
 const top = (s: UnoState) => s.discard[s.discard.length - 1];
-const nextSeat = (s: UnoState, from: number, steps = 1) =>
-  (((from + s.dir * steps) % s.players) + s.players) % s.players;
+const placesOf = (s: UnoState) => s.places ?? [];
+const isOut = (s: UnoState, seat: number) => placesOf(s).includes(seat);
+const active = (s: UnoState) => s.players - placesOf(s).length;
+/** Over once only one player still holds cards (older states: on the first win). */
+const finished = (s: UnoState) =>
+  s.places ? s.places.length >= s.players - 1 : s.winner !== null;
+
+/** The seat `steps` turns after `from`, skipping players who already finished. */
+function nextSeat(s: UnoState, from: number, steps = 1) {
+  let seat = from;
+  for (let n = 0; n < steps; n++) {
+    for (let guard = 0; guard < s.players; guard++) {
+      seat = (((seat + s.dir) % s.players) + s.players) % s.players;
+      if (!isOut(s, seat)) break;
+    }
+  }
+  return seat;
+}
 
 /**
  * Whether `card` may be played by someone holding `hand`. A wild draw four is
@@ -118,6 +140,7 @@ export function start(
     dir: 1,
     color: first.c as Color,
     winner: null,
+    places: [],
     pending: null,
     last: null,
   };
@@ -184,18 +207,27 @@ function play(
   };
 
   if (hand.length === 0) {
-    s.winner = seat;
-    return;
+    // out of cards: this player is done, the others play on for the places
+    s.places = [...placesOf(s), seat];
+    if (s.winner === null) s.winner = seat;
+    if (finished(s)) {
+      const last = Array.from({ length: s.players }, (_, i) => i).find(
+        (i) => !isOut(s, i),
+      );
+      if (last !== undefined) s.places.push(last);
+      return;
+    }
   }
 
+  const out = hand.length === 0;
   switch (card.v) {
     case 'S':
       s.turn = nextSeat(s, seat, 2);
       break;
     case 'V':
       s.dir = (s.dir * -1) as 1 | -1;
-      // with two players a reverse works like a skip
-      s.turn = s.players === 2 ? seat : nextSeat(s, seat);
+      // with two players left a reverse works like a skip
+      s.turn = active(s) === 2 && !out ? seat : nextSeat(s, seat);
       break;
     case 'D':
       deal(s, nextSeat(s, seat), 2, rng);
@@ -242,6 +274,8 @@ export const unoGame: GameDef<UnoState> = {
   },
 
   move(state, seat, raw, rng = Math.random) {
+    if (isOut(state, seat))
+      throw new RoomError('Kartumu sudah habis, tunggu yang lain selesai', 409);
     if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
     const move = raw as Move | null;
     if (!move || typeof move !== 'object')
@@ -274,23 +308,28 @@ export const unoGame: GameDef<UnoState> = {
 
   view(state, seat): UnoView {
     const myTurn =
-      seat !== null && state.winner === null && state.turn === seat;
+      seat !== null &&
+      !finished(state) &&
+      !isOut(state, seat) &&
+      state.turn === seat;
     const hand = seat === null ? [] : state.hands[seat];
+    const playable = myTurn
+      ? hand.flatMap((card, i) =>
+          state.pending
+            ? i === state.pending.index
+              ? [i]
+              : []
+            : canPlay(state, card, hand)
+              ? [i]
+              : [],
+        )
+      : [];
     return {
       players: state.players,
       counts: state.hands.map((h) => h.length),
       hand,
-      playable: myTurn
-        ? hand.flatMap((card, i) =>
-            state.pending
-              ? i === state.pending.index
-                ? [i]
-                : []
-              : canPlay(state, card, hand)
-                ? [i]
-                : [],
-          )
-        : [],
+      playable,
+      stuck: myTurn && !state.pending && playable.length === 0,
       canDraw: myTurn && !state.pending,
       canPass: myTurn && state.pending?.seat === seat,
       top: top(state),
@@ -299,11 +338,12 @@ export const unoGame: GameDef<UnoState> = {
       dir: state.dir,
       drawCount: state.draw.length,
       winner: state.winner,
+      places: placesOf(state),
       last: state.last,
     };
   },
 
-  isOver: (state) => state.winner !== null,
+  isOver: (state) => finished(state),
 };
 
 /** What one seat sees. Other hands and the draw pile's order never appear. */
@@ -313,6 +353,8 @@ export interface UnoView {
   hand: Card[];
   /** Indexes into `hand` that may be played right now */
   playable: number[];
+  /** Your turn, and nothing in your hand fits: you have to draw */
+  stuck: boolean;
   canDraw: boolean;
   canPass: boolean;
   top: Card;
@@ -321,5 +363,7 @@ export interface UnoView {
   dir: 1 | -1;
   drawCount: number;
   winner: number | null;
+  /** Seats in finishing order; complete once the game is over */
+  places: number[];
   last: UnoEvent | null;
 }

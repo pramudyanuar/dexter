@@ -9,6 +9,7 @@ import useMounted from '@/lib/useMounted';
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 import RoomBar from '@/components/games/RoomBar';
+import { NameEditor, seatLabel, seatTitle } from '@/components/games/RoomGate';
 import RoomLobby from '@/components/games/RoomLobby';
 
 const BG: Record<Card['c'], string> = {
@@ -207,15 +208,20 @@ function CardBack({
   );
 }
 
-const seatName = (seat: number, you: number) =>
-  seat === you ? 'Kamu' : `Pemain ${seat + 1}`;
+const ORDINAL = ['pertama', 'kedua', 'ketiga', 'keempat'];
+const placeText = (place: number) => `juara ${ORDINAL[place] ?? place + 1}`;
 
-function lastText(view: UnoView, you: number) {
+function lastText(view: UnoView, you: number, names: (string | null)[]) {
   const e = view.last;
   if (!e) return null;
-  const who = seatName(e.seat, you);
+  const who = seatLabel(e.seat, you, names);
   if (e.kind === 'play' && e.card) {
-    return `${who} memainkan ${describe(e.card)}${e.color ? `, warna ${COLOR_NAME[e.color]}` : ''}.`;
+    const place = view.places.indexOf(e.seat);
+    const done =
+      place !== -1 && view.counts[e.seat] === 0
+        ? ` Kartunya habis, ${placeText(place)}!`
+        : '';
+    return `${who} memainkan ${describe(e.card)}${e.color ? `, warna ${COLOR_NAME[e.color]}` : ''}.${done}`;
   }
   if (e.kind === 'draw') {
     return e.passed
@@ -353,6 +359,8 @@ function Uno() {
         blurb='# Uno untuk 2 sampai 4 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.'
         busy={r.busy}
         error={r.error}
+        name={r.name}
+        onName={r.setName}
         onCreate={r.create}
         onJoin={r.join}
       />
@@ -361,6 +369,8 @@ function Uno() {
 
   const { room } = r;
   const you = r.session.you;
+  const names = room?.names ?? [];
+  const seatName = (seat: number) => seatLabel(seat, you, names);
   const view = room?.state ?? null;
   const playing = room?.status === 'playing' || room?.status === 'over';
 
@@ -377,7 +387,9 @@ function Uno() {
           {room.joined.map((taken, seat) => (
             <li key={seat} className='flex justify-between py-2 text-sm'>
               <span className={taken ? '' : 'text-mute'}>
-                {taken ? seatName(seat, you) : `kursi ${seat + 1} kosong`}
+                {taken
+                  ? seatTitle(seat, you, names)
+                  : `kursi ${seat + 1} kosong`}
               </span>
               {seat === 0 && taken && (
                 <span className='text-hash'>pembuat</span>
@@ -405,6 +417,7 @@ function Uno() {
             </p>
           )}
         </div>
+        <NameEditor r={r} />
         {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
       </>
     );
@@ -422,7 +435,9 @@ function Uno() {
 
   // ------------------------------------------------------------------- game
   const over = room.status === 'over';
-  const myTurn = !over && view.turn === you;
+  const myPlace = view.places.indexOf(you);
+  const out = myPlace !== -1;
+  const myTurn = !over && !out && view.turn === you;
 
   let banner: React.ReactNode;
   if (over) {
@@ -430,16 +445,25 @@ function Uno() {
       view.winner === you ? (
         <span className='text-accent'>Kamu menang!</span>
       ) : (
-        <span className='text-err'>
-          {seatName(view.winner ?? 0, you)} menang.
-        </span>
+        <span className='text-err'>{seatName(view.winner ?? 0)} menang.</span>
       );
+  } else if (out) {
+    banner = (
+      <span className='text-accent'>
+        Kartumu habis, kamu {placeText(myPlace)}! Menonton yang lain… (giliran{' '}
+        {seatName(view.turn)})
+      </span>
+    );
+  } else if (view.stuck) {
+    banner = (
+      <span className='text-hash'>
+        Tidak ada kartu yang cocok. Tarik kartu dari tumpukan.
+      </span>
+    );
   } else if (myTurn) {
     banner = <span className='text-accent'>Giliranmu</span>;
   } else {
-    banner = (
-      <span className='text-mute'>Giliran {seatName(view.turn, you)}…</span>
-    );
+    banner = <span className='text-mute'>Giliran {seatName(view.turn)}…</span>;
   }
 
   const playCard = (index: number) => {
@@ -454,7 +478,7 @@ function Uno() {
 
   return (
     <>
-      {over && view.winner === you && <Confetti />}
+      {view.winner === you && <Confetti />}
       <RoomBar
         code={r.session.code}
         share={false}
@@ -472,6 +496,7 @@ function Uno() {
       >
         {others.map(({ count, seat }) => {
           const active = !over && view.turn === seat;
+          const place = view.places.indexOf(seat);
           return (
             <li
               key={seat}
@@ -482,7 +507,7 @@ function Uno() {
                   : 'border-line text-mute'
               }`}
             >
-              <p>{seatName(seat, you)}</p>
+              <p>{seatName(seat)}</p>
               <div
                 aria-hidden
                 className='mx-auto my-1.5 flex h-10 items-center justify-center'
@@ -498,8 +523,13 @@ function Uno() {
                 ))}
               </div>
               <p className='text-base text-ink'>{count}</p>
-              {count === 1 && !over && (
+              {count === 1 && !over && place === -1 && (
                 <p className='a-wiggle font-bold text-hash'>UNO!</p>
+              )}
+              {place !== -1 && (
+                <p className='font-bold text-accent'>
+                  {place === 0 ? '🏆 ' : ''}#{place + 1}
+                </p>
               )}
             </li>
           );
@@ -585,8 +615,30 @@ function Uno() {
         className='mb-3 min-h-4 text-center text-xs text-mute'
         data-testid='last-event'
       >
-        {lastText(view, you)}
+        {lastText(view, you, names)}
       </p>
+
+      {over && view.places.length > 0 && (
+        <ol
+          className='a-slide-up mx-auto mb-3 w-full max-w-xs divide-y divide-line border-y border-line text-sm'
+          aria-label='Peringkat'
+        >
+          {view.places.map((seat, i) => (
+            <li key={seat} className='flex justify-between py-1.5'>
+              <span className={seat === you ? 'text-accent' : ''}>
+                {i + 1}. {seatTitle(seat, you, names)}
+              </span>
+              <span className='text-mute'>
+                {i === 0
+                  ? '🏆'
+                  : view.counts[seat] > 0
+                    ? `sisa ${view.counts[seat]} kartu`
+                    : ''}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
 
       {choosing !== null && (
         <div
@@ -622,6 +674,16 @@ function Uno() {
       )}
 
       <div className='mb-2 flex items-center justify-center gap-4 text-xs'>
+        {view.stuck && view.canDraw && (
+          <button
+            type='button'
+            onClick={() => r.move({ type: 'draw' })}
+            disabled={r.busy}
+            className='a-bob text-info hover:underline'
+          >
+            [tarik kartu]
+          </button>
+        )}
         {view.canPass && (
           <button
             type='button'
@@ -671,9 +733,11 @@ function Uno() {
       {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
 
       <p className='pt-4 text-center text-xs text-mute'>
-        Cocokkan warna atau angka, klik atau seret kartu ke tumpukan. Wild +4
-        hanya jika tidak punya warna yang berlaku. Room hilang sendiri setelah 2
-        jam.
+        Cocokkan warna atau angka, klik atau seret kartu ke tumpukan. Tidak ada
+        yang cocok? Tarik satu kartu: kalau bisa dimainkan boleh langsung
+        dipakai, kalau tidak giliran lewat. Wild +4 hanya jika tidak punya warna
+        yang berlaku. Yang kartunya habis duluan juara, sisanya lanjut sampai
+        tinggal satu. Room hilang sendiri setelah 2 jam.
       </p>
     </>
   );

@@ -4,12 +4,16 @@ import * as React from 'react';
 
 import { normalizeCode } from '@/lib/rooms/code-format';
 
+export const NAME_MAX = 16;
+
 /** Create a room or enter a code. Reads `?room=CODE` so shared links fill it in. */
 export default function RoomLobby({
   command,
   blurb,
   busy,
   error,
+  name,
+  onName,
   onCreate,
   onJoin,
 }: {
@@ -18,6 +22,9 @@ export default function RoomLobby({
   blurb: string;
   busy: boolean;
   error: string;
+  /** The player's display name, remembered across games */
+  name: string;
+  onName: (name: string) => void;
   onCreate: () => void;
   onJoin: (code: string) => void;
 }) {
@@ -33,6 +40,19 @@ export default function RoomLobby({
         <span className='text-accent select-none'>$</span> {command}
       </p>
       <p className='mt-1 text-mute'>{blurb}</p>
+
+      <label className='mt-5 flex items-center gap-2'>
+        <span className='text-accent select-none'>nama:</span>
+        <input
+          value={name}
+          onChange={(e) => onName(e.target.value.slice(0, NAME_MAX))}
+          placeholder='username kamu'
+          aria-label='Username'
+          autoComplete='nickname'
+          maxLength={NAME_MAX}
+          className='w-44 rounded-sm border border-line bg-transparent px-2 py-1 placeholder:text-mute focus:border-accent focus:ring-0 focus:outline-none'
+        />
+      </label>
 
       <button
         type='button'

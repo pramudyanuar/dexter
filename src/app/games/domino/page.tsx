@@ -81,10 +81,10 @@ function DominoTile({
   );
 }
 
-function lastText(v: DominoView, you: number) {
+function lastText(v: DominoView, you: number, names: (string | null)[]) {
   const e = v.last;
   if (!e) return '';
-  const who = seatLabel(e.seat, you);
+  const who = seatLabel(e.seat, you, names);
   if (e.kind === 'play' && e.tile)
     return `${who} memasang ${e.tile[0]}-${e.tile[1]}.`;
   if (e.kind === 'draw') return `${who} menarik kartu.`;
@@ -133,14 +133,16 @@ function Domino() {
               </span>
             ) : (
               <span className='text-err'>
-                {seatLabel(v.winner, you)} menang.
+                {seatLabel(v.winner, you, room.names)} menang.
               </span>
             );
         } else if (myTurn)
           banner = <span className='text-accent'>Giliranmu</span>;
         else
           banner = (
-            <span className='text-mute'>Giliran {seatLabel(v.turn, you)}…</span>
+            <span className='text-mute'>
+              Giliran {seatLabel(v.turn, you, room.names)}…
+            </span>
           );
 
         const others = v.counts
@@ -167,7 +169,7 @@ function Domino() {
                         : 'border-line text-mute'
                     }`}
                   >
-                    <p>{seatLabel(seat, you)}</p>
+                    <p>{seatLabel(seat, you, room.names)}</p>
                     <div
                       className='my-1 flex justify-center -space-x-2'
                       aria-hidden
@@ -196,7 +198,7 @@ function Domino() {
               className='mb-3 min-h-4 text-center text-xs text-mute'
               data-testid='last-event'
             >
-              {lastText(v, you)}
+              {lastText(v, you, room.names)}
             </p>
 
             <div
@@ -271,7 +273,7 @@ function Domino() {
                       key={seat}
                       className='flex items-center justify-center gap-2'
                     >
-                      <span>{seatLabel(seat, you)}:</span>
+                      <span>{seatLabel(seat, you, room.names)}:</span>
                       <span className='flex gap-1'>
                         {hand.map((t, i) => (
                           <DominoTile key={i} tile={t} />

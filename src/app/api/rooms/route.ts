@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     // a collision is very unlikely, but a few retries cost nothing
     for (let attempt = 0; attempt < 5; attempt++) {
       const token = newToken();
-      const room = newRoom(game, newCode(), token);
+      const room = newRoom(game, newCode(), token, Date.now(), body?.name);
       if (await store.create(room)) {
         return NextResponse.json(
           { code: room.code, token, you: 0, room: toView(room, token) },
