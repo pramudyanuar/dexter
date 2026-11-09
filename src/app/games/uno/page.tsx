@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { Card, Color, COLORS, UnoView } from '@/lib/games/uno';
+import { Card, Color, COLORS, stackable, UnoView } from '@/lib/games/uno';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
@@ -218,6 +218,17 @@ function lastText(view: UnoView, you: number, names: (string | null)[]) {
   const e = view.last;
   if (!e) return null;
   const who = seatLabel(e.seat, you, names);
+  if (e.kind === 'play' && e.card && e.cards) {
+    const place = view.places.indexOf(e.seat);
+    const done =
+      place !== -1 && view.counts[e.seat] === 0
+        ? ` Kartunya habis, ${placeText(place)}!`
+        : '';
+    const colors = e.cards
+      .map((c) => (c.c === 'W' ? '' : COLOR_NAME[c.c]))
+      .join(', ');
+    return `${who} menumpuk ${e.cards.length} kartu ${face(e.card)} (${colors}).${done}`;
+  }
   if (e.kind === 'play' && e.card) {
     const place = view.places.indexOf(e.seat);
     const done =
@@ -245,11 +256,17 @@ function HandCard({
   fan,
   dropRef,
   onPlay,
+  onDrop,
   onDrag,
+  order,
 }: {
   card: Card;
   playable: boolean;
   dim: boolean;
+  /** Played by dropping on the pile; defaults to onPlay */
+  onDrop?: () => void;
+  /** Position in a stack being built (1 = first), if selected */
+  order?: number;
   animate?: 'deal';
   fan: number;
   dropRef: React.RefObject<HTMLDivElement | null>;
@@ -260,6 +277,7 @@ function HandCard({
   const [settling, setSettling] = React.useState(false);
   const origin = React.useRef<{ x: number; y: number } | null>(null);
   const moved = React.useRef(false);
+  const handled = React.useRef(false);
 
   const isOver = (e: React.PointerEvent) => {
     const rect = dropRef.current?.getBoundingClientRect();
@@ -277,6 +295,7 @@ function HandCard({
     if (!playable || e.button > 0) return;
     origin.current = { x: e.clientX, y: e.clientY };
     moved.current = false;
+    handled.current = false;
     setSettling(false);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -299,10 +318,15 @@ function HandCard({
     onDrag('idle');
     if (drop) {
       setPos(null); // the pile plays its own animation for the new top card
-      onPlay();
+      (onDrop ?? onPlay)();
     } else if (moved.current) {
       setSettling(true); // spring back to the hand
       setPos(null);
+    } else if (!cancel) {
+      // a plain tap. Handled here because pointer capture sends the click
+      // to this wrapper rather than the card button underneath.
+      handled.current = true;
+      onPlay();
     }
   };
 
@@ -315,9 +339,11 @@ function HandCard({
       onPointerUp={finish}
       onPointerCancel={(e) => finish(e, true)}
       onClickCapture={(e) => {
-        // a drag ends with a click on the same element: swallow it
-        if (moved.current) {
+        // a drag or a tap was already handled on pointer up: swallow its click
+        // (keyboard presses have no pointer events and still click the card)
+        if (moved.current || handled.current) {
           moved.current = false;
+          handled.current = false;
           e.stopPropagation();
         }
       }}
@@ -345,6 +371,14 @@ function HandCard({
         animate={animate}
         onClick={playable ? onPlay : undefined}
       />
+      {order !== undefined && (
+        <span
+          aria-hidden
+          className='pointer-events-none absolute -top-4 left-1/2 z-20 flex size-5 -translate-x-1/2 items-center justify-center rounded-full bg-white text-[11px] font-bold text-black shadow'
+        >
+          {order}
+        </span>
+      )}
     </div>
   );
 }
@@ -352,6 +386,16 @@ function HandCard({
 function Uno() {
   const r = useRoom<UnoView>('uno');
   const [choosing, setChoosing] = React.useState<number | null>(null);
+  /** Cards picked for a same-number stack, in play order */
+  const [picked, setPicked] = React.useState<{
+    version: number;
+    cards: number[];
+  } | null>(null);
+  // anything new from the server (a move, a draw) ends a half-built stack
+  const version = r.room?.version ?? 0;
+  const stack = picked?.version === version ? picked.cards : null;
+  const setStack = (cards: number[] | null) =>
+    setPicked(cards ? { version, cards } : null);
   const [drag, setDrag] = React.useState<DragState>('idle');
   const pileRef = React.useRef<HTMLDivElement>(null);
 
@@ -468,10 +512,39 @@ function Uno() {
     banner = <span className='text-mute'>Giliran {seatName(view.turn)}…</span>;
   }
 
+  const playStack = (cards: number[]) => {
+    setStack(null);
+    r.move({ type: 'play', index: cards[0], also: cards.slice(1) });
+  };
+
+  const stackOptions = stack ? stackable(view.hand, stack[0]) : [];
+
   const playCard = (index: number) => {
     const card = view.hand[index];
+    if (stack) {
+      // building a stack: tap to add or remove cards of the same number
+      if (index === stack[0]) return;
+      setStack(
+        stack.includes(index)
+          ? stack.filter((i) => i !== index)
+          : [...stack, index],
+      );
+      return;
+    }
     if (card.c === 'W') setChoosing(index);
+    else if (!view.canPass && stackable(view.hand, index).length > 0)
+      setStack([index]);
     else r.move({ type: 'play', index });
+  };
+
+  /** Dropping a card on the pile plays it, with the stack if one is open. */
+  const dropCard = (index: number) => {
+    if (!stack) {
+      if (view.hand[index].c === 'W') setChoosing(index);
+      else r.move({ type: 'play', index });
+      return;
+    }
+    playStack(stack.includes(index) ? stack : [...stack, index]);
   };
 
   const others = view.counts
@@ -642,6 +715,46 @@ function Uno() {
         </ol>
       )}
 
+      {stack && (
+        <div
+          className='a-slide-up mb-3 flex flex-col items-center gap-2 text-center'
+          role='group'
+          aria-label='Tumpuk kartu'
+        >
+          <p className='text-xs text-mute'>
+            Tumpuk kartu {face(view.hand[stack[0]])}: pilih kartu{' '}
+            {face(view.hand[stack[0]])} lain. Warna kartu terakhir yang berlaku.
+          </p>
+          <div className='flex gap-2 text-xs'>
+            <button
+              type='button'
+              onClick={() => playStack(stack)}
+              disabled={r.busy}
+              className='text-info'
+            >
+              mainkan {stack.length} kartu
+            </button>
+            {stack.length < stackOptions.length + 1 && (
+              <button
+                type='button'
+                onClick={() => playStack([stack[0], ...stackOptions])}
+                disabled={r.busy}
+                className='text-mute'
+              >
+                tumpuk semua ({stackOptions.length + 1})
+              </button>
+            )}
+            <button
+              type='button'
+              onClick={() => setStack(null)}
+              className='text-mute'
+            >
+              batal
+            </button>
+          </div>
+        </div>
+      )}
+
       {choosing !== null && (
         <div
           className='a-slide-up mb-3 flex flex-col items-center gap-2'
@@ -714,7 +827,10 @@ function Uno() {
         className='mt-auto flex flex-wrap justify-center gap-y-2 px-3 pt-6'
       >
         {view.hand.map((card, index) => {
-          const playable = view.playable.includes(index);
+          const playable = stack
+            ? stack[0] === index || stackOptions.includes(index)
+            : view.playable.includes(index);
+          const order = stack?.indexOf(index) ?? -1;
           const mid = (view.hand.length - 1) / 2;
           return (
             <HandCard
@@ -727,6 +843,8 @@ function Uno() {
               dropRef={pileRef}
               onDrag={setDrag}
               onPlay={() => playCard(index)}
+              onDrop={() => dropCard(index)}
+              order={order === -1 ? undefined : order + 1}
             />
           );
         })}
@@ -735,11 +853,12 @@ function Uno() {
       {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
 
       <p className='pt-4 text-center text-xs text-mute'>
-        Cocokkan warna atau angka, klik atau seret kartu ke tumpukan. Tidak ada
-        yang cocok? Tarik satu kartu: kalau bisa dimainkan boleh langsung
-        dipakai, kalau tidak giliran lewat. Wild +4 hanya jika tidak punya warna
-        yang berlaku. Yang kartunya habis duluan juara, sisanya lanjut sampai
-        tinggal satu. Room hilang sendiri setelah 2 jam.
+        Cocokkan warna atau angka, klik atau seret kartu ke tumpukan. Punya
+        beberapa kartu dengan angka yang sama? Mainkan sekaligus. Tidak ada yang
+        cocok? Tarik satu kartu: kalau bisa dimainkan boleh langsung dipakai,
+        kalau tidak giliran lewat. Wild +4 hanya jika tidak punya warna yang
+        berlaku. Yang kartunya habis duluan juara, sisanya lanjut sampai tinggal
+        satu. Room hilang sendiri setelah 2 jam.
       </p>
     </>
   );

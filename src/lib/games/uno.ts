@@ -57,6 +57,8 @@ export interface UnoEvent {
   card?: Card;
   /** Colour chosen with a wild */
   color?: Color;
+  /** Every card of a stacked play, in order; `card` is the last one */
+  cards?: Card[];
   /** A draw that could not be played, so the turn moved on */
   passed?: boolean;
 }
@@ -161,9 +163,56 @@ function deal(s: UnoState, seat: number, count: number, rng: () => number) {
 }
 
 type Move =
-  | { type: 'play'; index: number; color?: Color }
+  | {
+      type: 'play';
+      index: number;
+      color?: Color;
+      /** More cards with the same number, played on top in this order */
+      also?: number[];
+    }
   | { type: 'draw' }
   | { type: 'pass' };
+
+/**
+ * Validates the extra cards of a stacked play: only number cards, all with the
+ * same number as the first, each named once. Not allowed right after drawing.
+ */
+function stackOf(
+  s: UnoState,
+  hand: Card[],
+  index: number,
+  raw: unknown,
+): number[] {
+  if (raw === undefined || (Array.isArray(raw) && raw.length === 0)) return [];
+  if (!Array.isArray(raw)) throw new RoomError('Tumpukan tidak valid', 400);
+  if (s.pending) {
+    throw new RoomError('Setelah menarik, tidak bisa menumpuk kartu', 400);
+  }
+  const first = hand[index];
+  if (!isNumber(first)) {
+    throw new RoomError('Hanya kartu angka yang bisa ditumpuk', 400);
+  }
+  const seen = new Set([index]);
+  for (const i of raw) {
+    if (!Number.isInteger(i) || i < 0 || i >= hand.length || seen.has(i)) {
+      throw new RoomError('Kartu tidak ada', 400);
+    }
+    seen.add(i);
+    if (!isNumber(hand[i]) || hand[i].v !== first.v) {
+      throw new RoomError('Yang ditumpuk harus angka yang sama', 400);
+    }
+  }
+  return raw as number[];
+}
+
+/** Indexes of other cards that may be stacked on `index` (same number). */
+export function stackable(hand: Card[], index: number): number[] {
+  const first = hand[index];
+  if (!first || !isNumber(first)) return [];
+  return hand.flatMap((card, i) =>
+    i !== index && isNumber(card) && card.v === first.v ? [i] : [],
+  );
+}
 
 function play(
   s: UnoState,
@@ -195,15 +244,20 @@ function play(
     throw new RoomError('Pilih warna dulu', 400);
   }
 
-  hand.splice(index, 1);
-  s.discard.push(card);
-  s.color = card.c === 'W' ? (move.color as Color) : card.c;
+  const also = stackOf(s, hand, index, move.also);
+  const played = [card, ...also.map((i) => hand[i])];
+  // remove from the back so the earlier indexes stay valid
+  for (const i of [index, ...also].sort((a, b) => b - a)) hand.splice(i, 1);
+  s.discard.push(...played);
+  const lastCard = played[played.length - 1];
+  s.color = card.c === 'W' ? (move.color as Color) : (lastCard.c as Color);
   s.pending = null;
   s.last = {
     seat,
     kind: 'play',
-    card,
+    card: lastCard,
     color: card.c === 'W' ? s.color : undefined,
+    ...(played.length > 1 ? { cards: played } : {}),
   };
 
   if (hand.length === 0) {

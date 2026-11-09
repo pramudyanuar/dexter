@@ -7,6 +7,7 @@ import {
   deck,
   HAND_SIZE,
   shuffle,
+  stackable,
   start,
   unoGame,
   UnoState,
@@ -560,5 +561,65 @@ describe('with nothing to play', () => {
     );
     const v = view(s, 0);
     expect([v.stuck, v.canPass, v.playable]).toEqual([false, true, [1]]);
+  });
+});
+
+describe('stacking the same number', () => {
+  const play3 = (s: UnoState, seat: number, index: number, also: number[]) =>
+    move(s, seat, { type: 'play', index, also });
+
+  it('plays every card of the stack in one turn, last colour counts', () => {
+    const s = game({
+      hands: [['R7', 'B7', 'G7', 'Y2'], ['R1'], ['B1']],
+      top: 'R5',
+    });
+    const next = play3(s, 0, 0, [2, 1]);
+    expect(next.hands[0].map(key)).toEqual(['Y2']);
+    expect(next.discard.slice(-3).map(key)).toEqual(['R7', 'G7', 'B7']);
+    expect(next.color).toBe('B');
+    expect(next.turn).toBe(1);
+    expect(next.last?.cards?.map(key)).toEqual(['R7', 'G7', 'B7']);
+    expect(key(next.last!.card!)).toBe('B7');
+  });
+
+  it('only needs the first card to fit', () => {
+    const s = game({ hands: [['B5', 'G5'], ['R1']], top: 'R5', color: 'R' });
+    // B5 fits by number; G5 rides along
+    expect(play3(s, 0, 1, [0]).color).toBe('B');
+    expect(
+      errorOf(() => play3(game({ hands: [['B7', 'G7'], ['R1']] }), 0, 0, [1])),
+    ).toMatchObject({ status: 400 });
+  });
+
+  it('wins when the stack empties the hand', () => {
+    const s = { ...game({ hands: [['R7', 'Y7'], ['R1']] }), places: [] };
+    const next = play3(s, 0, 0, [1]);
+    expect(next.winner).toBe(0);
+    expect(unoGame.isOver(next)).toBe(true);
+  });
+
+  it('rejects different numbers, action cards, repeats and bad indexes', () => {
+    const s = game({ hands: [['R7', 'B8', 'RS', 'BS', 'G7'], ['R1']] });
+    for (const also of [[1], [4, 4], [0], [9], ['x'], 'nope']) {
+      expect(
+        errorOf(() => move(s, 0, { type: 'play', index: 0, also })),
+      ).toMatchObject({ status: 400 });
+    }
+    const skip = game({ hands: [['RS', 'BS'], ['R1']] });
+    expect(errorOf(() => play3(skip, 0, 0, [1]))?.message).toMatch(/angka/);
+  });
+
+  it('is not allowed with the card just drawn', () => {
+    const s = move(game({ hands: [['B9', 'G7'], ['R1']], draw: ['R7'] }), 0, {
+      type: 'draw',
+    });
+    expect(errorOf(() => play3(s, 0, 2, [1]))?.message).toMatch(/menarik/);
+  });
+
+  it('lists what can be stacked on a card', () => {
+    const hand = ['R7', 'B7', 'RS', 'G7', 'Y1'].map(c);
+    expect(stackable(hand, 0)).toEqual([1, 3]);
+    expect(stackable(hand, 2)).toEqual([]);
+    expect(stackable(hand, 4)).toEqual([]);
   });
 });
