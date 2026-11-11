@@ -156,9 +156,18 @@ export default function RoomGate<V>({
                   ? seatTitle(seat, you, room.names)
                   : `kursi ${seat + 1} kosong`}
               </span>
-              {seat === 0 && taken && (
+              {seat === 0 && taken ? (
                 <span className='text-hash'>pembuat</span>
-              )}
+              ) : you === 0 && taken ? (
+                <button
+                  type='button'
+                  onClick={() => r.kick(seat)}
+                  disabled={r.busy}
+                  className='text-xs text-err hover:underline disabled:opacity-40'
+                >
+                  keluarkan
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>

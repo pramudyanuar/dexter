@@ -4,12 +4,14 @@ import { CODE_PATTERN, newToken, normalizeCode } from '@/lib/rooms/codes';
 import {
   act,
   join,
+  kick,
   rematch,
   rename,
   seatOf,
   start,
   toView,
 } from '@/lib/rooms/engine';
+import { cryptoRng } from '@/lib/rooms/rng';
 import { getRoomStore } from '@/lib/rooms/store';
 import { RoomError } from '@/lib/rooms/types';
 
@@ -117,15 +119,23 @@ export async function POST(req: Request, { params }: Context) {
         );
       }
       case 'start': {
-        const next = start(room, body.token);
+        const next = start(room, body.token, cryptoRng());
         await store.save(next);
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },
         );
       }
+      case 'kick': {
+        const next = kick(room, body.token, body.seat);
+        if (next !== room) await store.save(next);
+        return NextResponse.json(
+          { room: toView(next, body.token) },
+          { headers: NO_STORE },
+        );
+      }
       case 'move': {
-        const next = act(room, body.token, body.move);
+        const next = act(room, body.token, body.move, cryptoRng());
         await store.save(next);
         return NextResponse.json(
           { room: toView(next, body.token) },
@@ -141,7 +151,7 @@ export async function POST(req: Request, { params }: Context) {
         );
       }
       case 'rematch': {
-        const next = rematch(room, body.token);
+        const next = rematch(room, body.token, cryptoRng());
         if (next !== room) await store.save(next);
         return NextResponse.json(
           { room: toView(next, body.token) },

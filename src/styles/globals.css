@@ -345,6 +345,25 @@
     transform: translate(0, 0) rotate(0) scale(1);
   }
 }
+/* A face-down card pulled from the central pile out to a player who drew it
+ * (a +2/+4 penalty, a draw, or a catch). --to-x/--to-y point at that seat. */
+@keyframes g-draw {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(
+        calc(-50% + var(--to-x, 0)),
+        calc(-50% + var(--to-y, 0))
+      )
+      rotate(var(--spin, 0)) scale(0.55);
+    opacity: 0;
+  }
+}
 @keyframes g-flip {
   0% {
     transform: rotateX(0);
@@ -496,6 +515,9 @@
   }
   .a-toss {
     animation: g-toss 0.55s cubic-bezier(0.3, 0.9, 0.35, 1.3) both;
+  }
+  .a-draw {
+    animation: g-draw 0.75s ease-in both;
   }
   .a-flip {
     animation: g-flip 0.5s ease-in-out both;

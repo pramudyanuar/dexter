@@ -63,6 +63,8 @@ export interface UnoEvent {
   passed?: boolean;
   /** The seat caught not calling UNO (for a `catch` event) */
   target?: number;
+  /** Cards pulled from the pile this move, so clients can animate them */
+  drew?: { seat: number; count: number };
 }
 
 export interface UnoState {
@@ -226,7 +228,7 @@ function catchUno(
   }
   deal(s, t, 2, rng);
   flags[t] = false;
-  s.last = { seat, kind: 'catch', target: t };
+  s.last = { seat, kind: 'catch', target: t, drew: { seat: t, count: 2 } };
 }
 
 /**
@@ -339,14 +341,20 @@ function play(
       // with two players left a reverse works like a skip
       s.turn = active(s) === 2 && !out ? seat : nextSeat(s, seat);
       break;
-    case 'D':
-      deal(s, nextSeat(s, seat), 2, rng);
+    case 'D': {
+      const victim = nextSeat(s, seat);
+      deal(s, victim, 2, rng);
+      if (s.last) s.last.drew = { seat: victim, count: 2 };
       s.turn = nextSeat(s, seat, 2);
       break;
-    case 'F':
-      deal(s, nextSeat(s, seat), 4, rng);
+    }
+    case 'F': {
+      const victim = nextSeat(s, seat);
+      deal(s, victim, 4, rng);
+      if (s.last) s.last.drew = { seat: victim, count: 4 };
       s.turn = nextSeat(s, seat, 2);
       break;
+    }
     default:
       s.turn = nextSeat(s, seat);
   }
@@ -360,12 +368,13 @@ function drawCard(s: UnoState, seat: number, rng: () => number) {
   const drawn = s.hands[seat].length > before;
   const index = s.hands[seat].length - 1;
 
+  const drew = drawn ? { seat, count: 1 } : undefined;
   if (drawn && canPlay(s, s.hands[seat][index], s.hands[seat])) {
     // the drawn card fits: its owner decides whether to play it or pass
     s.pending = { seat, index };
-    s.last = { seat, kind: 'draw' };
+    s.last = { seat, kind: 'draw', drew };
   } else {
-    s.last = { seat, kind: 'draw', passed: true };
+    s.last = { seat, kind: 'draw', passed: true, drew };
     s.turn = nextSeat(s, seat);
   }
 }
@@ -373,7 +382,7 @@ function drawCard(s: UnoState, seat: number, rng: () => number) {
 export const unoGame: GameDef<UnoState> = {
   id: 'uno',
   minPlayers: 2,
-  maxPlayers: 4,
+  maxPlayers: 8,
   autoStart: false,
 
   start,

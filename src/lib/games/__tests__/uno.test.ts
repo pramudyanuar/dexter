@@ -550,7 +550,12 @@ describe('with nothing to play', () => {
     const next = move(s, 0, { type: 'draw' });
     expect(next.hands[0]).toHaveLength(3);
     expect(next.turn).toBe(1);
-    expect(next.last).toEqual({ seat: 0, kind: 'draw', passed: true });
+    expect(next.last).toEqual({
+      seat: 0,
+      kind: 'draw',
+      passed: true,
+      drew: { seat: 0, count: 1 },
+    });
   });
 
   it('is not stuck after drawing a card that fits', () => {
@@ -716,5 +721,66 @@ describe('calling UNO and catching', () => {
     const s = game({ hands: [['R1'], ['B1']], top: 'R5', draw: ['G1'] });
     s.discard = [c('R2'), c('R3'), c('R5')];
     expect(view(s, 0).pile.map(key)).toEqual(['R2', 'R3', 'R5']);
+  });
+});
+
+describe('cards drawn are reported for animation', () => {
+  it('a plus two records the victim and count', () => {
+    const s = play(
+      game({
+        hands: [
+          ['BD', 'Y1'],
+          ['R1', 'R2'],
+        ],
+        top: 'B9',
+      }),
+      0,
+      0,
+    );
+    expect(s.last?.drew).toEqual({ seat: 1, count: 2 });
+  });
+
+  it('a wild plus four records four cards for the next player', () => {
+    const s = play(
+      game({
+        hands: [
+          ['WF', 'Y1'],
+          ['R1', 'R2'],
+        ],
+        top: 'R5',
+        color: 'G',
+      }),
+      0,
+      0,
+      'B',
+    );
+    expect(s.last?.drew).toEqual({ seat: 1, count: 4 });
+  });
+
+  it('a plain draw records one card for the drawer', () => {
+    const s = move(
+      game({ hands: [['B2'], ['R1']], top: 'R5', draw: ['Y9'] }),
+      0,
+      {
+        type: 'draw',
+      },
+    );
+    expect(s.last?.drew).toEqual({ seat: 0, count: 1 });
+  });
+
+  it('a catch makes the caught player draw two, reported too', () => {
+    let s = {
+      ...game({
+        hands: [
+          ['R1', 'R2'],
+          ['B1', 'B2', 'B3'],
+        ],
+        top: 'R5',
+      }),
+      calledUno: [false, false],
+    } as UnoState;
+    s = play(s, 0, 0); // seat 0 to one card, uncalled
+    s = move(s, 1, { type: 'catch', target: 0 });
+    expect(s.last?.drew).toEqual({ seat: 0, count: 2 });
   });
 });

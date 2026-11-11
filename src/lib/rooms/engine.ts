@@ -142,6 +142,31 @@ export function rename(room: Room, token: unknown, name: unknown): Room {
   return { ...room, names, version: room.version + 1 };
 }
 
+/** The host (seat 0) removes another player from the room while it is still waiting. */
+export function kick(room: Room, token: unknown, seat: unknown): Room {
+  if (seatOf(room, token) !== 0)
+    throw new RoomError(
+      'Hanya pembuat room yang bisa mengeluarkan pemain',
+      403,
+    );
+  if (room.status !== 'waiting')
+    throw new RoomError('Tidak bisa mengeluarkan pemain setelah mulai', 409);
+  if (
+    !Number.isInteger(seat) ||
+    (seat as number) <= 0 ||
+    (seat as number) >= room.tokens.length
+  ) {
+    throw new RoomError('Pemain tidak ada', 400);
+  }
+  const s = seat as number;
+  if (!room.tokens[s]) return room; // seat already empty
+  const tokens = [...room.tokens];
+  tokens[s] = null;
+  const names = [...namesOf(room)];
+  names[s] = null;
+  return { ...room, tokens, names, version: room.version + 1 };
+}
+
 /** Starts another round once one has ended. */
 export function rematch(room: Room, token: unknown, rng?: () => number): Room {
   if (seatOf(room, token) === null)

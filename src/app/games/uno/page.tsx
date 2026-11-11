@@ -230,20 +230,25 @@ function scatterFor(card: Card, i: number) {
   };
 }
 
-type Slot = 'top' | 'left' | 'right' | 'bottom';
-/** Where each slot sits around the table, and where a tossed card flies in from. */
-const SLOT_POS: Record<Slot, string> = {
-  top: 'top-0 left-1/2 -translate-x-1/2',
-  left: 'top-1/2 left-0 -translate-y-1/2',
-  right: 'top-1/2 right-0 -translate-y-1/2',
-  bottom: 'bottom-0 left-1/2 -translate-x-1/2',
-};
-const TOSS_FROM: Record<Slot, { x: number; y: number; spin: number }> = {
-  top: { x: 0, y: -200, spin: -150 },
-  left: { x: -220, y: 24, spin: 150 },
-  right: { x: 220, y: 24, spin: -150 },
-  bottom: { x: 0, y: 230, spin: 165 },
-};
+/**
+ * Everyone sits around an oval table. `you` are at the bottom; the others are
+ * spread evenly around the rest of the ring in turn order, so it works for two
+ * up to eight players. Returns a seat's position as table percentages.
+ */
+function seatPos(seat: number, you: number, players: number) {
+  const rel = (((seat - you) % players) + players) % players;
+  const angle = Math.PI / 2 + (2 * Math.PI * rel) / players; // bottom = you
+  return {
+    left: 50 + 45 * Math.cos(angle),
+    top: 50 + 43 * Math.sin(angle),
+    angle,
+  };
+}
+/** Pixel offset a card flies in from (toward a seat) or out to (a draw). */
+const offsetTo = (left: number, top: number) => ({
+  x: ((left - 50) / 50) * 232,
+  y: ((top - 50) / 50) * 150,
+});
 
 function lastText(view: UnoView, you: number, names: (string | null)[]) {
   const e = view.last;
@@ -419,6 +424,63 @@ function HandCard({
   );
 }
 
+/** 1st / 2nd / 3rd on a podium, with any remaining places listed below. */
+function Podium({
+  places,
+  you,
+  names,
+}: {
+  places: number[];
+  you: number;
+  names: (string | null)[];
+}) {
+  // podium order: 2nd on the left, 1st in the middle, 3rd on the right
+  const steps: { seat: number; rank: number }[] = [];
+  if (places[1] !== undefined) steps.push({ seat: places[1], rank: 2 });
+  if (places[0] !== undefined) steps.push({ seat: places[0], rank: 1 });
+  if (places[2] !== undefined) steps.push({ seat: places[2], rank: 3 });
+  const HEIGHT = { 1: 'h-20', 2: 'h-14', 3: 'h-10' } as const;
+  const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' } as const;
+
+  return (
+    <div className='a-slide-up mb-3'>
+      <div className='flex items-end justify-center gap-1.5'>
+        {steps.map(({ seat, rank }) => (
+          <div
+            key={seat}
+            className='flex w-20 flex-col items-center justify-end'
+          >
+            <span className='text-xl'>{MEDAL[rank as 1 | 2 | 3]}</span>
+            <span
+              className={`mb-1 max-w-full truncate text-xs ${
+                seat === you ? 'font-bold text-accent' : 'text-ink'
+              }`}
+            >
+              {seatTitle(seat, you, names)}
+            </span>
+            <div
+              className={`flex w-full items-start justify-center rounded-t-md border border-b-0 border-line bg-card pt-1 text-xs font-bold text-mute ${
+                HEIGHT[rank as 1 | 2 | 3]
+              } ${rank === 1 ? 'bg-accent/15' : ''}`}
+            >
+              #{rank}
+            </div>
+          </div>
+        ))}
+      </div>
+      {places.length > 3 && (
+        <ol className='mx-auto mt-2 w-full max-w-xs text-center text-xs text-mute'>
+          {places.slice(3).map((seat, i) => (
+            <li key={seat}>
+              #{i + 4} {seatTitle(seat, you, names)}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 function Uno() {
   const r = useRoom<UnoView>('uno');
   const [choosing, setChoosing] = React.useState<number | null>(null);
@@ -467,15 +529,27 @@ function Uno() {
         </p>
         <ul className='mx-auto w-full max-w-xs divide-y divide-line border-y border-line'>
           {room.joined.map((taken, seat) => (
-            <li key={seat} className='flex justify-between py-2 text-sm'>
+            <li
+              key={seat}
+              className='flex items-center justify-between py-2 text-sm'
+            >
               <span className={taken ? '' : 'text-mute'}>
                 {taken
                   ? seatTitle(seat, you, names)
                   : `kursi ${seat + 1} kosong`}
               </span>
-              {seat === 0 && taken && (
+              {seat === 0 && taken ? (
                 <span className='text-hash'>pembuat</span>
-              )}
+              ) : you === 0 && taken ? (
+                <button
+                  type='button'
+                  onClick={() => r.kick(seat)}
+                  disabled={r.busy}
+                  className='text-xs text-err hover:underline disabled:opacity-40'
+                >
+                  keluarkan
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -584,18 +658,43 @@ function Uno() {
   };
 
   const players = view.players;
-  const slotOf = (seat: number): Slot => {
-    if (seat === you) return 'bottom';
-    const rel = (seat - you + players) % players;
-    if (players <= 2) return 'top';
-    if (players === 3) return rel === 1 ? 'right' : 'left';
-    return rel === 1 ? 'right' : rel === 2 ? 'top' : 'left';
-  };
   const others = view.counts
     .map((count, seat) => ({ count, seat }))
     .filter((p) => p.seat !== you);
+
+  // a card tossed onto the pile flies in from the player who played it
   const toss =
-    view.last?.kind === 'play' ? TOSS_FROM[slotOf(view.last.seat)] : null;
+    view.last?.kind === 'play'
+      ? (() => {
+          const p = seatPos(view.last.seat, you, players);
+          const o = offsetTo(p.left, p.top);
+          return { x: o.x, y: o.y, spin: p.left < 50 ? 150 : -150 };
+        })()
+      : null;
+
+  // cards pulled from the pile fly out to whoever drew them (+2/+4, draw, catch)
+  const drew = view.last?.drew ?? null;
+  const drewTo = drew
+    ? (() => {
+        const p = seatPos(drew.seat, you, players);
+        return { ...offsetTo(p.left, p.top), count: Math.min(drew.count, 4) };
+      })()
+    : null;
+
+  // a banner so skips, reverses and draws are obvious
+  const effect = (() => {
+    const e = view.last;
+    if (!e || e.kind !== 'play' || !e.card) return null;
+    const v = e.card.v;
+    const victim = e.drew ? seatName(e.drew.seat) : '';
+    if (v === 'S') return '⊘ Dilewati!';
+    if (v === 'V') return '⇄ Arah dibalik!';
+    if (v === 'D') return `+2 · ${victim} tarik 2`;
+    if (v === 'F') return `+4 · ${victim} tarik 4`;
+    if (v === 'W' || e.card.c === 'W')
+      return `Wild! Warna jadi ${COLOR_NAME[view.color]}`;
+    return null;
+  })();
 
   return (
     <>
@@ -627,15 +726,16 @@ function Uno() {
         {others.map(({ count, seat }) => {
           const active = !over && view.turn === seat;
           const place = view.places.indexOf(seat);
-          const slot = slotOf(seat);
+          const pos = seatPos(seat, you, players);
           const safe = count === 1 && view.calledUno[seat];
           const canCatch = view.catchable.includes(seat) && !over;
-          const shown = Math.min(count, 7);
+          const shown = Math.min(count, 6);
           return (
             <div
               key={seat}
               data-seat={seat}
-              className={`absolute ${SLOT_POS[slot]} flex w-[4.5rem] flex-col items-center gap-1`}
+              className='absolute flex w-[4.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1'
+              style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
             >
               <span
                 className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
@@ -648,8 +748,8 @@ function Uno() {
               </span>
               <div
                 aria-hidden
-                className='flex h-9 items-center justify-center'
-                style={{ width: 20 + shown * 6 }}
+                className='flex h-8 items-center justify-center'
+                style={{ width: 18 + shown * 6 }}
               >
                 {Array.from({ length: shown }, (_, i) => (
                   <CardBack
@@ -681,8 +781,40 @@ function Uno() {
           );
         })}
 
+        {/* cards pulled from the pile, flying to whoever drew them */}
+        {drewTo && (
+          <div key={`drew-${version}`} aria-hidden>
+            {Array.from({ length: drewTo.count }, (_, i) => (
+              <div
+                key={i}
+                className='a-draw absolute top-1/2 left-1/2'
+                style={
+                  {
+                    '--to-x': `${drewTo.x}px`,
+                    '--to-y': `${drewTo.y}px`,
+                    '--spin': `${(i - 1) * 20}deg`,
+                    animationDelay: `${i * 90}ms`,
+                  } as React.CSSProperties
+                }
+              >
+                <CardBack size='sm' />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* what the last action card did */}
+        {effect && !over && (
+          <div
+            key={`fx-${version}`}
+            className='a-pop pointer-events-none absolute top-[14%] left-1/2 z-50 -translate-x-1/2 rounded-full border border-hash bg-paper/95 px-3 py-1 text-xs font-bold whitespace-nowrap text-hash shadow-lg'
+          >
+            {effect}
+          </div>
+        )}
+
         {/* center: draw pile, discard pile, colour */}
-        <div className='absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-4'>
+        <div className='absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2.5'>
           <button
             type='button'
             aria-label='Tarik kartu'
@@ -776,25 +908,7 @@ function Uno() {
       </p>
 
       {over && view.places.length > 0 && (
-        <ol
-          className='a-slide-up mx-auto mb-3 w-full max-w-xs divide-y divide-line border-y border-line text-sm'
-          aria-label='Peringkat'
-        >
-          {view.places.map((seat, i) => (
-            <li key={seat} className='flex justify-between py-1.5'>
-              <span className={seat === you ? 'text-accent' : ''}>
-                {i + 1}. {seatTitle(seat, you, names)}
-              </span>
-              <span className='text-mute'>
-                {i === 0
-                  ? '🏆'
-                  : view.counts[seat] > 0
-                    ? `sisa ${view.counts[seat]} kartu`
-                    : ''}
-              </span>
-            </li>
-          ))}
-        </ol>
+        <Podium places={view.places} you={you} names={names} />
       )}
 
       {stack && (

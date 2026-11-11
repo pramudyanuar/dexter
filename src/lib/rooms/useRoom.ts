@@ -152,6 +152,8 @@ export function useRoom<V>(game: GameId) {
     create,
     join,
     start: () => act('start'),
+    /** Host removes a waiting player by seat. */
+    kick: (seat: number) => act('kick', { seat }),
     move: (move: unknown) => act('move', { move }),
     /** Changes your name, also in the room you are in */
     rename: (next: string) => {
