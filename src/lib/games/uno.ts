@@ -53,7 +53,7 @@ export function shuffle<T>(items: T[], rng: () => number = Math.random): T[] {
 
 export interface UnoEvent {
   seat: number;
-  kind: 'play' | 'draw' | 'pass' | 'uno' | 'catch';
+  kind: 'play' | 'draw' | 'pass' | 'uno' | 'catch' | 'accept' | 'challenge';
   card?: Card;
   /** Colour chosen with a wild */
   color?: Color;
@@ -61,8 +61,10 @@ export interface UnoEvent {
   cards?: Card[];
   /** A draw that could not be played, so the turn moved on */
   passed?: boolean;
-  /** The seat caught not calling UNO (for a `catch` event) */
+  /** The seat caught not calling UNO (`catch`), or the one challenged (`challenge`) */
   target?: number;
+  /** A challenge was right: the +4 had been played with the colour in hand */
+  caught?: boolean;
   /** Cards pulled from the pile this move, so clients can animate them */
   drew?: { seat: number; count: number };
 }
@@ -91,6 +93,12 @@ export interface UnoState {
    * without them. Missing in older states.
    */
   dropped?: number[];
+  /**
+   * A wild draw four waits for its victim, who either takes the four cards or
+   * challenges: bluffed (the player held `color`), the player draws four
+   * instead; honest, the victim draws six. Missing in older states.
+   */
+  challenge?: { from: number; victim: number; color: Color } | null;
   /** After drawing a playable card, its owner may play exactly that one */
   pending: { seat: number; index: number } | null;
   /** Whether each seat has called "UNO" while down to one card. Missing in older states. */
@@ -136,13 +144,12 @@ function nextSeat(s: UnoState, from: number, steps = 1) {
 }
 
 /**
- * Whether `card` may be played by someone holding `hand`. A wild draw four is
- * only legal with no card of the current colour (there is no challenge rule
- * here, so it is enforced outright).
+ * Whether `card` may be played. A wild draw four is meant for hands without
+ * the current colour, but it can always be played as a bluff: the next player
+ * may challenge it.
  */
-export function canPlay(s: UnoState, card: Card, hand: Card[]): boolean {
-  if (card.v === 'W') return true;
-  if (card.v === 'F') return !hand.some((h) => h.c === s.color);
+export function canPlay(s: UnoState, card: Card, _hand?: Card[]): boolean {
+  if (card.c === 'W') return true;
   return card.c === s.color || card.v === top(s).v;
 }
 
@@ -200,6 +207,8 @@ type Move =
     }
   | { type: 'draw' }
   | { type: 'pass' }
+  | { type: 'accept' }
+  | { type: 'challenge' }
   | { type: 'uno' }
   | { type: 'catch'; target: number };
 
@@ -301,18 +310,14 @@ function play(
   }
   const card = hand[index];
   if (!canPlay(s, card, hand)) {
-    throw new RoomError(
-      card.v === 'F'
-        ? 'Wild +4 hanya boleh jika tidak punya warna yang sedang berlaku'
-        : 'Kartu itu tidak bisa dimainkan',
-      400,
-    );
+    throw new RoomError('Kartu itu tidak bisa dimainkan', 400);
   }
   if (card.c === 'W' && !COLORS.includes(move.color as Color)) {
     throw new RoomError('Pilih warna dulu', 400);
   }
 
   const also = stackOf(s, hand, index, move.also);
+  const before = s.color;
   const played = [card, ...also.map((i) => hand[i])];
   // remove from the back so the earlier indexes stay valid
   for (const i of [index, ...also].sort((a, b) => b - a)) hand.splice(i, 1);
@@ -360,13 +365,60 @@ function play(
     }
     case 'F': {
       const victim = nextSeat(s, seat);
-      deal(s, victim, 4, rng);
-      if (s.last) s.last.drew = { seat: victim, count: 4 };
-      s.turn = nextSeat(s, seat, 2);
+      if (out) {
+        // the last card cannot be challenged: just pay up
+        deal(s, victim, 4, rng);
+        if (s.last) s.last.drew = { seat: victim, count: 4 };
+        s.turn = nextSeat(s, seat, 2);
+      } else {
+        // the victim decides: take four, or challenge
+        s.challenge = { from: seat, victim, color: before };
+        s.turn = victim;
+      }
       break;
     }
     default:
       s.turn = nextSeat(s, seat);
+  }
+}
+
+/** The victim of a wild draw four takes the four cards and loses the turn. */
+function acceptFour(s: UnoState, seat: number, rng: () => number) {
+  const ch = s.challenge!;
+  deal(s, seat, 4, rng);
+  s.challenge = null;
+  s.last = { seat, kind: 'accept', target: ch.from, drew: { seat, count: 4 } };
+  s.turn = nextSeat(s, seat);
+}
+
+/**
+ * The victim bets the +4 was a bluff. Right: the player who played it draws
+ * four and the victim plays on. Wrong: the victim draws six and loses the turn.
+ */
+function challengeFour(s: UnoState, seat: number, rng: () => number) {
+  const ch = s.challenge!;
+  const caught = s.hands[ch.from].some((c) => c.c === ch.color);
+  s.challenge = null;
+  if (caught) {
+    deal(s, ch.from, 4, rng);
+    s.last = {
+      seat,
+      kind: 'challenge',
+      target: ch.from,
+      caught,
+      drew: { seat: ch.from, count: 4 },
+    };
+    s.turn = seat;
+  } else {
+    deal(s, seat, 6, rng);
+    s.last = {
+      seat,
+      kind: 'challenge',
+      target: ch.from,
+      caught,
+      drew: { seat, count: 6 },
+    };
+    s.turn = nextSeat(s, seat);
   }
 }
 
@@ -423,6 +475,18 @@ export const unoGame: GameDef<UnoState> = {
     }
 
     if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
+    if (move.type === 'accept' || move.type === 'challenge') {
+      if (!s.challenge || s.challenge.victim !== seat) {
+        throw new RoomError('Tidak ada +4 yang perlu dijawab', 409);
+      }
+      if (move.type === 'accept') acceptFour(s, seat, rng);
+      else challengeFour(s, seat, rng);
+      syncUnoFlags(s);
+      return s;
+    }
+    if (s.challenge) {
+      throw new RoomError('Jawab +4 dulu: terima atau tantang', 409);
+    }
     switch (move.type) {
       case 'play':
         play(s, seat, move, rng);
@@ -453,7 +517,11 @@ export const unoGame: GameDef<UnoState> = {
 
   // an idle player draws a card (and passes if it fits): a penalty, not a play
   autoMove: (state, seat) =>
-    state.pending?.seat === seat ? { type: 'pass' } : { type: 'draw' },
+    state.challenge?.victim === seat
+      ? { type: 'accept' }
+      : state.pending?.seat === seat
+        ? { type: 'pass' }
+        : { type: 'draw' },
 
   eliminate(state, seat, rng = Math.random) {
     if (isOut(state, seat)) return state;
@@ -463,6 +531,12 @@ export const unoGame: GameDef<UnoState> = {
     s.hands[seat] = [];
     s.dropped = [...droppedOf(s), seat];
     if (s.pending?.seat === seat) s.pending = null;
+    if (s.challenge) {
+      // the +4 is void; its victim (if still here) just plays on
+      const victim = s.challenge.victim;
+      s.challenge = null;
+      if (victim !== seat) s.turn = victim;
+    }
     if (s.turn === seat) s.turn = nextSeat(s, seat);
     if (finished(s)) {
       // whoever still holds cards wins; the removed players rank last
@@ -490,17 +564,19 @@ export const unoGame: GameDef<UnoState> = {
       !isOut(state, seat) &&
       state.turn === seat;
     const hand = seat === null ? [] : state.hands[seat];
-    const playable = myTurn
-      ? hand.flatMap((card, i) =>
-          state.pending
-            ? i === state.pending.index
-              ? [i]
-              : []
-            : canPlay(state, card, hand)
-              ? [i]
-              : [],
-        )
-      : [];
+    const challenged = state.challenge ?? null;
+    const playable =
+      myTurn && !challenged
+        ? hand.flatMap((card, i) =>
+            state.pending
+              ? i === state.pending.index
+                ? [i]
+                : []
+              : canPlay(state, card, hand)
+                ? [i]
+                : [],
+          )
+        : [];
     const counts = state.hands.map((h) => h.length);
     const called = state.calledUno ?? Array<boolean>(state.players).fill(false);
     const active = seat !== null && !finished(state) && !isOut(state, seat);
@@ -509,8 +585,17 @@ export const unoGame: GameDef<UnoState> = {
       counts,
       hand,
       playable,
-      stuck: myTurn && !state.pending && playable.length === 0,
-      canDraw: myTurn && !state.pending,
+      stuck: myTurn && !state.pending && !challenged && playable.length === 0,
+      canDraw: myTurn && !state.pending && !challenged,
+      // a wild draw four is waiting for you: take it, or challenge it
+      challenge: challenged
+        ? {
+            from: challenged.from,
+            victim: challenged.victim,
+            color: challenged.color,
+          }
+        : null,
+      canChallenge: myTurn && challenged?.victim === seat,
       canPass: myTurn && state.pending?.seat === seat,
       top: top(state),
       // the last few discards, oldest first, for a messy pile
@@ -557,6 +642,10 @@ export interface UnoView {
   stuck: boolean;
   canDraw: boolean;
   canPass: boolean;
+  /** A wild draw four waiting for its victim's answer (colour = the one in play before it) */
+  challenge: { from: number; victim: number; color: Color } | null;
+  /** You are the victim: accept (draw 4) or challenge */
+  canChallenge: boolean;
   top: Card;
   /** The last few discards, oldest first, so the pile can look stacked */
   pile: Card[];

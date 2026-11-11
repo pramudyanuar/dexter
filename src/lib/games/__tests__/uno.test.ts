@@ -142,11 +142,9 @@ describe('what can be played', () => {
     expect(canPlay(s, c('WW'), [c('R1')])).toBe(true);
   });
 
-  it('only allows wild draw four with no card of the current colour', () => {
-    expect(canPlay(s, c('WF'), [c('R1'), c('WF')])).toBe(false);
+  it('lets a wild draw four go on anything, bluff or not', () => {
+    expect(canPlay(s, c('WF'), [c('R1'), c('WF')])).toBe(true);
     expect(canPlay(s, c('WF'), [c('B1'), c('WF')])).toBe(true);
-    // wilds do not count as "having the colour"
-    expect(canPlay(s, c('WF'), [c('WW'), c('WF')])).toBe(true);
   });
 
   it('follows the chosen colour after a wild', () => {
@@ -253,22 +251,107 @@ describe('action cards', () => {
     expect(errorOf(() => play(s, 0, 0, 'X' as Color))?.status).toBe(400);
   });
 
-  it('wild draw four makes the next player draw four and sets the colour', () => {
+  it('wild draw four waits for the next player to answer', () => {
     const next = play(
       game({ hands: [['WF', 'B1'], ['G1'], ['G2']] }),
       0,
       0,
       'Y',
     );
-    expect(next.hands[1]).toHaveLength(5);
+    expect(next.hands[1]).toHaveLength(1);
     expect(next.color).toBe('Y');
-    expect(next.turn).toBe(2);
+    expect(next.turn).toBe(1);
+    expect(next.challenge).toEqual({ from: 0, victim: 1, color: 'R' });
+    expect(view(next, 1).canChallenge).toBe(true);
+    expect(view(next, 1).playable).toEqual([]);
+    expect(view(next, 2).canChallenge).toBe(false);
   });
 
-  it('wild draw four is refused while holding the current colour', () => {
-    const s = game({ hands: [['WF', 'R1'], ['G1']] });
-    expect(errorOf(() => play(s, 0, 0, 'Y'))).toMatchObject({ status: 400 });
-    expect(errorOf(() => play(s, 0, 0, 'Y'))?.message).toMatch(/Wild \+4/);
+  it('accepting a wild draw four draws four and loses the turn', () => {
+    const next = play(
+      game({ hands: [['WF', 'B1'], ['G1'], ['G2']] }),
+      0,
+      0,
+      'Y',
+    );
+    const done = move(next, 1, { type: 'accept' });
+    expect(done.hands[1]).toHaveLength(5);
+    expect(done.turn).toBe(2);
+    expect(done.challenge).toBeNull();
+    expect(done.last?.drew).toEqual({ seat: 1, count: 4 });
+  });
+
+  it('a right challenge makes the bluffer draw four and the victim plays on', () => {
+    // seat 0 holds a red card (R is in play) yet plays the wild draw four
+    const next = play(
+      game({ hands: [['WF', 'R1', 'B1'], ['G1'], ['G2']] }),
+      0,
+      0,
+      'Y',
+    );
+    const done = move(next, 1, { type: 'challenge' });
+    expect(done.hands[0]).toHaveLength(6);
+    expect(done.hands[1]).toHaveLength(1);
+    expect(done.turn).toBe(1);
+    expect(done.last).toMatchObject({ kind: 'challenge', caught: true });
+    expect(done.last?.drew).toEqual({ seat: 0, count: 4 });
+  });
+
+  it('a wrong challenge makes the challenger draw six', () => {
+    // seat 0 has no red card: the wild draw four was honest
+    const next = play(
+      game({ hands: [['WF', 'B1'], ['G1'], ['G2']] }),
+      0,
+      0,
+      'Y',
+    );
+    const done = move(next, 1, { type: 'challenge' });
+    expect(done.hands[1]).toHaveLength(7);
+    expect(done.hands[0]).toHaveLength(1);
+    expect(done.turn).toBe(2);
+    expect(done.last).toMatchObject({ kind: 'challenge', caught: false });
+    expect(done.last?.drew).toEqual({ seat: 1, count: 6 });
+  });
+
+  it('only the victim may answer, and nothing else is allowed meanwhile', () => {
+    const next = play(
+      game({ hands: [['WF', 'B1'], ['G1'], ['G2']] }),
+      0,
+      0,
+      'Y',
+    );
+    expect(errorOf(() => move(next, 2, { type: 'challenge' }))?.status).toBe(
+      409,
+    );
+    expect(errorOf(() => move(next, 0, { type: 'accept' }))?.status).toBe(409);
+    expect(errorOf(() => move(next, 1, { type: 'draw' }))?.status).toBe(409);
+    expect(
+      errorOf(() => move(next, 1, { type: 'play', index: 0 }))?.status,
+    ).toBe(409);
+    expect(
+      errorOf(() =>
+        move(game({ hands: [['R1'], ['G1']] }), 0, { type: 'accept' }),
+      )?.status,
+    ).toBe(409);
+  });
+
+  it('an idle victim accepts, and a removed one voids the +4', () => {
+    const next = play(
+      game({ hands: [['WF', 'B1'], ['G1'], ['G2']] }),
+      0,
+      0,
+      'Y',
+    );
+    expect(unoGame.autoMove!(next, 1)).toEqual({ type: 'accept' });
+    const gone = unoGame.eliminate!(next, 1);
+    expect(gone.challenge).toBeNull();
+    expect(gone.turn).toBe(2);
+  });
+
+  it('a wild draw four as the last card cannot be challenged', () => {
+    const next = play(game({ hands: [['WF'], ['G1'], ['G2']] }), 0, 0, 'Y');
+    expect(next.challenge).toBeFalsy();
+    expect(next.hands[1]).toHaveLength(5);
   });
 });
 
@@ -372,7 +455,7 @@ describe('what each seat can see', () => {
   });
 
   it('lists the playable cards only on your own turn', () => {
-    expect(view(s, 0).playable).toEqual([0]); // R9; B1 no; WF illegal while holding red
+    expect(view(s, 0).playable).toEqual([0, 2]); // R9 and the wild draw four; B1 no
     expect(view(s, 0).canDraw).toBe(true);
     expect(view(s, 1).playable).toEqual([]);
     expect(view(s, 1).canDraw).toBe(false);
@@ -411,7 +494,9 @@ describe('whole games', () => {
         throw new Error(`turn went to finished seat ${seat}`);
       const v = view(s, seat);
       let m: unknown;
-      if (v.playable.length) {
+      if (v.canChallenge) {
+        m = { type: rand() < 0.5 ? 'challenge' : 'accept' };
+      } else if (v.playable.length) {
         const index = v.playable[Math.floor(rand() * v.playable.length)];
         const card = v.hand[index];
         m = {
@@ -740,19 +825,23 @@ describe('cards drawn are reported for animation', () => {
     expect(s.last?.drew).toEqual({ seat: 1, count: 2 });
   });
 
-  it('a wild plus four records four cards for the next player', () => {
-    const s = play(
-      game({
-        hands: [
-          ['WF', 'Y1'],
-          ['R1', 'R2'],
-        ],
-        top: 'R5',
-        color: 'G',
-      }),
-      0,
-      0,
-      'B',
+  it('a wild plus four records its four cards once the victim answers', () => {
+    const s = move(
+      play(
+        game({
+          hands: [
+            ['WF', 'Y1'],
+            ['R1', 'R2'],
+          ],
+          top: 'R5',
+          color: 'G',
+        }),
+        0,
+        0,
+        'B',
+      ),
+      1,
+      { type: 'accept' },
     );
     expect(s.last?.drew).toEqual({ seat: 1, count: 4 });
   });
