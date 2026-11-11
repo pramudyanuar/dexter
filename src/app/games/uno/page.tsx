@@ -211,6 +211,120 @@ function CardBack({
   );
 }
 
+/** A distinct, muted hue per seat for its avatar tile. */
+const SEAT_HUE = [
+  '#c6504e',
+  '#c58a33',
+  '#3f9460',
+  '#4471c2',
+  '#8f5bc0',
+  '#c25c93',
+  '#3f9fb0',
+  '#86993f',
+];
+
+/** A generic player portrait: the initial on a coloured tile. No game art. */
+function Avatar({
+  seat,
+  label,
+  active,
+}: {
+  seat: number;
+  label: string;
+  active: boolean;
+}) {
+  const initial = (label.trim()[0] ?? String(seat + 1)).toUpperCase();
+  const hue = SEAT_HUE[seat % SEAT_HUE.length];
+  return (
+    <span
+      aria-hidden
+      className={`relative flex size-11 items-center justify-center rounded-xl border text-lg font-bold text-white shadow-md transition-transform ${
+        active ? 'a-glow scale-105 border-accent' : 'border-white/15'
+      }`}
+      style={{
+        background: `linear-gradient(150deg, ${hue}, color-mix(in oklab, ${hue} 62%, #000))`,
+      }}
+    >
+      {/* a soft top highlight so the tile reads as a rounded chip */}
+      <span className='absolute inset-x-1 top-1 h-1/3 rounded-md bg-white/15' />
+      <span className='relative drop-shadow'>{initial}</span>
+    </span>
+  );
+}
+
+/** A little card-shaped badge showing how many cards a player holds. */
+function CountCard({ count }: { count: number }) {
+  return (
+    <span
+      className='flex h-6 min-w-5 items-center justify-center rounded-[5px] border-2 border-white bg-[#17181d] px-1 text-xs font-bold text-white shadow'
+      aria-label={`${count} kartu`}
+    >
+      {count}
+    </span>
+  );
+}
+
+/** The current-colour wheel: four wedges, the colour in play popped forward. */
+function ColorWheel({
+  color,
+  className,
+}: {
+  color: Color;
+  className?: string;
+}) {
+  const C = 50;
+  const R = 46;
+  const pt = (deg: number): [number, number] => [
+    C + R * Math.cos((deg * Math.PI) / 180),
+    C + R * Math.sin((deg * Math.PI) / 180),
+  ];
+  const wedge = (a0: number, a1: number) => {
+    const [x0, y0] = pt(a0);
+    const [x1, y1] = pt(a1);
+    return `M${C} ${C} L${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+  };
+  // seams on the diagonals: top, right, bottom, left quadrants
+  const WEDGE: { c: Color; a: [number, number] }[] = [
+    { c: 'R', a: [225, 315] },
+    { c: 'Y', a: [315, 405] },
+    { c: 'B', a: [45, 135] },
+    { c: 'G', a: [135, 225] },
+  ];
+  return (
+    <svg
+      viewBox='0 0 100 100'
+      className={className}
+      aria-label={`warna ${COLOR_NAME[color]}`}
+    >
+      {WEDGE.map(({ c, a }) => {
+        const on = c === color;
+        return (
+          <path
+            key={c}
+            d={wedge(a[0], a[1])}
+            fill={BG[c]}
+            opacity={on ? 1 : 0.26}
+            style={{
+              transformOrigin: '50px 50px',
+              transform: on ? 'scale(1.05)' : 'scale(0.9)',
+              transition:
+                'transform 0.3s var(--ease), opacity 0.3s var(--ease)',
+            }}
+          />
+        );
+      })}
+      <circle cx={C} cy={C} r='13' fill='var(--paper)' />
+      <circle
+        cx={C}
+        cy={C}
+        r='13'
+        fill='none'
+        stroke='rgb(255 255 255 / 0.12)'
+      />
+    </svg>
+  );
+}
+
 const ORDINAL = ['pertama', 'kedua', 'ketiga', 'keempat'];
 const placeText = (place: number) => `juara ${ORDINAL[place] ?? place + 1}`;
 
@@ -240,7 +354,7 @@ function seatPos(seat: number, you: number, players: number) {
   const angle = Math.PI / 2 + (2 * Math.PI * rel) / players; // bottom = you
   return {
     left: 50 + 45 * Math.cos(angle),
-    top: 50 + 43 * Math.sin(angle),
+    top: 50 + 39 * Math.sin(angle),
     angle,
   };
 }
@@ -733,8 +847,16 @@ function Uno() {
 
       {/* ------------------------------------------------- the table */}
       <div className='relative mx-auto mb-3 h-[21rem] w-full max-w-lg sm:h-80'>
-        {/* felt */}
-        <div className='absolute inset-6 rounded-[40%] border border-line bg-card/50 sm:inset-8' />
+        {/* a dark round table: a faint lift in the middle, a soft rim */}
+        <div
+          className='absolute inset-4 rounded-[46%] border border-line-strong/70 sm:inset-6'
+          style={{
+            background:
+              'radial-gradient(60% 60% at 50% 42%, rgba(86,201,138,0.06), rgba(255,255,255,0.015) 45%, transparent 72%), var(--surface)',
+            boxShadow:
+              'inset 0 0 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
+          }}
+        />
 
         {others.map(({ count, seat }) => {
           const active = !over && view.turn === seat;
@@ -747,33 +869,37 @@ function Uno() {
             <div
               key={seat}
               data-seat={seat}
-              className='absolute flex w-[4.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1'
+              className='absolute flex w-20 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1'
               style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
             >
               <span
-                className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
-                  active
-                    ? 'a-glow border-accent bg-accent/15 text-ink'
-                    : 'border-line text-mute'
+                className={`max-w-full truncate rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                  active ? 'bg-accent text-[#10110f]' : 'bg-surface text-mute'
                 }`}
               >
                 {seatName(seat)}
               </span>
+              {/* a short fan of card backs behind the portrait */}
               <div
                 aria-hidden
-                className='flex h-8 items-center justify-center'
-                style={{ width: 18 + shown * 6 }}
+                className='flex h-5 items-end justify-center'
+                style={{ width: 20 + shown * 5 }}
               >
                 {Array.from({ length: shown }, (_, i) => (
                   <CardBack
                     key={i}
                     size='sm'
-                    className='-ml-4 first:ml-0'
-                    style={{ rotate: `${(i - shown / 2) * 5}deg` }}
+                    className='-ml-4 h-6 w-4 first:ml-0'
+                    style={{ rotate: `${(i - shown / 2) * 6}deg` }}
                   />
                 ))}
               </div>
-              <span className='text-sm font-semibold text-ink'>{count}</span>
+              <div className='relative -mt-1'>
+                <Avatar seat={seat} label={seatName(seat)} active={active} />
+                <span className='absolute -right-2 -bottom-1'>
+                  <CountCard count={count} />
+                </span>
+              </div>
               {place !== -1 ? (
                 <span className='text-[11px] font-bold text-accent'>
                   {place === 0 ? 'juara' : `ke-${place + 1}`}
@@ -788,7 +914,7 @@ function Uno() {
                   tangkap!
                 </button>
               ) : safe ? (
-                <span className='text-[11px] font-bold text-accent'>UNO ✓</span>
+                <span className='text-[11px] font-bold text-accent'>UNO!</span>
               ) : null}
             </div>
           );
@@ -869,6 +995,11 @@ function Uno() {
                 {drag === 'over' ? 'lepas!' : 'seret ke sini'}
               </span>
             )}
+            {/* the current-colour wheel, sitting behind the pile */}
+            <ColorWheel
+              color={view.color}
+              className='pointer-events-none absolute top-1/2 left-1/2 size-44 -translate-x-1/2 -translate-y-1/2 opacity-90 drop-shadow-[0_6px_18px_rgba(0,0,0,0.5)]'
+            />
             {/* the messy stack of recent discards */}
             {view.pile.map((card, i) => {
               const isTop = i === view.pile.length - 1;
@@ -902,13 +1033,6 @@ function Uno() {
                 </div>
               );
             })}
-            <span
-              key={view.color}
-              data-color={view.color}
-              aria-label={`warna ${COLOR_NAME[view.color]}`}
-              className='a-pop absolute -right-2 -bottom-2 z-50 size-6 rounded-full border-2 border-white shadow-md'
-              style={{ background: BG[view.color] }}
-            />
           </div>
         </div>
       </div>
@@ -1044,10 +1168,35 @@ function Uno() {
         )}
       </div>
 
+      {/* your own seat, mirroring the opponents around the table */}
+      <div className='mt-auto flex items-center gap-2 px-3 pt-2'>
+        <div className='relative'>
+          <Avatar seat={you} label={names[you] ?? 'Kamu'} active={myTurn} />
+          <span className='absolute -right-2 -bottom-1'>
+            <CountCard count={view.hand.length} />
+          </span>
+        </div>
+        <span
+          className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+            myTurn ? 'bg-accent text-[#10110f]' : 'bg-surface text-mute'
+          }`}
+        >
+          Kamu
+        </span>
+        {myPlace !== -1 && (
+          <span className='text-xs font-bold text-accent'>
+            {myPlace === 0 ? 'juara' : `ke-${myPlace + 1}`}
+          </span>
+        )}
+        {view.hand.length === 1 && view.calledUno[you] && myPlace === -1 && (
+          <span className='text-xs font-bold text-accent'>UNO!</span>
+        )}
+      </div>
+
       <div
         data-testid='hand'
         aria-label='Kartumu'
-        className='mt-auto flex flex-wrap justify-center gap-y-2 px-3 pt-6'
+        className='flex flex-wrap justify-center gap-y-2 px-3 pt-3'
       >
         {view.hand.map((card, index) => {
           const playable = stack
