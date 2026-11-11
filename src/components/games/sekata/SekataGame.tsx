@@ -41,7 +41,12 @@ function Sekata() {
       </p>
     );
   }
-  if (r.room.status === 'waiting') return <SekataLobby r={r} />;
+  if (r.room.status === 'waiting')
+    return (
+      <div className='xl:max-[1699px]:pr-[22rem]'>
+        <SekataLobby r={r} />
+      </div>
+    );
 
   const view = r.room.state;
   if (!view) {
@@ -53,7 +58,7 @@ function Sekata() {
   }
 
   return (
-    <>
+    <div className='xl:max-[1699px]:pr-[22rem]'>
       <RoomNotice
         room={r.room}
         you={r.session.you}
@@ -64,7 +69,7 @@ function Sekata() {
         onLeave={r.leave}
       />
       <SekataTable r={r} view={view} />
-    </>
+    </div>
   );
 }
 

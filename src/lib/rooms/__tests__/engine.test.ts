@@ -1,6 +1,8 @@
 /** @jest-environment node */
 import {
   act,
+  capacityOf,
+  chatPolicy,
   cleanName,
   join,
   kick,
@@ -11,6 +13,7 @@ import {
   seatOf,
   setOptions,
   start,
+  sweep,
   toView,
 } from '@/lib/rooms/engine';
 import { GAMES, isGameId } from '@/lib/rooms/games';
@@ -48,16 +51,20 @@ describe('the registry', () => {
       'checkers',
       'chess',
       'connect4',
+      'dart',
       'dice',
       'domino',
       'gomoku',
+      'monkeys',
       'pictionary',
       'quiz',
+      'remo',
       'sekata',
       'suit',
       'uno',
       'unoflip',
       'unomercy',
+      'werewolf',
     ]);
     expect(isGameId('uno')).toBe(true);
     for (const bad of [
@@ -436,5 +443,94 @@ describe('game settings (Sekata)', () => {
     const bView = toView(started, B).state as { hand: { id: string }[] };
     const mineIds = new Set(mine.map((c) => c.id));
     expect(bView.hand.some((c) => mineIds.has(c.id))).toBe(false);
+  });
+});
+
+describe('a game with a moderator (Werewolf)', () => {
+  const room = (n: number, options?: unknown) => {
+    let r = newRoom('werewolf', 'ABCDE', 't0');
+    for (let i = 1; i < n; i++) r = join(r, undefined, `t${i}`).room;
+    return options ? setOptions(r, 't0', options) : r;
+  };
+
+  it("limits how many may join by the host's setting", () => {
+    let r = room(5, { maxPlayers: 6 });
+    expect(capacityOf(r)).toBe(6);
+    expect(toView(r, 't0').capacity).toBe(6);
+    r = join(r, undefined, 't5').room;
+    expect(errorOf(() => join(r, undefined, 't6'))).toBe(409);
+    expect(capacityOf(room(5))).toBe(12);
+  });
+
+  it('needs five players', () => {
+    expect(errorOf(() => start(room(4), 't0'))).toBe(409);
+    expect(start(room(5), 't0').status).toBe('playing');
+  });
+
+  it('moves a phase along by itself when its time is up, with no player acting', () => {
+    const r = start(room(5), 't0', () => 0.3, 1000);
+    const state = r.state as { phase: string; deadline: number };
+    expect(state.phase).toBe('roles');
+    // nothing is due yet
+    expect(sweep(r, state.deadline - 1, () => 0.3).version).toBe(r.version);
+    const later = sweep(r, state.deadline + 1, () => 0.3);
+    expect((later.state as { phase: string }).phase).toBe('night');
+    expect(later.version).toBeGreaterThan(r.version);
+  });
+
+  it('does the same before a move is made, so a late action meets the right phase', () => {
+    const r = start(room(5), 't0', () => 0.3, 1000);
+    const deadline = (r.state as { deadline: number }).deadline;
+    // an action after the role reveal ran out finds it already night
+    const wolf = (r.state as { roles: string[] }).roles.findIndex(
+      (x) => x === 'werewolf',
+    );
+    const token = `t${wolf}`;
+    const target = (r.state as { roles: string[] }).roles.findIndex(
+      (x) => x !== 'werewolf',
+    );
+    const acted = act(
+      r,
+      token,
+      { type: 'night', target },
+      () => 0.3,
+      deadline + 5,
+    );
+    expect(
+      (acted.state as { night: { wolf: Record<number, number> } }).night.wolf[
+        wolf
+      ],
+    ).toBe(target);
+  });
+
+  it('shows each player only their own role through the room view', () => {
+    const r = start(room(6), 't0', () => 0.3, 1000);
+    const roles = (r.state as { roles: string[] }).roles;
+    for (let i = 0; i < 6; i++) {
+      const v = toView(r, `t${i}`).state as {
+        me: { role: string };
+        roster: { role: unknown }[];
+      };
+      expect(v.me.role).toBe(roles[i]);
+      expect(v.roster.every((p) => p.role === null)).toBe(true);
+    }
+    // a stranger sees no role at all
+    expect((toView(r, 'stranger').state as { me: unknown }).me).toBeNull();
+  });
+
+  it('keeps the chat private: werewolves at night, the living by day, the dead apart', () => {
+    let r = start(room(6), 't0', () => 0.3, 1000);
+    const roles = (r.state as { roles: string[] }).roles;
+    r = sweep(r, (r.state as { deadline: number }).deadline + 1, () => 0.3);
+    const wolf = roles.findIndex((x) => x === 'werewolf');
+    const villager = roles.findIndex((x) => x === 'villager');
+    expect(chatPolicy(r, wolf)).toEqual({
+      send: 'wolves',
+      read: ['all', 'wolves'],
+    });
+    expect(chatPolicy(r, villager)).toEqual({ send: null, read: ['all'] });
+    expect(chatPolicy(r, null)).toEqual({ send: null, read: ['all'] });
+    // before the game everyone just talks
+    expect(chatPolicy(room(3), 0)).toEqual({ send: 'all', read: ['all'] });
   });
 });

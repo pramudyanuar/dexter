@@ -1,4 +1,10 @@
-import { CHAT_KEEP, ChatMsg, Room } from '@/lib/rooms/types';
+import {
+  CHAT_KEEP,
+  ChatMsg,
+  Room,
+  Signal,
+  SIGNAL_KEEP,
+} from '@/lib/rooms/types';
 
 const TTL_SECONDS = 2 * 60 * 60;
 
@@ -15,10 +21,14 @@ export interface RoomStore {
   /** The kept chat lines, oldest first */
   chatList(code: string): Promise<ChatMsg[]>;
   chatAdd(code: string, message: ChatMsg): Promise<void>;
+  /** Call set-up messages between seats, oldest first (short-lived) */
+  signalList(code: string): Promise<Signal[]>;
+  signalAdd(code: string, signal: Signal): Promise<void>;
 }
 
 const key = (code: string) => `room:${code}`;
 const chatKey = (code: string) => `room:${code}:chat`;
+const signalKey = (code: string) => `room:${code}:rtc`;
 
 /** Compare-and-set done atomically in Redis (Lua): only overwrite the version we read. */
 const SAVE_IF = `
@@ -106,21 +116,42 @@ class RedisStore implements RoomStore {
     await this.command(['LTRIM', chatKey(code), -CHAT_KEEP, -1]);
     await this.command(['EXPIRE', chatKey(code), TTL_SECONDS]);
   }
+
+  async signalList(code: string) {
+    const raw = (await this.command(['LRANGE', signalKey(code), 0, -1])) as
+      string[] | null;
+    return (raw ?? []).flatMap((line) => {
+      try {
+        return [JSON.parse(line) as Signal];
+      } catch {
+        return [];
+      }
+    });
+  }
+
+  async signalAdd(code: string, signal: Signal) {
+    await this.command(['RPUSH', signalKey(code), JSON.stringify(signal)]);
+    await this.command(['LTRIM', signalKey(code), -SIGNAL_KEEP, -1]);
+    await this.command(['EXPIRE', signalKey(code), TTL_SECONDS]);
+  }
 }
 
 /** Development only: lives in this process, which is why production needs Redis. */
 class MemoryStore implements RoomStore {
   private rooms: Map<string, { room: Room; expires: number }>;
   private chats: Map<string, { lines: ChatMsg[]; expires: number }>;
+  private signals: Map<string, { lines: Signal[]; expires: number }>;
 
   constructor() {
     // survive hot reloads in dev
     const g = globalThis as unknown as {
       __rooms?: MemoryStore['rooms'];
       __chats?: MemoryStore['chats'];
+      __signals?: MemoryStore['signals'];
     };
     this.rooms = g.__rooms ??= new Map();
     this.chats = g.__chats ??= new Map();
+    this.signals = g.__signals ??= new Map();
   }
 
   async saveIf(room: Room, expectedVersion: number) {
@@ -139,6 +170,22 @@ class MemoryStore implements RoomStore {
   async chatAdd(code: string, message: ChatMsg) {
     const lines = [...(await this.chatList(code)), message].slice(-CHAT_KEEP);
     this.chats.set(code, {
+      lines,
+      expires: Date.now() + TTL_SECONDS * 1000,
+    });
+  }
+
+  async signalList(code: string) {
+    const entry = this.signals.get(code);
+    if (!entry || entry.expires < Date.now()) return [];
+    return structuredClone(entry.lines);
+  }
+
+  async signalAdd(code: string, signal: Signal) {
+    const lines = [...(await this.signalList(code)), signal].slice(
+      -SIGNAL_KEEP,
+    );
+    this.signals.set(code, {
       lines,
       expires: Date.now() + TTL_SECONDS * 1000,
     });

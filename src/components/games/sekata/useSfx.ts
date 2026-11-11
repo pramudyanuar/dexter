@@ -4,7 +4,8 @@ import * as React from 'react';
 
 import useStoredState from '@/lib/useStoredState';
 
-export type Sfx = 'tap' | 'ok' | 'bad' | 'draw' | 'win' | 'tick';
+export type Sfx =
+  'tap' | 'ok' | 'bad' | 'draw' | 'win' | 'tick' | 'cut' | 'alarm' | 'boom';
 
 const TONES: Record<Sfx, [number, number, number][]> = {
   // [frequency, start (s), length (s)]
@@ -17,6 +18,20 @@ const TONES: Record<Sfx, [number, number, number][]> = {
   bad: [
     [220, 0, 0.12],
     [160, 0.1, 0.18],
+  ],
+  cut: [
+    [1400, 0, 0.03],
+    [700, 0.03, 0.06],
+  ],
+  alarm: [
+    [880, 0, 0.12],
+    [660, 0.14, 0.12],
+    [880, 0.28, 0.12],
+  ],
+  boom: [
+    [110, 0, 0.5],
+    [70, 0.05, 0.6],
+    [45, 0.1, 0.7],
   ],
   draw: [
     [330, 0, 0.06],
@@ -52,7 +67,10 @@ export default function useSfx() {
         for (const [freq, at, len] of TONES[kind]) {
           const osc = ac.createOscillator();
           const gain = ac.createGain();
-          osc.type = kind === 'bad' ? 'sawtooth' : 'triangle';
+          osc.type =
+            kind === 'bad' || kind === 'boom' || kind === 'alarm'
+              ? 'sawtooth'
+              : 'triangle';
           osc.frequency.value = freq;
           gain.gain.setValueAtTime(0.0001, t0 + at);
           gain.gain.exponentialRampToValueAtTime(0.12, t0 + at + 0.01);

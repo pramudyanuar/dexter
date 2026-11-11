@@ -12,7 +12,11 @@ export type GameId =
   | 'domino'
   | 'quiz'
   | 'pictionary'
-  | 'sekata';
+  | 'sekata'
+  | 'dart'
+  | 'remo'
+  | 'werewolf'
+  | 'monkeys';
 export type RoomStatus = 'waiting' | 'playing' | 'over';
 
 /**
@@ -101,7 +105,22 @@ export interface ChatMsg {
   seat: number;
   text: string;
   at: number;
+  /** Which channel it was said in (games with private chat); none means everyone */
+  channel?: string;
 }
+
+/** One message of the call set-up (WebRTC offers, answers and network candidates) between two seats. */
+export interface Signal {
+  id: string;
+  from: number;
+  to: number;
+  kind: 'hello' | 'offer' | 'answer' | 'ice';
+  /** The JSON of the description or candidate; empty for a hello */
+  data: string;
+  at: number;
+}
+export const SIGNAL_KEEP = 80;
+export const SIGNAL_MAX_BYTES = 8000;
 
 export const CHAT_MAX_LENGTH = 200;
 /** Lines kept per room; older ones fall off */

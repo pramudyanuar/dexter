@@ -9,6 +9,16 @@ import type { GameId } from '@/lib/rooms/types';
 export interface GameCtx {
   /** Seat of the room's admin (the moderator in games that have one) */
   host: number;
+  /** The moment the move is made, for games that run on a clock */
+  now?: number;
+}
+
+/** Who may talk and who may read, in a game that restricts its chat. */
+export interface ChatPolicy {
+  /** The channel this seat's messages go to, or null when they may not talk */
+  send: string | null;
+  /** The channels this seat can read */
+  read: string[];
 }
 
 export interface GameDef<S = unknown> {
@@ -33,6 +43,29 @@ export interface GameDef<S = unknown> {
     rng?: () => number,
     ctx?: GameCtx,
   ): S;
+  /**
+   * A moderator for games that run on a clock: called with the current time, it
+   * returns the next state when something is due (a phase ran out), or null.
+   */
+  tick?(
+    state: S,
+    now: number,
+    rng?: () => number,
+    /** Seats that pressed "keluar" and may still come back (a game may pause for them) */
+    away?: number[],
+  ): S | null;
+  /** Chat rules for the state the game is in (otherwise everyone talks to everyone). */
+  chat?(state: S, seat: number | null): ChatPolicy;
+  /**
+   * Voice chat: the seat this one may open an audio call with, and which way
+   * the sound flows. Null when this seat has no call.
+   */
+  voice?(
+    state: S,
+    seat: number,
+  ): { peer: number; dir: 'send' | 'receive' } | null;
+  /** How many may join, given the settings (never more than `maxPlayers`) */
+  capacity?(options: unknown): number;
   /**
    * What `seat` may see. This is the only way game state leaves the server, so
    * hidden information (hands, unrevealed picks) must be removed here.

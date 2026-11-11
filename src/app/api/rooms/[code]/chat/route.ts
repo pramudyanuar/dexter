@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/codes';
-import { seatOf } from '@/lib/rooms/engine';
+import { chatPolicy, seatOf } from '@/lib/rooms/engine';
 import { createLimiter } from '@/lib/rooms/rate-limit';
 import { getRoomStore } from '@/lib/rooms/store';
 import { CHAT_MAX_LENGTH, ChatMsg } from '@/lib/rooms/types';
@@ -27,11 +27,25 @@ export async function GET(req: Request, { params }: Context) {
   if (!CODE_PATTERN.test(code)) return bad('Kode room tidak valid', 400);
 
   try {
-    const lines = await store.chatList(code);
+    const all = await store.chatList(code);
+    // some games keep parts of the chat private (werewolves at night, the dead)
+    const room = await store.get(code);
+    const seat = room ? seatOf(room, req.headers.get('x-player-token')) : null;
+    const policy = room
+      ? chatPolicy(room, seat)
+      : { send: null, read: ['all'] };
+    const lines = all.filter((l) => policy.read.includes(l.channel ?? 'all'));
     const after = new URL(req.url).searchParams.get('after');
-    const at = after ? lines.findIndex((l) => l.id === after) : -1;
+    // "after" may name a line this reader cannot see: look in the full list
+    const known = after ? all.findIndex((l) => l.id === after) : -1;
+    const fresh =
+      known === -1
+        ? lines
+        : all
+            .slice(known + 1)
+            .filter((l) => policy.read.includes(l.channel ?? 'all'));
     return NextResponse.json(
-      { messages: at === -1 ? lines : lines.slice(at + 1) },
+      { messages: fresh, channel: policy.send },
       { headers: NO_STORE },
     );
   } catch {
@@ -61,8 +75,22 @@ export async function POST(req: Request, { params }: Context) {
     const seat = seatOf(room, req.headers.get('x-player-token'));
     if (seat === null) return bad('Kamu bukan pemain di room ini', 403);
 
+    // some games say who may talk, and where
+    const policy = chatPolicy(room, seat);
+    if (!policy.send) return bad('Kamu tidak bisa mengobrol sekarang', 403);
+
     if (!limiter.allow(`${code}:${seat}`))
       return bad('Terlalu cepat, tunggu sebentar', 429);
+
+    // the same line twice in a row is spam
+    const recent = (await store.chatList(code)).slice(-6);
+    if (
+      recent.some(
+        (l) => l.seat === seat && l.text === text && Date.now() - l.at < 8000,
+      )
+    ) {
+      return bad('Pesan yang sama baru saja dikirim', 429);
+    }
 
     const message: ChatMsg = {
       // time first so ids sort by arrival; the suffix keeps simultaneous lines apart
@@ -70,6 +98,7 @@ export async function POST(req: Request, { params }: Context) {
       seat,
       text,
       at: Date.now(),
+      ...(policy.send === 'all' ? {} : { channel: policy.send }),
     };
     await store.chatAdd(code, message);
     return NextResponse.json({ message }, { headers: NO_STORE });

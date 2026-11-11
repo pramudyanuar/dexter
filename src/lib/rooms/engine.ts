@@ -1,3 +1,4 @@
+import type { ChatPolicy } from '@/lib/rooms/game';
 import { GAMES } from '@/lib/rooms/games';
 import type { GameId } from '@/lib/rooms/types';
 import {
@@ -172,7 +173,8 @@ export function join(
   if (room.status !== 'waiting')
     throw new RoomError('Permainan sudah dimulai', 409);
   const free = room.tokens.indexOf(null);
-  if (free === -1) throw new RoomError('Room sudah penuh', 409);
+  if (free === -1 || free >= capacityOf(room))
+    throw new RoomError('Room sudah penuh', 409);
 
   const tokens = [...room.tokens];
   tokens[free] = newToken;
@@ -184,6 +186,39 @@ export function join(
   if (GAMES[room.game].autoStart && tokens.every(Boolean))
     next = begin(next, rng, now);
   return { room: next, token: newToken, you: free };
+}
+
+/** How many seats this room offers: all of them, or fewer if the game's settings say so. */
+export function capacityOf(room: Room): number {
+  const def = GAMES[room.game];
+  const limit = def.capacity?.(room.options ?? def.defaultOptions);
+  return limit === undefined
+    ? room.tokens.length
+    : Math.min(room.tokens.length, limit);
+}
+
+/** Lets a game's moderator run everything that has come due. */
+function runClock(room: Room, now: number, rng?: () => number): Room {
+  const def = GAMES[room.game];
+  if (!def.tick || room.status !== 'playing' || room.state === null)
+    return room;
+  let next = room;
+  for (let i = 0; i < 12; i++) {
+    const away = leftOf(next).flatMap((at, seat) =>
+      at !== null && next.tokens[seat] && !outOf(next)[seat] ? [seat] : [],
+    );
+    const state = def.tick(next.state, now, rng, away);
+    if (!state) break;
+    next = {
+      ...next,
+      state,
+      status: def.isOver(state) ? 'over' : 'playing',
+      stamp: now,
+      version: next.version + 1,
+    };
+    if (next.status !== 'playing') break;
+  }
+  return next;
 }
 
 /** A player is back: cancel their leaving. */
@@ -259,15 +294,21 @@ export function act(
     throw new RoomError('Permainan sudah selesai', 409);
 
   const def = GAMES[room.game];
-  const state = def.move(room.state, seat, move, rng, { host: hostOf(room) });
+  // anything that came due while nobody was looking happens first
+  const timed = runClock(room, now, rng);
+  if (timed.status !== 'playing') return timed;
+  const state = def.move(timed.state, seat, move, rng, {
+    host: hostOf(room),
+    now,
+  });
   return {
-    ...room,
+    ...timed,
     state,
     status: def.isOver(state) ? 'over' : 'playing',
     // playing again means they are back
-    left: put(leftOf(room), seat, null),
+    left: put(leftOf(timed), seat, null),
     stamp: now,
-    version: room.version + 1,
+    version: timed.version + 1,
   };
 }
 
@@ -450,7 +491,8 @@ function penalize(
 export function sweep(room: Room, now = Date.now(), rng?: () => number): Room {
   if (room.status !== 'playing') return room;
 
-  let next = room;
+  let next = runClock(room, now, rng);
+  if (next.status !== 'playing') return next;
   const left = leftOf(room);
   for (let seat = 0; seat < room.tokens.length; seat++) {
     if (next.status !== 'playing') break;
@@ -491,13 +533,13 @@ export function toView(
     seat,
     joined: room.tokens.map(Boolean),
     names: namesOf(room),
-    capacity: room.tokens.length,
+    capacity: capacityOf(room),
     minPlayers: def.minPlayers,
     version: room.version,
     state:
       room.state === null
         ? null
-        : def.view(room.state, seat, { host: hostOf(room) }),
+        : def.view(room.state, seat, { host: hostOf(room), now }),
     options: room.options ?? def.defaultOptions ?? null,
     out,
     outWhy: whyOf(room),
@@ -531,4 +573,24 @@ export function toView(
         }
       : null,
   };
+}
+
+/** What a seat may say and read in this room's chat. Everyone talks to everyone unless the game says otherwise. */
+export function chatPolicy(room: Room, seat: number | null): ChatPolicy {
+  const def = GAMES[room.game];
+  if (def.chat && room.status !== 'waiting' && room.state !== null) {
+    return def.chat(room.state, seat);
+  }
+  return { send: seat === null ? null : 'all', read: ['all'] };
+}
+
+/** The seat `seat` may open an audio call with, if the game has voice. */
+export function voiceOf(
+  room: Room,
+  seat: number | null,
+): { peer: number; dir: 'send' | 'receive' } | null {
+  const def = GAMES[room.game];
+  if (seat === null || !def.voice || room.status === 'waiting') return null;
+  if (room.state === null) return null;
+  return def.voice(room.state, seat);
 }

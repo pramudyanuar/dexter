@@ -3,7 +3,7 @@ import { getRoomStore } from '@/lib/rooms/store';
 import { CHAT_KEEP } from '@/lib/rooms/types';
 
 import { GET, POST } from '@/app/api/rooms/[code]/chat/route';
-import { POST as roomPost } from '@/app/api/rooms/[code]/route';
+import { GET as roomGet, POST as roomPost } from '@/app/api/rooms/[code]/route';
 import { POST as create } from '@/app/api/rooms/route';
 
 const OLD = { ...process.env };
@@ -167,5 +167,112 @@ describe('chat', () => {
     expect(await store.chatList('ABCDE')).toEqual([
       { id: 'a', seat: 1, text: 'hi', at: 1 },
     ]);
+  });
+});
+
+describe('chat in a game with private channels (Werewolf)', () => {
+  const sendAs = (code: string, token: string, text: string) =>
+    POST(
+      new Request(`http://x/api/rooms/${code}/chat`, {
+        method: 'POST',
+        headers: { 'x-player-token': token },
+        body: JSON.stringify({ text }),
+      }),
+      ctx(code),
+    );
+  const readAs = (code: string, token: string, after?: string) =>
+    GET(
+      new Request(
+        `http://x/api/rooms/${code}/chat${after ? `?after=${after}` : ''}`,
+        {
+          headers: { 'x-player-token': token },
+        },
+      ),
+      ctx(code),
+    );
+  const call = (code: string, body: unknown) =>
+    roomPost(
+      new Request(`http://x/api/rooms/${code}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+      ctx(code),
+    );
+
+  async function nightRoom() {
+    const a = await (
+      await create(
+        new Request('http://x/api/rooms', {
+          method: 'POST',
+          headers: { 'x-forwarded-for': `10.2.0.${++ip}` },
+          body: JSON.stringify({ game: 'werewolf' }),
+        }),
+      )
+    ).json();
+    const tokens: string[] = [a.token];
+    for (let i = 1; i < 5; i++) {
+      const j = await (await call(a.code, { action: 'join' })).json();
+      tokens.push(j.token);
+    }
+    await call(a.code, { action: 'start', token: a.token });
+    // the role reveal is quiet; end it by the room's own store clock
+    const store = getRoomStore()!;
+    const room = (await store.get(a.code))!;
+    const state = room.state as { deadline: number; roles: string[] };
+    state.deadline = Date.now() - 1;
+    await store.save({ ...room, state, version: room.version + 1 });
+    // a look at the room is all it takes for the moderator to move on
+    await roomGet(
+      new Request(`http://x/api/rooms/${a.code}`, {
+        headers: { 'x-player-token': a.token },
+      }),
+      ctx(a.code),
+    );
+    const after = (await store.get(a.code))!;
+    return {
+      code: a.code as string,
+      tokens,
+      roles: (after.state as { roles: string[]; phase: string }).roles,
+      phase: (after.state as { phase: string }).phase,
+    };
+  }
+
+  it('lets only the werewolves talk at night, in their own channel', async () => {
+    // find a room whose roles we can use (any deal has a wolf and a villager)
+    const { code, tokens, roles } = await nightRoom();
+    const wolf = roles.indexOf('werewolf');
+    const villager = roles.indexOf('villager');
+    expect((await sendAs(code, tokens[villager], 'hello?')).status).toBe(403);
+    const pack = await sendAs(code, tokens[wolf], 'take the baker');
+    expect(pack.status).toBe(200);
+    expect((await pack.json()).message.channel).toBe('wolves');
+  });
+
+  it("shows the werewolves' lines to werewolves only", async () => {
+    const { code, tokens, roles } = await nightRoom();
+    const wolf = roles.indexOf('werewolf');
+    const seer = roles.indexOf('seer');
+    const villager = roles.indexOf('villager');
+    await sendAs(code, tokens[wolf], 'take the baker');
+    const wolfView = await (await readAs(code, tokens[wolf])).json();
+    expect(wolfView.messages.map((m: { text: string }) => m.text)).toContain(
+      'take the baker',
+    );
+    expect(wolfView.channel).toBe('wolves');
+    for (const who of [seer, villager]) {
+      const body = await (await readAs(code, tokens[who])).json();
+      expect(JSON.stringify(body)).not.toContain('take the baker');
+      expect(body.channel).toBeNull();
+    }
+    // someone who is not sitting at the table sees nothing private either
+    const stranger = await (await readAs(code, 'nobody')).json();
+    expect(JSON.stringify(stranger)).not.toContain('take the baker');
+  });
+
+  it('does not let the same line be sent twice in a row', async () => {
+    const { code, tokens, roles } = await nightRoom();
+    const wolf = roles.indexOf('werewolf');
+    expect((await sendAs(code, tokens[wolf], 'again')).status).toBe(200);
+    expect((await sendAs(code, tokens[wolf], 'again')).status).toBe(429);
   });
 });

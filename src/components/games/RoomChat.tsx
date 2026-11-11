@@ -18,7 +18,13 @@ const time = (at: number, locale: string) =>
     minute: '2-digit',
   });
 
-function Chat({ session }: { session: RoomSession }) {
+function Chat({
+  session,
+  names,
+}: {
+  session: RoomSession;
+  names?: (string | null)[];
+}) {
   const { code, token, you } = session;
   const t = useText();
   const lang = useLang();
@@ -29,6 +35,8 @@ function Chat({ session }: { session: RoomSession }) {
   const [lines, setLines] = React.useState<ChatMsg[]>([]);
   const [seen, setSeen] = React.useState(0);
   const [text, setText] = React.useState('');
+  /** Where your next line goes; null when you may not talk right now */
+  const [channel, setChannel] = React.useState<string | null>('all');
   const [error, setError] = React.useState('');
   const lastId = React.useRef<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
@@ -40,9 +48,15 @@ function Chat({ session }: { session: RoomSession }) {
       const after = lastId.current ? `?after=${lastId.current}` : '';
       const res = await fetch(`/api/rooms/${code}/chat${after}`, {
         cache: 'no-store',
+        headers: { 'x-player-token': token },
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { messages: ChatMsg[] };
+      const data = (await res.json()) as {
+        messages: ChatMsg[];
+        channel?: string | null;
+      };
+      // games with private chat say where this player may talk right now
+      setChannel(data.channel === undefined ? 'all' : data.channel);
       if (!data.messages.length) return;
       lastId.current = data.messages[data.messages.length - 1].id;
       setLines((prev) => {
@@ -53,7 +67,7 @@ function Chat({ session }: { session: RoomSession }) {
     } catch {
       // a dropped connection: try again on the next tick
     }
-  }, [code]);
+  }, [code, token]);
 
   React.useEffect(() => {
     const first = setTimeout(fetchNew, 0);
@@ -162,7 +176,17 @@ function Chat({ session }: { session: RoomSession }) {
                   className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}
                 >
                   <span className='mb-0.5 text-[11px] text-[var(--mute)]'>
-                    {seatName(lang, l.seat, you)} · {time(l.at, t.locale)}
+                    {seatName(lang, l.seat, you, names)} ·{' '}
+                    {time(l.at, t.locale)}
+                    {l.channel && (
+                      <span className='ml-1 rounded bg-hash/15 px-1 text-[10px] text-hash uppercase'>
+                        {l.channel === 'wolves'
+                          ? t.wolvesOnly
+                          : l.channel === 'dead'
+                            ? t.deadOnly
+                            : l.channel}
+                      </span>
+                    )}
                   </span>
                   <span
                     className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
@@ -189,14 +213,15 @@ function Chat({ session }: { session: RoomSession }) {
               value={text}
               onChange={(e) => setText(e.target.value)}
               maxLength={CHAT_MAX_LENGTH}
-              placeholder={t.write}
+              disabled={channel === null}
+              placeholder={channel === null ? t.muted : t.write}
               aria-label={t.message}
               autoComplete='off'
               className='min-w-0 flex-1'
             />
             <button
               type='submit'
-              disabled={!text.trim()}
+              disabled={!text.trim() || channel === null}
               className='rounded-lg bg-ink px-3 text-sm font-medium text-paper transition-opacity disabled:opacity-40'
             >
               {t.send}
@@ -235,12 +260,21 @@ function Chat({ session }: { session: RoomSession }) {
  * A chat for the room the player is currently in. It finds the room from the
  * saved session, so any online game page can use it with one line.
  */
-export default function RoomChat({ game }: { game: GameId }) {
+export default function RoomChat({
+  game,
+  names,
+}: {
+  game: GameId;
+  /** Players' names, for games that want the chat to show them */
+  names?: (string | null)[];
+}) {
   const [session] = useStoredState<RoomSession | null>(
     `room-session-${game}`,
     null,
     'tab',
   );
   // a new room starts a new conversation
-  return session ? <Chat key={session.code} session={session} /> : null;
+  return session ? (
+    <Chat key={session.code} session={session} names={names} />
+  ) : null;
 }
