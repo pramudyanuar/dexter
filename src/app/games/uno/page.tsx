@@ -214,6 +214,37 @@ function CardBack({
 const ORDINAL = ['pertama', 'kedua', 'ketiga', 'keempat'];
 const placeText = (place: number) => `juara ${ORDINAL[place] ?? place + 1}`;
 
+/** Stable small pseudo-random from a string, so a card stays where it landed. */
+const hash = (s: string) => {
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h);
+};
+/** A scattered offset and tilt for a card sitting in the discard pile. */
+function scatterFor(card: Card, i: number) {
+  const h = hash(`${card.c}${card.v}:${i}`);
+  return {
+    rot: (h % 46) - 23, // -23..22 deg
+    x: ((h >> 3) % 22) - 11,
+    y: ((h >> 7) % 18) - 9,
+  };
+}
+
+type Slot = 'top' | 'left' | 'right' | 'bottom';
+/** Where each slot sits around the table, and where a tossed card flies in from. */
+const SLOT_POS: Record<Slot, string> = {
+  top: 'top-0 left-1/2 -translate-x-1/2',
+  left: 'top-1/2 left-0 -translate-y-1/2',
+  right: 'top-1/2 right-0 -translate-y-1/2',
+  bottom: 'bottom-0 left-1/2 -translate-x-1/2',
+};
+const TOSS_FROM: Record<Slot, { x: number; y: number; spin: number }> = {
+  top: { x: 0, y: -200, spin: -150 },
+  left: { x: -220, y: 24, spin: 150 },
+  right: { x: 220, y: 24, spin: -150 },
+  bottom: { x: 0, y: 230, spin: 165 },
+};
+
 function lastText(view: UnoView, you: number, names: (string | null)[]) {
   const e = view.last;
   if (!e) return null;
@@ -241,6 +272,11 @@ function lastText(view: UnoView, you: number, names: (string | null)[]) {
     return e.passed
       ? `${who} menarik kartu dan melewati giliran.`
       : `${who} menarik kartu.`;
+  }
+  if (e.kind === 'uno') return `${who} teriak UNO!`;
+  if (e.kind === 'catch') {
+    const caught = seatLabel(e.target ?? 0, you, names);
+    return `${who} menangkap ${caught} yang lupa teriak UNO. ${caught} tarik 2 kartu.`;
   }
   return `${who} melewati giliran.`;
 }
@@ -547,9 +583,19 @@ function Uno() {
     playStack(stack.includes(index) ? stack : [...stack, index]);
   };
 
+  const players = view.players;
+  const slotOf = (seat: number): Slot => {
+    if (seat === you) return 'bottom';
+    const rel = (seat - you + players) % players;
+    if (players <= 2) return 'top';
+    if (players === 3) return rel === 1 ? 'right' : 'left';
+    return rel === 1 ? 'right' : rel === 2 ? 'top' : 'left';
+  };
   const others = view.counts
     .map((count, seat) => ({ count, seat }))
     .filter((p) => p.seat !== you);
+  const toss =
+    view.last?.kind === 'play' ? TOSS_FROM[slotOf(view.last.seat)] : null;
 
   return (
     <>
@@ -565,124 +611,160 @@ function Uno() {
         }
       />
 
-      <ul
-        className='mb-4 flex flex-wrap justify-center gap-3'
-        aria-label='Pemain lain'
-      >
-        {others.map(({ count, seat }) => {
-          const active = !over && view.turn === seat;
-          const place = view.places.indexOf(seat);
-          return (
-            <li
-              key={seat}
-              data-seat={seat}
-              className={`rounded-md border px-3 py-2 text-center text-xs transition-colors ${
-                active
-                  ? 'a-glow border-accent bg-accent/10 text-ink'
-                  : 'border-line text-mute'
-              }`}
-            >
-              <p>{seatName(seat)}</p>
-              <div
-                aria-hidden
-                className='mx-auto my-1.5 flex h-10 items-center justify-center'
-                style={{ width: 28 + Math.min(count, 7) * 7 }}
-              >
-                {Array.from({ length: Math.min(count, 8) }, (_, i) => (
-                  <CardBack
-                    key={i}
-                    size='sm'
-                    className='-ml-5 first:ml-0'
-                    style={{ rotate: `${(i - Math.min(count, 8) / 2) * 4}deg` }}
-                  />
-                ))}
-              </div>
-              <p className='text-base text-ink'>{count}</p>
-              {count === 1 && !over && place === -1 && (
-                <p className='a-wiggle font-bold text-hash'>UNO!</p>
-              )}
-              {place !== -1 && (
-                <p className='font-bold text-accent'>
-                  {place === 0 ? '🏆 ' : ''}#{place + 1}
-                </p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-
       <p
         key={`${over}-${myTurn}-${view.turn}`}
-        className='a-slide-up mb-4 text-center text-sm'
+        className='a-slide-up mb-3 text-center text-sm'
         aria-live='polite'
       >
         {banner}
       </p>
 
-      <div className='mb-4 flex items-center justify-center gap-6 rounded-xl bg-card/60 py-5'>
-        <button
-          type='button'
-          aria-label='Tarik kartu'
-          disabled={!view.canDraw || r.busy}
-          onClick={() => r.move({ type: 'draw' })}
-          className='group relative flex h-32 w-[5.5rem] items-center justify-center disabled:opacity-70'
-        >
-          {/* a little stack behind the top of the pile */}
-          <CardBack
-            size='lg'
-            className='absolute translate-x-1 translate-y-1 opacity-70'
-          />
-          <CardBack
-            size='lg'
-            className={
-              view.canDraw && !r.busy
-                ? 'a-bob absolute ring-2 ring-accent group-hover:scale-105'
-                : 'absolute'
-            }
-          />
-          <span className='relative mt-24 rounded-full bg-paper/90 px-2 py-0.5 text-xs'>
-            tarik · {view.drawCount}
-          </span>
-        </button>
+      {/* ------------------------------------------------- the table */}
+      <div className='relative mx-auto mb-3 h-[21rem] w-full max-w-lg sm:h-80'>
+        {/* felt */}
+        <div className='absolute inset-6 rounded-[40%] border border-line bg-card/50 sm:inset-8' />
 
-        <div
-          ref={pileRef}
-          data-testid='pile'
-          data-drop={drag}
-          className={`relative rounded-xl p-1.5 text-center transition-all duration-200 ${
-            drag === 'over'
-              ? 'scale-110 bg-accent/25 ring-4 ring-accent'
-              : drag === 'drag'
-                ? 'a-glow ring-dashed bg-accent/10 ring-2 ring-accent/60'
-                : ''
-          }`}
-        >
-          {drag !== 'idle' && (
-            <span className='a-fade absolute -top-5 left-1/2 -translate-x-1/2 text-xs whitespace-nowrap text-accent'>
-              {drag === 'over' ? 'lepas!' : 'seret ke sini'}
-            </span>
-          )}
-          <div
-            key={`${view.top.c}${view.top.v}-${view.counts.join('.')}-${view.turn}`}
+        {others.map(({ count, seat }) => {
+          const active = !over && view.turn === seat;
+          const place = view.places.indexOf(seat);
+          const slot = slotOf(seat);
+          const safe = count === 1 && view.calledUno[seat];
+          const canCatch = view.catchable.includes(seat) && !over;
+          const shown = Math.min(count, 7);
+          return (
+            <div
+              key={seat}
+              data-seat={seat}
+              className={`absolute ${SLOT_POS[slot]} flex w-[4.5rem] flex-col items-center gap-1`}
+            >
+              <span
+                className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                  active
+                    ? 'a-glow border-accent bg-accent/15 text-ink'
+                    : 'border-line text-mute'
+                }`}
+              >
+                {seatName(seat)}
+              </span>
+              <div
+                aria-hidden
+                className='flex h-9 items-center justify-center'
+                style={{ width: 20 + shown * 6 }}
+              >
+                {Array.from({ length: shown }, (_, i) => (
+                  <CardBack
+                    key={i}
+                    size='sm'
+                    className='-ml-4 first:ml-0'
+                    style={{ rotate: `${(i - shown / 2) * 5}deg` }}
+                  />
+                ))}
+              </div>
+              <span className='text-sm font-semibold text-ink'>{count}</span>
+              {place !== -1 ? (
+                <span className='text-[11px] font-bold text-accent'>
+                  {place === 0 ? '🏆 ' : ''}#{place + 1}
+                </span>
+              ) : canCatch ? (
+                <button
+                  type='button'
+                  onClick={() => r.move({ type: 'catch', target: seat })}
+                  disabled={r.busy}
+                  className='a-wiggle text-[11px] text-err'
+                >
+                  tangkap!
+                </button>
+              ) : safe ? (
+                <span className='text-[11px] font-bold text-accent'>UNO ✓</span>
+              ) : null}
+            </div>
+          );
+        })}
+
+        {/* center: draw pile, discard pile, colour */}
+        <div className='absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-4'>
+          <button
+            type='button'
+            aria-label='Tarik kartu'
+            disabled={!view.canDraw || r.busy}
+            onClick={() => r.move({ type: 'draw' })}
+            className='group relative flex h-28 w-[4.75rem] items-center justify-center disabled:opacity-70'
           >
-            <UnoCard
-              card={view.top}
+            <CardBack
               size='lg'
-              animate='play'
-              tilt={(view.counts.reduce((a, b) => a + b, 0) % 7) - 3}
+              className='absolute translate-x-1 translate-y-1 opacity-70'
+            />
+            <CardBack
+              size='lg'
+              className={
+                view.canDraw && !r.busy
+                  ? 'a-bob absolute ring-2 ring-accent group-hover:scale-105'
+                  : 'absolute'
+              }
+            />
+            <span className='relative mt-24 rounded-full bg-paper/90 px-2 py-0.5 text-[11px] whitespace-nowrap'>
+              tarik · {view.drawCount}
+            </span>
+          </button>
+
+          <div
+            ref={pileRef}
+            data-testid='pile'
+            data-drop={drag}
+            className={`relative h-36 w-28 rounded-xl transition-all duration-200 ${
+              drag === 'over'
+                ? 'scale-105 bg-accent/20 ring-4 ring-accent'
+                : drag === 'drag'
+                  ? 'a-glow ring-dashed bg-accent/10 ring-2 ring-accent/60'
+                  : ''
+            }`}
+          >
+            {drag !== 'idle' && (
+              <span className='a-fade absolute -top-5 left-1/2 z-50 -translate-x-1/2 text-xs whitespace-nowrap text-accent'>
+                {drag === 'over' ? 'lepas!' : 'seret ke sini'}
+              </span>
+            )}
+            {/* the messy stack of recent discards */}
+            {view.pile.map((card, i) => {
+              const isTop = i === view.pile.length - 1;
+              const s = scatterFor(card, i);
+              return (
+                <div
+                  key={`${card.c}${card.v}-${i}`}
+                  className='absolute top-1/2 left-1/2'
+                  style={{
+                    zIndex: i,
+                    transform: `translate(-50%, -50%) translate(${s.x}px, ${s.y}px) rotate(${s.rot}deg)`,
+                  }}
+                >
+                  {isTop && toss ? (
+                    <div
+                      key={version}
+                      className='a-toss'
+                      style={
+                        {
+                          '--from-x': `${toss.x}px`,
+                          '--from-y': `${toss.y}px`,
+                          '--spin': `${toss.spin}deg`,
+                        } as React.CSSProperties
+                      }
+                    >
+                      <UnoCard card={card} size='lg' />
+                    </div>
+                  ) : (
+                    <UnoCard card={card} size='lg' />
+                  )}
+                </div>
+              );
+            })}
+            <span
+              key={view.color}
+              data-color={view.color}
+              aria-label={`warna ${COLOR_NAME[view.color]}`}
+              className='a-pop absolute -right-2 -bottom-2 z-50 size-6 rounded-full border-2 border-white shadow-md'
+              style={{ background: BG[view.color] }}
             />
           </div>
-        </div>
-
-        <div className='text-center text-xs text-mute'>
-          <p>warna</p>
-          <span
-            key={view.color}
-            data-color={view.color}
-            className='a-pop mt-1 inline-block size-7 rounded-full border-2 border-white shadow-md'
-            style={{ background: BG[view.color] }}
-          />
-          <p className='mt-1 text-ink'>{COLOR_NAME[view.color]}</p>
         </div>
       </div>
 
@@ -788,6 +870,20 @@ function Uno() {
         </div>
       )}
 
+      {view.canCallUno && !over && (
+        <div className='mb-2 flex justify-center'>
+          <button
+            type='button'
+            onClick={() => r.move({ type: 'uno' })}
+            disabled={r.busy}
+            aria-label='Teriak UNO'
+            className='a-bob rounded-full border-2 border-hash bg-hash/15 px-6 py-1.5 text-base font-black tracking-wider text-hash'
+          >
+            TERIAK UNO!
+          </button>
+        </div>
+      )}
+
       <div className='mb-2 flex items-center justify-center gap-4 text-xs'>
         {view.stuck && view.canDraw && (
           <button
@@ -857,8 +953,10 @@ function Uno() {
         beberapa kartu dengan angka yang sama? Mainkan sekaligus. Tidak ada yang
         cocok? Tarik satu kartu: kalau bisa dimainkan boleh langsung dipakai,
         kalau tidak giliran lewat. Wild +4 hanya jika tidak punya warna yang
-        berlaku. Yang kartunya habis duluan juara, sisanya lanjut sampai tinggal
-        satu. Room hilang sendiri setelah 2 jam.
+        berlaku. Sisa dua kartu? Teriak UNO sebelum main, kalau lupa dan sisa
+        satu kartu bisa ditangkap lawan dan tarik 2. Yang kartunya habis duluan
+        juara, sisanya lanjut sampai tinggal satu. Room hilang sendiri setelah 2
+        jam.
       </p>
     </>
   );

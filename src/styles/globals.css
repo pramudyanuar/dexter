@@ -326,6 +326,25 @@
     transform: rotate(var(--tilt, 0deg));
   }
 }
+/* A card thrown onto the table from the player who played it, landing with a
+ * small bounce. --from-x/--from-y/--spin say where it flew in from; it settles
+ * at identity, so the discard card's own scattered offset stays underneath. */
+@keyframes g-toss {
+  0% {
+    transform: translate(var(--from-x, 0), var(--from-y, 0))
+      rotate(var(--spin, 0)) scale(0.85);
+    opacity: 0.25;
+  }
+  60% {
+    opacity: 1;
+  }
+  78% {
+    transform: translate(0, 0) rotate(0) scale(1.06);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0) scale(1);
+  }
+}
 @keyframes g-flip {
   0% {
     transform: rotateX(0);
@@ -474,6 +493,9 @@
   }
   .a-play {
     animation: g-play 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .a-toss {
+    animation: g-toss 0.55s cubic-bezier(0.3, 0.9, 0.35, 1.3) both;
   }
   .a-flip {
     animation: g-flip 0.5s ease-in-out both;
