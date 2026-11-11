@@ -180,7 +180,7 @@ function deal(s: UnoState, seat: number, count: number, rng: () => number) {
   }
 }
 
-type Move =
+export type Move =
   | {
       type: 'play';
       index: number;

@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import { Card, Color, COLORS, stackable, UnoView } from '@/lib/games/uno';
+import { useOfflineUno } from '@/lib/games/useOfflineUno';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
@@ -609,7 +610,10 @@ function Podium({
 }
 
 function Uno() {
-  const r = useRoom<UnoView>('uno');
+  const online = useRoom<UnoView>('uno');
+  const offline = useOfflineUno();
+  // play against AI locally, or against people in a room; same board either way
+  const r = offline.active ? offline : online;
   const [choosing, setChoosing] = React.useState<number | null>(null);
   /** Cards picked for a same-number stack, in play order */
   const [picked, setPicked] = React.useState<{
@@ -626,15 +630,35 @@ function Uno() {
 
   if (!r.session) {
     return (
-      <RoomLobby
-        blurb='# Uno untuk 2 sampai 8 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.'
-        busy={r.busy}
-        error={r.error}
-        name={r.name}
-        onName={r.setName}
-        onCreate={r.create}
-        onJoin={r.join}
-      />
+      <>
+        <RoomLobby
+          blurb='# Uno untuk 2 sampai 8 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.'
+          busy={online.busy}
+          error={online.error}
+          name={online.name}
+          onName={online.setName}
+          onCreate={online.create}
+          onJoin={online.join}
+        />
+        <div className='mt-6 rounded-xl border border-line bg-surface/40 p-4'>
+          <p className='text-sm font-medium'>Main sendiri lawan AI</p>
+          <p className='mt-0.5 text-sm text-mute'>
+            Langsung main offline, pilih jumlah lawan bot.
+          </p>
+          <div className='mt-3 flex flex-wrap gap-2 text-xs'>
+            {[1, 2, 3, 5, 7].map((bots) => (
+              <button
+                key={bots}
+                type='button'
+                onClick={() => offline.begin(bots)}
+                className='text-mute'
+              >
+                {bots} bot
+              </button>
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
