@@ -114,8 +114,57 @@ const ALL_GAMES: readonly GameEntry[] = [
     online: true,
     href: '/games/sekata',
     description:
-      'Susun kartu suku kata jadi kata bahasa Indonesia, secepat mungkin bareng teman.',
+      'Race against your friends to create Indonesian words using syllable cards.',
     controls: 'pilih atau seret kartu, lalu kirim katanya',
+  },
+  {
+    id: 'mahjong',
+    players: '1',
+    title: 'Mahjong',
+    href: '/games/mahjong',
+    description:
+      'Match identical Mahjong tiles, clear the board, and challenge your puzzle-solving skills.',
+    controls: 'click two free tiles that match',
+  },
+  {
+    id: 'dart',
+    players: '1–4',
+    title: 'Dart',
+    online: true,
+    href: '/games/dart',
+    description:
+      'Aim, throw, and compete to become the ultimate dart champion.',
+    controls: 'aim with the pointer, click or tap to throw',
+  },
+  {
+    id: 'remo',
+    players: '2–4',
+    title: 'Remo',
+    online: true,
+    href: '/games/remo',
+    description:
+      'Classic rummy: build sequences and sets, and be the first to get rid of every card.',
+    controls: 'pick cards, lay down combinations, then discard',
+  },
+  {
+    id: 'werewolf',
+    players: '5–20',
+    title: 'Werewolf',
+    online: true,
+    href: '/games/werewolf',
+    description:
+      'Secret roles, long nights, and a village that must find the wolves among them.',
+    controls: 'act in secret at night, then debate and vote by day',
+  },
+  {
+    id: 'monkeys',
+    players: '3',
+    title: 'Three Monkeys',
+    online: true,
+    href: '/games/monkeys',
+    description:
+      'One can touch the bomb, one can read the manual, one can see and talk. Defuse it together.',
+    controls: 'exactly three players; voice, gestures and a bomb',
   },
   {
     id: 'battleship',

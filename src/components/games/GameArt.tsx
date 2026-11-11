@@ -1036,6 +1036,280 @@ function Sekata() {
   );
 }
 
+/** Mahjong: ivory tiles with a jade edge. */
+function Mahjong() {
+  const tile = (
+    x: number,
+    rot: number,
+    face: React.ReactNode,
+    hover: string,
+  ) => (
+    <g transform={`translate(${x} 52) rotate(${rot})`}>
+      <g className={move(hover)}>
+        <rect x='-17' y='-26' width='38' height='56' rx='5' fill='#164a34' />
+        <rect
+          x='-19'
+          y='-29'
+          width='36'
+          height='54'
+          rx='5'
+          fill='#fbf5e0'
+          stroke='#cbbd94'
+          strokeWidth='1.5'
+        />
+        {face}
+      </g>
+    </g>
+  );
+  return (
+    <Frame>
+      {tile(
+        52,
+        -8,
+        <>
+          <circle cx='-1' cy='-6' r='6' fill='#2457a6' />
+          <circle cx='-1' cy='-6' r='2' fill='#fbf5e0' />
+          <circle cx='-1' cy='11' r='6' fill='#c0392b' />
+          <circle cx='-1' cy='11' r='2' fill='#fbf5e0' />
+        </>,
+        'group-hover:-translate-x-2 group-hover:-rotate-6',
+      )}
+      {tile(
+        88,
+        2,
+        <>
+          <rect x='-9' y='-17' width='5' height='34' rx='2' fill='#2e7d4f' />
+          <rect x='3' y='-17' width='5' height='34' rx='2' fill='#c0392b' />
+        </>,
+        'group-hover:-translate-y-2',
+      )}
+      {tile(
+        124,
+        10,
+        <text
+          x='-1'
+          y='8'
+          textAnchor='middle'
+          fontSize='24'
+          fontWeight='800'
+          fill='#c0392b'
+        >
+          中
+        </text>,
+        'group-hover:translate-x-2 group-hover:rotate-6',
+      )}
+    </Frame>
+  );
+}
+
+/** Three Monkeys: a bomb with a lit fuse and three monkey faces. */
+function Monkeys() {
+  const face = (cx: number, band: string) => (
+    <g>
+      <circle cx={cx - 11} cy='58' r='4.5' fill='#8a5a34' />
+      <circle cx={cx + 11} cy='58' r='4.5' fill='#8a5a34' />
+      <circle cx={cx} cy='58' r='11' fill='#8a5a34' />
+      <ellipse cx={cx} cy='61' rx='7.5' ry='6.5' fill='#f0cfa0' />
+      {band === 'blind' ? (
+        <rect x={cx - 10} y='54' width='20' height='5' rx='2' fill='#2a2f3a' />
+      ) : (
+        <>
+          <circle cx={cx - 3.5} cy='57.5' r='1.3' fill='#1b1208' />
+          <circle cx={cx + 3.5} cy='57.5' r='1.3' fill='#1b1208' />
+        </>
+      )}
+      {band === 'mute' && (
+        <rect x={cx - 4} y='63.5' width='8' height='3' rx='1' fill='#c9d1d9' />
+      )}
+      {band === 'deaf' && (
+        <>
+          <circle cx={cx - 12} cy='58' r='4' fill='#e5484d' />
+          <circle cx={cx + 12} cy='58' r='4' fill='#e5484d' />
+        </>
+      )}
+    </g>
+  );
+  return (
+    <Frame>
+      <circle cx='80' cy='60' r='34' fill='#23262d' />
+      <rect x='72' y='22' width='16' height='9' rx='2' fill='#3a3f49' />
+      <path d='M80 22q4-10 14-8' fill='none' stroke='#b08a54' strokeWidth='2' />
+      <circle cx='95' cy='14' r='3.5' fill='#f5c518' />
+      <circle cx='95' cy='14' r='6' fill='#f5c518' opacity='0.3' />
+      {face(60, 'blind')}
+      {face(80, 'mute')}
+      {face(100, 'deaf')}
+    </Frame>
+  );
+}
+
+/** Dart: a board seen straight on, with a dart in the treble. */
+function Dart() {
+  const wedge = (a1: number, a2: number, r1: number, r2: number) => {
+    const p = (r: number, a: number) =>
+      `${(80 + Math.sin((a * Math.PI) / 180) * r).toFixed(2)} ${(50 - Math.cos((a * Math.PI) / 180) * r).toFixed(2)}`;
+    return `M${p(r2, a1)} A${r2} ${r2} 0 0 1 ${p(r2, a2)} L${p(r1, a2)} A${r1} ${r1} 0 0 0 ${p(r1, a1)}Z`;
+  };
+  return (
+    <Frame>
+      <circle cx='80' cy='50' r='46' fill='#2a1b10' />
+      <circle cx='80' cy='50' r='40' fill='#17181c' />
+      {Array.from({ length: 20 }, (_, i) => (
+        <g key={i}>
+          <path
+            d={wedge(i * 18 - 9, i * 18 + 9, 6, 27)}
+            fill={i % 2 ? '#e9dcb8' : '#17181c'}
+          />
+          <path
+            d={wedge(i * 18 - 9, i * 18 + 9, 27, 30)}
+            fill={i % 2 ? '#1c8049' : '#c9302c'}
+          />
+          <path
+            d={wedge(i * 18 - 9, i * 18 + 9, 30, 37)}
+            fill={i % 2 ? '#e9dcb8' : '#17181c'}
+          />
+          <path
+            d={wedge(i * 18 - 9, i * 18 + 9, 37, 40)}
+            fill={i % 2 ? '#1c8049' : '#c9302c'}
+          />
+        </g>
+      ))}
+      <circle cx='80' cy='50' r='6' fill='#1c8049' />
+      <circle cx='80' cy='50' r='2.6' fill='#c9302c' />
+      <g
+        className={move('group-hover:-translate-x-1 group-hover:translate-y-1')}
+      >
+        <g transform='translate(81 22)'>
+          <line
+            x1='0'
+            y1='0'
+            x2='9'
+            y2='-15'
+            stroke='#d7d9df'
+            strokeWidth='2'
+            strokeLinecap='round'
+          />
+          <line
+            x1='4'
+            y1='-7'
+            x2='11'
+            y2='-19'
+            stroke='#8a8f9c'
+            strokeWidth='4'
+            strokeLinecap='round'
+          />
+          <path d='M11 -19 L22 -17 L19 -29 Z' fill='#e0b84c' />
+          <path d='M11 -19 L5 -30 L19 -29 Z' fill='#c99a2e' />
+        </g>
+      </g>
+    </Frame>
+  );
+}
+
+/** Remo: a fan of playing cards. */
+function Remo() {
+  const card = (
+    x: number,
+    rot: number,
+    rank: string,
+    suit: string,
+    red: boolean,
+    hover: string,
+  ) => (
+    <g transform={`translate(${x} 54) rotate(${rot})`}>
+      <g className={move(hover)}>
+        <rect
+          x='-18'
+          y='-30'
+          width='36'
+          height='56'
+          rx='5'
+          fill='#fbf5e0'
+          stroke='#cbbd94'
+          strokeWidth='1.5'
+        />
+        <text
+          x='-12'
+          y='-17'
+          fontSize='11'
+          fontWeight='800'
+          fill={red ? '#c0262d' : '#1b1d22'}
+        >
+          {rank}
+        </text>
+        <text
+          x='0'
+          y='8'
+          textAnchor='middle'
+          fontSize='24'
+          fill={red ? '#c0262d' : '#1b1d22'}
+        >
+          {suit}
+        </text>
+      </g>
+    </g>
+  );
+  return (
+    <Frame>
+      {card(
+        52,
+        -16,
+        '7',
+        '♥',
+        true,
+        'group-hover:-translate-x-2 group-hover:-rotate-6',
+      )}
+      {card(80, 0, '8', '♥', true, 'group-hover:-translate-y-2')}
+      {card(
+        108,
+        16,
+        '9',
+        '♥',
+        true,
+        'group-hover:translate-x-2 group-hover:rotate-6',
+      )}
+    </Frame>
+  );
+}
+
+/** Werewolf: a wolf's head against the moon. */
+function Werewolf() {
+  return (
+    <Frame>
+      <rect width='160' height='100' fill='#120f26' />
+      <circle cx='112' cy='34' r='22' fill='#f4efd2' />
+      <circle cx='104' cy='28' r='22' fill='#120f26' />
+      <g className={move('group-hover:-translate-y-1')}>
+        <path
+          d='M48 70 L54 40 L64 52 L84 52 L94 40 L100 70 C100 84 88 92 74 92 C60 92 48 84 48 70Z'
+          fill='#2a2740'
+          stroke='#d4584f'
+          strokeWidth='2.5'
+          strokeLinejoin='round'
+        />
+        <path
+          d='M62 68 L68 66 M86 68 L80 66'
+          stroke='#ffd36b'
+          strokeWidth='3'
+          strokeLinecap='round'
+        />
+        <path
+          d='M68 80 L74 84 L80 80 M74 84 V74'
+          stroke='#d4584f'
+          strokeWidth='2.5'
+          strokeLinecap='round'
+          fill='none'
+        />
+      </g>
+      <path
+        d='M0 90 C30 82 60 96 90 88 C120 80 140 94 160 86 V100 H0Z'
+        fill='#ffffff'
+        opacity='0.07'
+      />
+    </Frame>
+  );
+}
+
 const Uno = () => <UnoArt />;
 /** Flip: the dark side's colours and the FLIP card. */
 const UnoFlip = () => (
@@ -1068,6 +1342,11 @@ const ART: Record<string, () => React.JSX.Element> = {
   suit: Suit,
   uno: Uno,
   sekata: Sekata,
+  mahjong: Mahjong,
+  dart: Dart,
+  remo: Remo,
+  werewolf: Werewolf,
+  monkeys: Monkeys,
   unoflip: UnoFlip,
   unomercy: UnoMercy,
   battleship: Battleship,
