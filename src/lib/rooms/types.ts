@@ -2,6 +2,8 @@ export type GameId =
   | 'connect4'
   | 'suit'
   | 'uno'
+  | 'unoflip'
+  | 'unomercy'
   | 'battleship'
   | 'gomoku'
   | 'checkers'

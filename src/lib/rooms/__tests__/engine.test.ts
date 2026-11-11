@@ -41,7 +41,7 @@ const unoRoom = (tokens: string[]) =>
     );
 
 describe('the registry', () => {
-  it('knows the three games and nothing else', () => {
+  it('knows these games and nothing else', () => {
     expect(Object.keys(GAMES).sort()).toEqual([
       'battleship',
       'checkers',
@@ -54,6 +54,8 @@ describe('the registry', () => {
       'quiz',
       'suit',
       'uno',
+      'unoflip',
+      'unomercy',
     ]);
     expect(isGameId('uno')).toBe(true);
     for (const bad of [

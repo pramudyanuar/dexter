@@ -1,7 +1,8 @@
 import type { GameDef } from '@/lib/rooms/game';
 import { RoomError } from '@/lib/rooms/types';
 
-export type Color = 'R' | 'Y' | 'G' | 'B';
+/** R red, Y yellow, G green, B blue; P pink, T teal, O orange, U purple (Flip's dark side) */
+export type Color = 'R' | 'Y' | 'G' | 'B' | 'P' | 'T' | 'O' | 'U';
 /** S skip, V reverse, D draw two, W wild, F wild draw four */
 export type Value =
   | '0'
@@ -18,7 +19,21 @@ export type Value =
   | 'V'
   | 'D'
   | 'W'
-  | 'F';
+  | 'F'
+  // Flip: flip, draw one, draw five, skip everyone, wild draw two / draw colour
+  | 'L'
+  | 'D1'
+  | 'D5'
+  | 'SE'
+  | 'WD2'
+  | 'WDC'
+  // No Mercy: coloured draw four, discard all, wild reverse +4 / +6 / +10 / colour roulette
+  | 'D4'
+  | 'DA'
+  | 'WR4'
+  | 'W6'
+  | 'W10'
+  | 'WRL';
 
 export interface Card {
   c: Color | 'W';
@@ -26,6 +41,7 @@ export interface Card {
 }
 
 export const COLORS: readonly Color[] = ['R', 'Y', 'G', 'B'];
+export const DARK_COLORS: readonly Color[] = ['P', 'T', 'O', 'U'];
 const NUMBERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const ACTIONS = ['S', 'V', 'D'] as const;
 export const HAND_SIZE = 7;
@@ -53,7 +69,16 @@ export function shuffle<T>(items: T[], rng: () => number = Math.random): T[] {
 
 export interface UnoEvent {
   seat: number;
-  kind: 'play' | 'draw' | 'pass' | 'uno' | 'catch' | 'accept' | 'challenge';
+  kind:
+    | 'play'
+    | 'draw'
+    | 'pass'
+    | 'uno'
+    | 'catch'
+    | 'accept'
+    | 'challenge'
+    // Flip / No Mercy
+    | 'take';
   card?: Card;
   /** Colour chosen with a wild */
   color?: Color;
@@ -65,6 +90,15 @@ export interface UnoEvent {
   target?: number;
   /** A challenge was right: the +4 had been played with the colour in hand */
   caught?: boolean;
+  /** Flip: the side now showing after a FLIP card */
+  flipped?: 'light' | 'dark';
+  /** No Mercy: cards a Discard All dropped, and the seat a 7 swapped with */
+  dumped?: number;
+  swapped?: number;
+  /** No Mercy: every hand was passed on by a 0 */
+  rotated?: boolean;
+  /** No Mercy: seats knocked out for reaching 25 cards */
+  mercy?: number[];
   /** Cards pulled from the pile this move, so clients can animate them */
   drew?: { seat: number; count: number };
 }
