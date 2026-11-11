@@ -4,6 +4,8 @@ export interface GameEntry {
   title: string;
   /** Played with friends on other devices, through a room code */
   online?: boolean;
+  /** How many people play, e.g. `1` or `2–4` */
+  players: string;
   href: string;
   description: string;
   controls: string;
@@ -12,14 +14,16 @@ export interface GameEntry {
 export const GAMES: readonly GameEntry[] = [
   {
     id: 'wordle',
+    players: '1',
     title: 'Wordle',
     href: '/games/wordle',
     description: 'Tebak kata 5 huruf dalam 6 kesempatan.',
     controls: 'ketik, Enter kirim',
   },
   {
-    id: 'ular',
-    title: 'Ular',
+    id: 'snake',
+    players: '1',
+    title: 'Snake',
     href: '/games/snake',
     description:
       'Makan sebanyak mungkin tanpa menabrak dinding atau badan sendiri.',
@@ -27,6 +31,7 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: '2048',
+    players: '1',
     title: '2048',
     href: '/games/2048',
     description: 'Gabungkan angka yang sama sampai mencapai 2048.',
@@ -34,6 +39,7 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: 'minesweeper',
+    players: '1',
     title: 'Minesweeper',
     href: '/games/minesweeper',
     description: 'Buka semua petak yang aman tanpa menyentuh ranjau.',
@@ -41,6 +47,7 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: 'tetris',
+    players: '1',
     title: 'Tetris',
     href: '/games/tetris',
     description: 'Susun balok jatuh menjadi baris penuh.',
@@ -48,6 +55,7 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: 'connect4',
+    players: '2',
     title: 'Connect 4',
     online: true,
     href: '/games/connect4',
@@ -57,6 +65,7 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: 'suit',
+    players: '2',
     title: 'Suit',
     online: true,
     href: '/games/suit',
@@ -66,6 +75,7 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: 'uno',
+    players: '2–8',
     title: 'Uno',
     online: true,
     href: '/games/uno',
@@ -74,15 +84,17 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: 'battleship',
-    title: 'Kapal Perang',
+    players: '2',
+    title: 'Battleship',
     online: true,
     href: '/games/battleship',
     description:
-      'Kapal perang online untuk dua pemain. Tembak armada rahasia lawan.',
+      'Battleship online untuk dua pemain. Tembak armada rahasia lawan.',
     controls: 'susun armada, lalu klik petak untuk menembak',
   },
   {
     id: 'gomoku',
+    players: '2',
     title: 'Gomoku',
     online: true,
     href: '/games/gomoku',
@@ -90,26 +102,28 @@ export const GAMES: readonly GameEntry[] = [
     controls: 'klik petak kosong, hitam jalan duluan',
   },
   {
-    id: 'dam',
-    title: 'Dam',
+    id: 'checkers',
+    players: '2',
+    title: 'Checkers',
     online: true,
     href: '/games/checkers',
-    description:
-      'Dam (checkers) online untuk dua pemain. Wajib memakan bidak lawan.',
+    description: 'Checkers online untuk dua pemain. Wajib memakan bidak lawan.',
     controls: 'klik bidak lalu petak tujuan',
   },
   {
-    id: 'catur',
-    title: 'Catur',
+    id: 'chess',
+    players: '2',
+    title: 'Chess',
     online: true,
     href: '/games/chess',
     description:
-      'Catur lengkap online untuk dua pemain: rokade, en passant, promosi.',
+      'Chess lengkap online untuk dua pemain: rokade, en passant, promosi.',
     controls: 'klik bidak lalu petak tujuan',
   },
   {
-    id: 'dadu-bohong',
-    title: 'Dadu Bohong',
+    id: 'dice',
+    players: '2–4',
+    title: "Liar's Dice",
     online: true,
     href: '/games/dice',
     description:
@@ -118,6 +132,7 @@ export const GAMES: readonly GameEntry[] = [
   },
   {
     id: 'domino',
+    players: '2–4',
     title: 'Domino',
     online: true,
     href: '/games/domino',
@@ -125,17 +140,19 @@ export const GAMES: readonly GameEntry[] = [
     controls: 'klik kartu yang menyala, tarik dari tumpukan kalau buntu',
   },
   {
-    id: 'kuis',
-    title: 'Kuis',
+    id: 'quiz',
+    players: '2–6',
+    title: 'Quiz',
     online: true,
     href: '/games/quiz',
     description:
-      'Kuis cepat untuk 2 sampai 6 pemain. Yang benar dan tercepat dapat poin terbanyak.',
+      'Quiz cepat untuk 2 sampai 6 pemain. Yang benar dan tercepat dapat poin terbanyak.',
     controls: '10 soal, 15 detik per soal',
   },
   {
-    id: 'tebak-gambar',
-    title: 'Tebak Gambar',
+    id: 'pictionary',
+    players: '2–6',
+    title: 'Pictionary',
     online: true,
     href: '/games/pictionary',
     description:

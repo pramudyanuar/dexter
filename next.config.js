@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // the games are the front page
+  async redirects() {
+    return [{ source: '/', destination: '/games', permanent: false }];
+  },
+
   // Uncoment to add domain whitelist
   // images: {
   //   remotePatterns: [
