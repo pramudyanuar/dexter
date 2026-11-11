@@ -1,6 +1,7 @@
 export const siteConfig = {
-  title: 'Games',
-  description: 'Game santai untuk dimainkan sendiri atau bareng teman.',
+  title: 'Dexter',
+  description:
+    'Card games, puzzles and party games to play alone or with friends.',
   /** Without additional '/' on the end, e.g. https://example.com */
   url: process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`

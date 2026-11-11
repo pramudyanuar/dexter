@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import * as React from 'react';
 
+import DocumentTitle from '@/components/games/DocumentTitle';
 import RememberGame from '@/components/games/RememberGame';
 import Splash from '@/components/games/Splash';
 
@@ -13,6 +14,7 @@ export default function GameShell({
   wide,
   menu,
   fluid,
+  xwide,
 }: {
   /** The game's route name (e.g. `uno`); omit on the menu page. */
   name?: string;
@@ -21,8 +23,10 @@ export default function GameShell({
   wide?: boolean;
   /** The games list itself: widest column, and no way "back" from it. */
   menu?: boolean;
-  /** Fills the width (leaving room for the docked chat); the page sets its own column. */
+  /** Fills the width; the page sets its own column (and leaves room for the docked chat). */
   fluid?: boolean;
+  /** A wide column, centred (for boards that need room but have no side panels). */
+  xwide?: boolean;
 }) {
   // pages pass the menu id (e.g. `chess`) or the route (`snake`)
   const game = name
@@ -42,6 +46,7 @@ export default function GameShell({
       )}
 
       {game && <RememberGame id={game.id} />}
+      <DocumentTitle title={game?.title ?? 'Games'} />
       {game && <Splash id={game.id} title={game.title} />}
 
       <main
@@ -49,12 +54,14 @@ export default function GameShell({
           menu ? 'pt-6' : 'pt-16'
         } ${
           fluid
-            ? 'max-w-none min-[1700px]:pr-4 xl:pr-[22rem]'
-            : menu
-              ? 'max-w-7xl'
-              : wide
-                ? 'max-w-xl'
-                : 'max-w-md'
+            ? 'max-w-none'
+            : xwide
+              ? 'max-w-5xl'
+              : menu
+                ? 'max-w-7xl'
+                : wide
+                  ? 'max-w-xl'
+                  : 'max-w-md'
         }`}
       >
         {children}
