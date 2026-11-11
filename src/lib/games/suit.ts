@@ -83,6 +83,23 @@ export const suitGame: GameDef<SuitState> = {
     };
   },
 
+  waiting: (state) => {
+    const seats = [0, 1].filter((s) => state.picks[s] === null);
+    return state.winner === null && seats.length
+      ? { seats, seconds: 25 }
+      : null;
+  },
+
+  autoMove: (_state, _seat, rng = Math.random) => ({
+    pick: PICKS[Math.floor(rng() * PICKS.length)],
+  }),
+
+  eliminate: (state, seat) => ({
+    ...state,
+    picks: [null, null],
+    winner: (1 - seat) as 0 | 1,
+  }),
+
   view(state, seat): SuitView {
     return {
       scores: state.scores,

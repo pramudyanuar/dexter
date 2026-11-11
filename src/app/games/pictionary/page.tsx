@@ -15,6 +15,7 @@ import useMounted from '@/lib/useMounted';
 import Confetti from '@/components/games/Confetti';
 import Countdown from '@/components/games/Countdown';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
 
 const W = 800;
@@ -479,7 +480,7 @@ function Pictionary() {
   return (
     <RoomGate
       r={r}
-      blurb='# Tebak gambar untuk 2 sampai 6 pemain. Bergantian menggambar kata rahasia, yang lain menebak secepatnya. Yang lebih cepat dapat poin lebih banyak.'
+      blurb='# Pictionary untuk 2 sampai 6 pemain. Bergantian menggambar kata rahasia, yang lain menebak secepatnya. Yang lebih cepat dapat poin lebih banyak.'
     >
       {({ room, you }) => (
         <>
@@ -498,8 +499,13 @@ export default function PictionaryPage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='tebak-gambar' wide>
-      {mounted ? <Pictionary /> : null}
+    <GameShell name='pictionary' wide>
+      {mounted ? (
+        <>
+          <Pictionary />
+          <RoomChat game='pictionary' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

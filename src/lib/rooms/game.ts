@@ -22,4 +22,22 @@ export interface GameDef<S = unknown> {
    */
   view(state: S, seat: number | null): unknown;
   isOver(state: S): boolean;
+
+  /**
+   * Who the game is waiting on right now (seats that must act) and how long
+   * they get. Null when nobody is being waited for. Seats already removed
+   * from the game must not be listed.
+   */
+  waiting?(state: S): { seats: number[]; seconds: number } | null;
+  /**
+   * A legal move to play for a seat that ran out of time, as the payload
+   * `move` would receive. Null when there is nothing sensible to play. It may
+   * be asked repeatedly until the seat is no longer being waited for.
+   */
+  autoMove?(state: S, seat: number, rng?: () => number): unknown | null;
+  /**
+   * Takes a player out of the game (they left or kept missing turns): the
+   * others carry on without them, and with one player left that player wins.
+   */
+  eliminate?(state: S, seat: number, rng?: () => number): S;
 }

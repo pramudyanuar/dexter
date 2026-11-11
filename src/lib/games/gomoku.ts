@@ -106,6 +106,27 @@ export const gomokuGame: GameDef<GomokuState> = {
     return { ...base, turn: (1 - seat) as 0 | 1 };
   },
 
+  waiting: (state) =>
+    state.status === 'playing' ? { seats: [state.turn], seconds: 60 } : null,
+
+  // a random empty point
+  autoMove(state, _seat, rng = Math.random) {
+    const empty: { r: number; c: number }[] = [];
+    state.board.forEach((row, r) =>
+      row.forEach((v, c) => {
+        if (!v) empty.push({ r, c });
+      }),
+    );
+    return empty.length ? empty[Math.floor(rng() * empty.length)] : null;
+  },
+
+  eliminate: (state, seat) => ({
+    ...state,
+    status: 'won',
+    winner: (1 - seat) as 0 | 1,
+    line: null,
+  }),
+
   view: (state) => state,
   isOver: (state) => state.status !== 'playing',
 };

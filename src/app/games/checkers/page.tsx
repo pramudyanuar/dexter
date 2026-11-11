@@ -8,6 +8,7 @@ import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch } from '@/components/games/RoomGate';
 
 const DISC = [
@@ -24,7 +25,7 @@ function Checkers() {
   return (
     <RoomGate
       r={r}
-      blurb='# Dam (checkers) untuk dua pemain di device berbeda. Wajib memakan bidak lawan kalau bisa. Merah jalan duluan.'
+      blurb='# Checkers untuk dua pemain di device berbeda. Wajib memakan bidak lawan kalau bisa. Merah jalan duluan.'
       barRight={
         r.session && (
           <span className='text-mute'>
@@ -113,7 +114,7 @@ function Checkers() {
 
             <div
               role='grid'
-              aria-label='Papan Dam'
+              aria-label='Papan Checkers'
               className='mx-auto grid w-full max-w-[28rem] grid-cols-8 overflow-hidden rounded-md border-2 border-hash/60 shadow-lg'
             >
               {rows.flatMap((row) =>
@@ -177,8 +178,13 @@ export default function CheckersPage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='dam' wide>
-      {mounted ? <Checkers /> : null}
+    <GameShell name='checkers' wide>
+      {mounted ? (
+        <>
+          <Checkers />
+          <RoomChat game='checkers' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

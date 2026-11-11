@@ -5,12 +5,16 @@ import {
   act,
   join,
   kick,
+  leaveRoom,
   rematch,
   rename,
+  revive,
   seatOf,
   start,
+  sweep,
   toView,
 } from '@/lib/rooms/engine';
+import { mutate } from '@/lib/rooms/mutate';
 import { cryptoRng } from '@/lib/rooms/rng';
 import { getRoomStore } from '@/lib/rooms/store';
 import { RoomError } from '@/lib/rooms/types';
@@ -55,8 +59,22 @@ export async function GET(req: Request, { params }: Context) {
   }
 
   try {
-    const room = await store.get(code);
+    let room = await store.get(code);
     if (!room) return notFound();
+    const token = req.headers.get('x-player-token');
+
+    // Time passes even when nobody acts. A player who left and did not come
+    // back, or one sitting on their turn, is dealt with here, by whichever
+    // poll notices first. Nothing is written unless something changed.
+    const seat = seatOf(room, token);
+    let next = sweep(room, Date.now(), cryptoRng());
+    // whoever is asking is obviously here, so they are no longer "leaving"
+    if (seat !== null) next = revive(next, seat);
+    if (next !== room) {
+      room = (await store.saveIf(next, room.version))
+        ? next
+        : ((await store.get(code)) ?? room);
+    }
 
     const known = Number(new URL(req.url).searchParams.get('v'));
     if (known === room.version) {
@@ -65,7 +83,6 @@ export async function GET(req: Request, { params }: Context) {
         { headers: NO_STORE },
       );
     }
-    const token = req.headers.get('x-player-token');
     return NextResponse.json(
       { changed: true, room: toView(room, token) },
       { headers: NO_STORE },
@@ -119,40 +136,50 @@ export async function POST(req: Request, { params }: Context) {
         );
       }
       case 'start': {
-        const next = start(room, body.token, cryptoRng());
-        await store.save(next);
+        const next = await mutate(store, room, (r) =>
+          start(r, body.token, cryptoRng()),
+        );
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },
         );
       }
       case 'kick': {
-        const next = kick(room, body.token, body.seat);
-        if (next !== room) await store.save(next);
+        const next = await mutate(store, room, (r) =>
+          kick(r, body.token, body.seat, cryptoRng()),
+        );
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },
         );
       }
+      case 'leave': {
+        // sent when "keluar" is pressed, and by the browser as the page closes
+        await mutate(store, room, (r) => leaveRoom(r, body.token));
+        return NextResponse.json({ ok: true }, { headers: NO_STORE });
+      }
       case 'move': {
-        const next = act(room, body.token, body.move, cryptoRng());
-        await store.save(next);
+        const next = await mutate(store, room, (r) =>
+          act(r, body.token, body.move, cryptoRng()),
+        );
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },
         );
       }
       case 'rename': {
-        const next = rename(room, body.token, body.name);
-        if (next !== room) await store.save(next);
+        const next = await mutate(store, room, (r) =>
+          rename(r, body.token, body.name),
+        );
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },
         );
       }
       case 'rematch': {
-        const next = rematch(room, body.token, cryptoRng());
-        if (next !== room) await store.save(next);
+        const next = await mutate(store, room, (r) =>
+          rematch(r, body.token, cryptoRng()),
+        );
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },

@@ -86,6 +86,11 @@ export interface UnoState {
    * until one player is left, who is added last. Missing in older states.
    */
   places?: number[];
+  /**
+   * Seats removed from the game (they left, or kept missing turns). Play goes on
+   * without them. Missing in older states.
+   */
+  dropped?: number[];
   /** After drawing a playable card, its owner may play exactly that one */
   pending: { seat: number; index: number } | null;
   /** Whether each seat has called "UNO" while down to one card. Missing in older states. */
@@ -96,11 +101,16 @@ export interface UnoState {
 const isNumber = (card: Card) => card.c !== 'W' && /^[0-9]$/.test(card.v);
 const top = (s: UnoState) => s.discard[s.discard.length - 1];
 const placesOf = (s: UnoState) => s.places ?? [];
-const isOut = (s: UnoState, seat: number) => placesOf(s).includes(seat);
-const active = (s: UnoState) => s.players - placesOf(s).length;
+const droppedOf = (s: UnoState) => s.dropped ?? [];
+const isOut = (s: UnoState, seat: number) =>
+  placesOf(s).includes(seat) || droppedOf(s).includes(seat);
+const active = (s: UnoState) =>
+  s.players - placesOf(s).length - droppedOf(s).length;
 /** Over once only one player still holds cards (older states: on the first win). */
 const finished = (s: UnoState) =>
-  s.places ? s.places.length >= s.players - 1 : s.winner !== null;
+  s.places
+    ? s.places.length + droppedOf(s).length >= s.players - 1
+    : s.winner !== null;
 
 const unoFlags = (s: UnoState) =>
   (s.calledUno ??= Array<boolean>(s.players).fill(false));
@@ -388,8 +398,9 @@ export const unoGame: GameDef<UnoState> = {
   start,
   restart: (previous, players, rng) => {
     const next = start(players, rng);
-    // the winner opens the next game
-    return { ...next, turn: previous.winner ?? 0 };
+    // the winner opens the next game (if they are still seated)
+    const opener = previous.winner ?? 0;
+    return { ...next, turn: opener < players ? opener : 0 };
   },
 
   move(state, seat, raw, rng = Math.random) {
@@ -432,6 +443,41 @@ export const unoGame: GameDef<UnoState> = {
         break;
       default:
         throw new RoomError('Langkah tidak dikenal', 400);
+    }
+    syncUnoFlags(s);
+    return s;
+  },
+
+  waiting: (state) =>
+    finished(state) ? null : { seats: [state.turn], seconds: 40 },
+
+  // an idle player draws a card (and passes if it fits): a penalty, not a play
+  autoMove: (state, seat) =>
+    state.pending?.seat === seat ? { type: 'pass' } : { type: 'draw' },
+
+  eliminate(state, seat, rng = Math.random) {
+    if (isOut(state, seat)) return state;
+    const s = structuredClone(state);
+    // their cards go back into the pile
+    s.draw = shuffle([...s.draw, ...s.hands[seat]], rng);
+    s.hands[seat] = [];
+    s.dropped = [...droppedOf(s), seat];
+    if (s.pending?.seat === seat) s.pending = null;
+    if (s.turn === seat) s.turn = nextSeat(s, seat);
+    if (finished(s)) {
+      // whoever still holds cards wins; the removed players rank last
+      const last = Array.from({ length: s.players }, (_, i) => i).find(
+        (i) => !isOut(s, i),
+      );
+      const places = [...placesOf(s)];
+      if (last !== undefined) {
+        places.push(last);
+        if (s.winner === null) s.winner = last;
+      }
+      s.places = [
+        ...places,
+        ...droppedOf(s).filter((d) => !places.includes(d)),
+      ];
     }
     syncUnoFlags(s);
     return s;

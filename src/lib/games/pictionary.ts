@@ -51,6 +51,8 @@ export interface PictionaryState {
   scores: number[];
   last: { word: string; solved: number[] } | null;
   winners: number[] | null;
+  /** Seats removed from the game; drawing turns skip them */
+  out?: boolean[];
 }
 
 export interface PictionaryView {
@@ -109,26 +111,31 @@ function fresh(
   };
 }
 
+const activeSeats = (s: PictionaryState) =>
+  Array.from({ length: s.players }, (_, i) => i).filter((i) => !s.out?.[i]);
+
 /** Closes the current round and opens the next, or ends the game. */
 function advance(s: PictionaryState, rng: () => number): PictionaryState {
   const last = { word: s.word, solved: s.solved };
   const round = s.round + 1;
   if (round >= s.rounds) {
-    const top = Math.max(...s.scores);
+    const left = activeSeats(s);
+    const top = Math.max(...left.map((i) => s.scores[i]));
     return {
       ...s,
       round,
       strokes: [],
       solved: [],
       last,
-      winners: s.scores.flatMap((n, i) => (n === top ? [i] : [])),
+      winners: left.filter((i) => s.scores[i] === top),
     };
   }
   const word = pickWord(s.used, rng);
   return {
     ...s,
     round,
-    drawer: round % s.players,
+    // players still in the game take turns drawing
+    drawer: activeSeats(s)[round % activeSeats(s).length],
     word,
     used: [...s.used, word],
     strokes: [],
@@ -238,10 +245,47 @@ export const pictionaryGame: GameDef<PictionaryState> = {
       scores[seat] += Math.max(1, 4 - solved.length);
       scores[state.drawer] += 1;
       const next = { ...state, guesses, solved, scores };
-      return solved.length >= state.players - 1 ? advance(next, rng) : next;
+      return solved.length >= activeSeats(state).length - 1
+        ? advance(next, rng)
+        : next;
     }
 
     throw new RoomError('Aksi tidak dikenal');
+  },
+
+  // only a drawer who has not started drawing is being waited for; a round that
+  // is underway ends on its own clock
+  waiting: (state) =>
+    !state.winners && state.strokes.length === 0
+      ? { seats: [state.drawer], seconds: 60 }
+      : null,
+
+  autoMove: (state) => ({ type: 'next', round: state.round }),
+
+  eliminate(state, seat, rng = Math.random) {
+    if (state.out?.[seat]) return state;
+    const out = [...(state.out ?? Array<boolean>(state.players).fill(false))];
+    out[seat] = true;
+    const next = {
+      ...state,
+      out,
+      solved: state.solved.filter((s) => s !== seat),
+    };
+    const left = activeSeats(next);
+    // drawing alone is no game: the one still here wins
+    if (left.length <= 1) {
+      return {
+        ...next,
+        strokes: [],
+        last: { word: state.word, solved: next.solved },
+        winners: left,
+      };
+    }
+    // the drawer left, or everyone still here has already guessed
+    if (seat === state.drawer || next.solved.length >= left.length - 1) {
+      return advance(next, rng);
+    }
+    return next;
   },
 
   view(state, seat): PictionaryView {

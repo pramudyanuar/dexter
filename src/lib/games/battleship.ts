@@ -209,6 +209,30 @@ export const battleshipGame: GameDef<BattleshipState> = {
     throw new RoomError('Aksi tidak dikenal');
   },
 
+  waiting(state) {
+    if (state.winner !== null) return null;
+    if (state.phase === 'placing') {
+      const seats = [0, 1].filter((s) => !state.fleets[s]);
+      return seats.length ? { seats, seconds: 90 } : null;
+    }
+    return { seats: [state.turn], seconds: 60 };
+  },
+
+  autoMove(state, seat, rng = Math.random) {
+    if (state.phase === 'placing') {
+      return { type: 'place', ships: randomFleet(rng) };
+    }
+    const fired = new Set(state.shots[seat].map((s) => key(s.x, s.y)));
+    const free: { x: number; y: number }[] = [];
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++)
+        if (!fired.has(key(x, y))) free.push({ x, y });
+    if (!free.length) return null;
+    return { type: 'fire', ...free[Math.floor(rng() * free.length)] };
+  },
+
+  eliminate: (state, seat) => ({ ...state, winner: (1 - seat) as 0 | 1 }),
+
   view(state, seat): BattleshipView {
     const me = seat ?? 0;
     const enemy = state.fleets[1 - me];

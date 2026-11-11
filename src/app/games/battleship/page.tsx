@@ -15,6 +15,7 @@ import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch } from '@/components/games/RoomGate';
 
 type Kind = 'water' | 'miss' | 'hit' | 'ship' | 'sunk';
@@ -170,7 +171,7 @@ function Battleship() {
   return (
     <RoomGate
       r={r}
-      blurb='# Kapal perang untuk dua pemain di device berbeda. Susun armada rahasia, lalu tembak bergantian sampai semua kapal lawan tenggelam.'
+      blurb='# Battleship untuk dua pemain di device berbeda. Susun armada rahasia, lalu tembak bergantian sampai semua kapal lawan tenggelam.'
     >
       {({ room, you }) => {
         const v = room.state;
@@ -267,7 +268,12 @@ export default function BattleshipPage() {
 
   return (
     <GameShell name='battleship' wide>
-      {mounted ? <Battleship /> : null}
+      {mounted ? (
+        <>
+          <Battleship />
+          <RoomChat game='battleship' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

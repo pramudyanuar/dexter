@@ -155,6 +155,31 @@ export const diceGame: GameDef<DiceState> = {
     throw new RoomError('Aksi tidak dikenal');
   },
 
+  waiting: (state) =>
+    state.winner === null ? { seats: [state.turn], seconds: 45 } : null,
+
+  // the smallest legal raise, or a call when the table cannot hold a bigger bid
+  autoMove(state) {
+    if (!state.bid) return { type: 'bid', qty: 1, face: 2 };
+    const { qty, face } = state.bid;
+    const raise =
+      face < 6 ? { qty, face: face + 1 } : { qty: qty + 1, face: 1 };
+    return raise.qty <= state.dice.flat().length
+      ? { type: 'bid', ...raise }
+      : { type: 'call' };
+  },
+
+  eliminate(state, seat) {
+    const dice = state.dice.map((d) => [...d]);
+    dice[seat] = [];
+    const next = { ...state, dice };
+    const left = dice.flatMap((d, i) => (d.length > 0 ? [i] : []));
+    if (left.length <= 1) return { ...next, winner: left[0] ?? null };
+    return state.turn === seat
+      ? { ...next, turn: nextAlive(next, seat) }
+      : next;
+  },
+
   view(state, seat): DiceView {
     return {
       players: state.players,

@@ -8,6 +8,7 @@ import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch } from '@/components/games/RoomGate';
 
 // filled glyphs for both sides; the variation selector keeps ♟ from turning into an emoji
@@ -58,7 +59,7 @@ function Chess() {
   return (
     <RoomGate
       r={r}
-      blurb='# Catur lengkap (rokade, en passant, promosi) untuk dua pemain di device berbeda. Pembuat room memegang putih.'
+      blurb='# Chess lengkap (rokade, en passant, promosi) untuk dua pemain di device berbeda. Pembuat room memegang putih.'
       barRight={
         r.session && (
           <span className='text-mute'>kamu: {NAME[r.session.you]}</span>
@@ -113,6 +114,13 @@ function Chess() {
             ) : (
               <span className='text-err'>Skakmat. Kamu kalah.</span>
             );
+        } else if (s.status === 'resigned') {
+          status =
+            s.winner === you ? (
+              <span className='text-accent'>Lawan keluar. Kamu menang!</span>
+            ) : (
+              <span className='text-err'>Kamu keluar dari permainan.</span>
+            );
         } else if (s.status === 'stalemate') status = 'Pat (stalemate). Seri.';
         else if (s.status === 'draw') status = 'Seri.';
         else if (myTurn) {
@@ -145,7 +153,7 @@ function Chess() {
 
             <div
               role='grid'
-              aria-label='Papan catur'
+              aria-label='Papan chess'
               className='relative mx-auto grid w-full max-w-[30rem] grid-cols-8 overflow-hidden rounded-md border-2 border-hash/60 shadow-lg'
             >
               {order.flatMap((row) =>
@@ -265,8 +273,13 @@ export default function ChessPage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='catur' wide>
-      {mounted ? <Chess /> : null}
+    <GameShell name='chess' wide>
+      {mounted ? (
+        <>
+          <Chess />
+          <RoomChat game='chess' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

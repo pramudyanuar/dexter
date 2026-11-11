@@ -10,8 +10,10 @@ import useMounted from '@/lib/useMounted';
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 import RoomBar from '@/components/games/RoomBar';
-import { NameEditor, PlayerStrip } from '@/components/games/RoomGate';
+import RoomChat from '@/components/games/RoomChat';
+import { PlayerStrip, Removed, WaitingRoom } from '@/components/games/RoomGate';
 import RoomLobby from '@/components/games/RoomLobby';
+import RoomNotice from '@/components/games/RoomNotice';
 
 // seat 0 created the room, seat 1 joined it
 const DISC = ['bg-accent', 'bg-hash'] as const;
@@ -37,6 +39,10 @@ function Connect4() {
       />
     );
   }
+
+  // taken out of the room (disconnected, or too many missed turns)
+  if (r.room && r.room.seat === null) return <Removed r={r} />;
+  if (r.room?.status === 'waiting') return <WaitingRoom r={r} />;
 
   const { room } = r;
   const you = r.session.you;
@@ -68,7 +74,7 @@ function Connect4() {
     <>
       <RoomBar
         code={r.session.code}
-        share={room?.status === 'waiting'}
+        share={false}
         onLeave={r.leave}
         right={
           <span className='text-mute'>
@@ -84,7 +90,13 @@ function Connect4() {
       {room && (
         <PlayerStrip names={room.names} joined={room.joined} you={you} />
       )}
-      {room?.status === 'waiting' && <NameEditor r={r} />}
+      <RoomNotice
+        room={room}
+        you={you}
+        receivedAt={r.receivedAt}
+        onKick={r.kick}
+        busy={r.busy}
+      />
 
       {state?.status === 'won' && state.winner === you && <Confetti />}
 
@@ -166,7 +178,12 @@ export default function Connect4Page() {
 
   return (
     <GameShell name='connect4' wide>
-      {mounted ? <Connect4 /> : null}
+      {mounted ? (
+        <>
+          <Connect4 />
+          <RoomChat game='connect4' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

@@ -30,7 +30,8 @@ export interface ChessState {
   ep: Point | null;
   /** Plies since the last capture or pawn move */
   half: number;
-  status: 'playing' | 'checkmate' | 'stalemate' | 'draw';
+  /** `resigned`: the loser left or kept missing turns */
+  status: 'playing' | 'checkmate' | 'stalemate' | 'draw' | 'resigned';
   winner: 0 | 1 | null;
   check: boolean;
   last: ChessMove | null;
@@ -367,6 +368,22 @@ export const chessGame: GameDef<ChessState> = {
     if (half >= 100 || insufficient(board)) return { ...next, status: 'draw' };
     return next;
   },
+
+  waiting: (state) =>
+    state.status === 'playing' ? { seats: [state.turn], seconds: 120 } : null,
+
+  autoMove(state, seat, rng = Math.random) {
+    const moves = legalMoves(state, seat);
+    if (!moves.length) return null;
+    const m = moves[Math.floor(rng() * moves.length)];
+    return { from: m.from, to: m.to, promo: m.promo };
+  },
+
+  eliminate: (state, seat) => ({
+    ...state,
+    status: 'resigned',
+    winner: (1 - seat) as 0 | 1,
+  }),
 
   view(state, seat): ChessView {
     return {

@@ -8,6 +8,7 @@ import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch } from '@/components/games/RoomGate';
 
 const STONE = [
@@ -141,7 +142,12 @@ export default function GomokuPage() {
 
   return (
     <GameShell name='gomoku' wide>
-      {mounted ? <Gomoku /> : null}
+      {mounted ? (
+        <>
+          <Gomoku />
+          <RoomChat game='gomoku' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

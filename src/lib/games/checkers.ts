@@ -195,6 +195,23 @@ export const checkersGame: GameDef<CheckersState> = {
     return { ...base, chain: null, turn: next };
   },
 
+  waiting: (state) =>
+    state.status === 'playing' ? { seats: [state.turn], seconds: 60 } : null,
+
+  autoMove(state, seat, rng = Math.random) {
+    const moves = legalMoves(state.board, seat, state.chain);
+    if (!moves.length) return null;
+    const m = moves[Math.floor(rng() * moves.length)];
+    return { from: m.from, to: m.to };
+  },
+
+  eliminate: (state, seat) => ({
+    ...state,
+    chain: null,
+    status: 'won',
+    winner: (1 - seat) as 0 | 1,
+  }),
+
   view(state, seat): CheckersView {
     return {
       ...state,

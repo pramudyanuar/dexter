@@ -8,6 +8,7 @@ import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
 
 const PIPS: Record<number, number[]> = {
@@ -326,7 +327,12 @@ export default function DominoPage() {
 
   return (
     <GameShell name='domino' wide>
-      {mounted ? <Domino /> : null}
+      {mounted ? (
+        <>
+          <Domino />
+          <RoomChat game='domino' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

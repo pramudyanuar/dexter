@@ -8,6 +8,7 @@ import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
 
 const PIPS: Record<number, number[]> = {
@@ -159,7 +160,7 @@ function Dice() {
   return (
     <RoomGate
       r={r}
-      blurb='# Dadu bohong untuk 2 sampai 4 pemain. Tawar jumlah dadu yang ada di meja (angka 1 jadi joker), atau tantang "bohong!" kalau kamu tidak percaya.'
+      blurb={`# Liar's Dice untuk 2 sampai 4 pemain. Tawar jumlah dadu yang ada di meja (angka 1 jadi joker), atau tantang "bohong!" kalau kamu tidak percaya.`}
     >
       {({ room, you }) => {
         const v = room.state;
@@ -346,8 +347,13 @@ export default function DicePage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='dadu-bohong' wide>
-      {mounted ? <Dice /> : null}
+    <GameShell name='dice' wide>
+      {mounted ? (
+        <>
+          <Dice />
+          <RoomChat game='dice' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

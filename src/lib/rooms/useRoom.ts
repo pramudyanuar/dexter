@@ -1,6 +1,12 @@
 import * as React from 'react';
 
 import { normalizeCode } from '@/lib/rooms/code-format';
+import {
+  forgetSeat,
+  holdSeat,
+  recallSeat,
+  rememberSeat,
+} from '@/lib/rooms/seat-memory';
 import type { GameId, RoomView } from '@/lib/rooms/types';
 import useStoredState from '@/lib/useStoredState';
 
@@ -11,7 +17,6 @@ export interface RoomSession {
 }
 
 const POLL_MS = 1000;
-
 async function call(
   path: string,
   options: { body?: unknown; token?: string } = {},
@@ -41,13 +46,18 @@ async function call(
  * polling, and sending actions. `V` is the game's view of its state.
  */
 export function useRoom<V>(game: GameId) {
+  // the room you sit in belongs to this tab, so two tabs can be two players
   const [session, setSession] = useStoredState<RoomSession | null>(
     `room-session-${game}`,
     null,
+    'tab',
   );
   // one name for every game, so it only has to be typed once
   const [name, setName] = useStoredState<string>('player-name', '');
   const [room, setRoom] = React.useState<RoomView<V> | null>(null);
+  // when the room view arrived, so countdowns can run from there
+  const [receivedAt, setReceivedAt] = React.useState(0);
+
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const version = React.useRef(0);
@@ -55,6 +65,7 @@ export function useRoom<V>(game: GameId) {
   const adopt = (next: RoomView<V>) => {
     version.current = next.version;
     setRoom(next);
+    setReceivedAt(Date.now());
   };
 
   const leave = React.useCallback(
@@ -70,6 +81,10 @@ export function useRoom<V>(game: GameId) {
   // every player polls; the server answers tersely when nothing changed
   const code = session?.code;
   const token = session?.token;
+
+  // tell other tabs this seat is in use, so they do not take it over
+  React.useEffect(() => (token ? holdSeat(token) : undefined), [token]);
+
   React.useEffect(() => {
     if (!code || !token) return;
     let stopped = false;
@@ -83,6 +98,7 @@ export function useRoom<V>(game: GameId) {
         if (!stopped && data.changed) adopt(data.room);
       } catch (err) {
         if ((err as { status?: number }).status === 404) {
+          forgetSeat(game, code);
           leave('Room sudah kedaluwarsa atau tidak ada lagi.');
         }
         // other errors (a dropped connection): try again on the next tick
@@ -100,7 +116,37 @@ export function useRoom<V>(game: GameId) {
     };
     // adopt only touches refs and state setters
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, token, leave]);
+  }, [code, token, leave, game]);
+
+  // Closing the page or tab is the one thing the server cannot see for itself,
+  // so the browser is asked to say so on the way out. A reload says it too, but
+  // the reloaded page asks for the room straight away, which cancels it.
+  React.useEffect(() => {
+    if (!code || !token) return;
+    const say = () => {
+      try {
+        navigator.sendBeacon(
+          `/api/rooms/${code}`,
+          new Blob([JSON.stringify({ action: 'leave', token })], {
+            type: 'application/json',
+          }),
+        );
+      } catch {
+        // no beacon support: the turn clock will deal with it
+      }
+    };
+    window.addEventListener('pagehide', say);
+    return () => window.removeEventListener('pagehide', say);
+  }, [code, token]);
+
+  // after a rematch the seats can shift up when someone was removed
+  const seatNow = room?.seat ?? null;
+  React.useEffect(() => {
+    if (session && seatNow !== null && seatNow !== session.you) {
+      setSession({ ...session, you: seatNow });
+      rememberSeat(game, session.code, { token: session.token, you: seatNow });
+    }
+  }, [seatNow, session, setSession, game]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -117,6 +163,7 @@ export function useRoom<V>(game: GameId) {
   const create = () =>
     run(async () => {
       const data = await call('/api/rooms', { body: { game, name } });
+      rememberSeat(game, data.code, data);
       setSession({ code: data.code, token: data.token, you: data.you });
       adopt(data.room);
     });
@@ -124,9 +171,12 @@ export function useRoom<V>(game: GameId) {
   const join = (input: string) =>
     run(async () => {
       const target = normalizeCode(input);
+      // coming back to a room you were already in gives you the same seat
+      const before = await recallSeat(game, target);
       const data = await call(`/api/rooms/${target}`, {
-        body: { action: 'join', name },
+        body: { action: 'join', name, token: before?.token },
       });
+      rememberSeat(game, target, data);
       setSession({ code: target, token: data.token, you: data.you });
       adopt(data.room);
       window.history.replaceState(null, '', window.location.pathname);
@@ -144,11 +194,22 @@ export function useRoom<V>(game: GameId) {
   return {
     session,
     room,
+    receivedAt,
     name,
     setName,
     error,
     busy,
-    leave: () => leave(),
+    leave: () => {
+      // tell the server now, so the others are not left waiting for a sign
+      // that never comes; coming back soon cancels it
+      if (session) {
+        void call(`/api/rooms/${session.code}`, {
+          body: { action: 'leave', token: session.token },
+          token: session.token,
+        }).catch(() => {});
+      }
+      leave();
+    },
     create,
     join,
     start: () => act('start'),

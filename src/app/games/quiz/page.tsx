@@ -9,6 +9,7 @@ import useMounted from '@/lib/useMounted';
 import Confetti from '@/components/games/Confetti';
 import Countdown from '@/components/games/Countdown';
 import GameShell from '@/components/games/GameShell';
+import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
 
 const SECONDS = 15;
@@ -26,7 +27,7 @@ function Quiz() {
   return (
     <RoomGate
       r={r}
-      blurb='# Kuis cepat untuk 2 sampai 6 pemain. 10 soal, jawab benar dan lebih cepat dari yang lain untuk dapat poin lebih banyak (3, 2, lalu 1).'
+      blurb='# Quiz cepat untuk 2 sampai 6 pemain. 10 soal, jawab benar dan lebih cepat dari yang lain untuk dapat poin lebih banyak (3, 2, lalu 1).'
     >
       {({ room, you }) => {
         const v = room.state;
@@ -198,8 +199,13 @@ export default function QuizPage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='kuis' wide>
-      {mounted ? <Quiz /> : null}
+    <GameShell name='quiz' wide>
+      {mounted ? (
+        <>
+          <Quiz />
+          <RoomChat game='quiz' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

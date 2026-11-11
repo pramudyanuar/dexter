@@ -363,7 +363,8 @@ describe('host removes a waiting player', () => {
     expect(errorOf(() => kick(room, 'host', 9))).toBe(400); // no such seat
     expect(kick(room, 'host', 5)).toBe(room); // empty seat: no change
     const started = start(room, 'host');
-    expect(errorOf(() => kick(started, 'host', 1))).toBe(409); // already playing
+    // in the middle of a game it takes the player out of the game instead
+    expect(kick(started, 'host', 1).out?.[1]).toBe(true);
   });
 
   it('uno seats up to eight players', () => {

@@ -29,6 +29,8 @@ export interface DominoState {
   winner: number | null;
   /** Consecutive passes; a full lap means the game is blocked */
   passes: number;
+  /** Seats removed from the game; play goes on without them */
+  out?: boolean[];
   last: DominoEvent | null;
   starter: number;
 }
@@ -49,6 +51,18 @@ export interface DominoView {
   canPass: boolean;
   /** Everyone's tiles once the round is over */
   hands: Tile[][] | null;
+}
+
+const isOut = (s: DominoState, seat: number) => !!s.out?.[seat];
+const activeSeats = (s: DominoState) =>
+  Array.from({ length: s.players }, (_, i) => i).filter((i) => !isOut(s, i));
+/** The next seat still in the game after `from`. */
+function nextActive(s: DominoState, from: number) {
+  for (let i = 1; i <= s.players; i++) {
+    const seat = (from + i) % s.players;
+    if (!isOut(s, seat)) return seat;
+  }
+  return from;
 }
 
 const pips = (hand: Tile[]) => hand.reduce((n, [a, b]) => n + a + b, 0);
@@ -112,7 +126,7 @@ export const dominoGame: GameDef<DominoState> = {
     if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
     const m = move as { type?: string; index?: unknown; end?: unknown } | null;
     const hands = state.hands.map((h) => [...h]);
-    const next = (from: number) => (from + 1) % state.players;
+    const next = (from: number) => nextActive(state, from);
 
     if (m?.type === 'draw') {
       if (canPlayAny(state, seat))
@@ -136,11 +150,12 @@ export const dominoGame: GameDef<DominoState> = {
         throw new RoomError('Tarik kartu dulu', 409);
       const passes = state.passes + 1;
       const last: DominoEvent = { seat, kind: 'pass' };
-      if (passes >= state.players) {
+      if (passes >= activeSeats(state).length) {
         // blocked: the lightest hand wins; a tie is no winner
+        const live = activeSeats(state);
         const totals = hands.map(pips);
-        const min = Math.min(...totals);
-        const best = totals.flatMap((t, i) => (t === min ? [i] : []));
+        const min = Math.min(...live.map((i) => totals[i]));
+        const best = live.filter((i) => totals[i] === min);
         return {
           ...state,
           passes,
@@ -190,6 +205,37 @@ export const dominoGame: GameDef<DominoState> = {
     }
 
     throw new RoomError('Aksi tidak dikenal');
+  },
+
+  waiting: (state) =>
+    state.status === 'playing' ? { seats: [state.turn], seconds: 45 } : null,
+
+  // play the first tile that fits, else draw, else pass
+  autoMove(state, seat) {
+    const hand = state.hands[seat];
+    const index = hand.findIndex((t) => fits(state.board, t).length > 0);
+    if (index >= 0) {
+      return { type: 'play', index, end: fits(state.board, hand[index])[0] };
+    }
+    return { type: state.boneyard.length > 0 ? 'draw' : 'pass' };
+  },
+
+  eliminate(state, seat) {
+    if (isOut(state, seat)) return state;
+    const out = [...(state.out ?? Array<boolean>(state.players).fill(false))];
+    out[seat] = true;
+    const hands = state.hands.map((h) => [...h]);
+    // their tiles go back to the pile
+    const boneyard = [...hands[seat], ...state.boneyard];
+    hands[seat] = [];
+    const next = { ...state, out, hands, boneyard, passes: 0 };
+    const left = activeSeats(next);
+    if (left.length <= 1) {
+      return { ...next, status: 'won', winner: left[0] ?? null };
+    }
+    return state.turn === seat
+      ? { ...next, turn: nextActive(next, seat) }
+      : next;
   },
 
   view(state, seat): DominoView {

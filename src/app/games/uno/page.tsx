@@ -9,8 +9,15 @@ import useMounted from '@/lib/useMounted';
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 import RoomBar from '@/components/games/RoomBar';
-import { NameEditor, seatLabel, seatTitle } from '@/components/games/RoomGate';
+import RoomChat from '@/components/games/RoomChat';
+import {
+  Removed,
+  seatLabel,
+  seatTitle,
+  WaitingRoom,
+} from '@/components/games/RoomGate';
 import RoomLobby from '@/components/games/RoomLobby';
+import RoomNotice from '@/components/games/RoomNotice';
 
 const BG: Record<Card['c'], string> = {
   R: 'hsl(2 75% 52%)',
@@ -524,6 +531,9 @@ function Uno() {
     );
   }
 
+  // taken out of the room (disconnected, or too many missed turns)
+  if (r.room && r.room.seat === null) return <Removed r={r} />;
+
   const { room } = r;
   const you = r.session.you;
   const names = room?.names ?? [];
@@ -532,65 +542,7 @@ function Uno() {
   const playing = room?.status === 'playing' || room?.status === 'over';
 
   // ------------------------------------------------------------ waiting room
-  if (room && room.status === 'waiting') {
-    const joined = room.joined.filter(Boolean).length;
-    return (
-      <>
-        <RoomBar code={r.session.code} share onLeave={r.leave} />
-        <p className='mb-3 text-center text-sm' aria-live='polite'>
-          Menunggu pemain ({joined}/{room.capacity})
-        </p>
-        <ul className='mx-auto w-full max-w-xs divide-y divide-line border-y border-line'>
-          {room.joined.map((taken, seat) => (
-            <li
-              key={seat}
-              className='flex items-center justify-between py-2 text-sm'
-            >
-              <span className={taken ? '' : 'text-mute'}>
-                {taken
-                  ? seatTitle(seat, you, names)
-                  : `kursi ${seat + 1} kosong`}
-              </span>
-              {seat === 0 && taken ? (
-                <span className='text-hash'>pembuat</span>
-              ) : you === 0 && taken ? (
-                <button
-                  type='button'
-                  onClick={() => r.kick(seat)}
-                  disabled={r.busy}
-                  className='text-xs text-err hover:underline disabled:opacity-40'
-                >
-                  keluarkan
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-
-        <div className='mt-4 text-center text-xs'>
-          {you === 0 ? (
-            <button
-              type='button'
-              onClick={r.start}
-              disabled={r.busy || joined < room.minPlayers}
-              className='text-info hover:underline disabled:opacity-40'
-            >
-              mulai dengan {joined} pemain
-            </button>
-          ) : (
-            <span className='text-mute'>Menunggu pembuat room memulai…</span>
-          )}
-          {you === 0 && joined < room.minPlayers && (
-            <p className='mt-1 text-mute'>
-              Butuh minimal {room.minPlayers} pemain.
-            </p>
-          )}
-        </div>
-        <NameEditor r={r} />
-        {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
-      </>
-    );
-  }
+  if (room && room.status === 'waiting') return <WaitingRoom r={r} />;
 
   if (!room || !view || !playing) {
     return (
@@ -721,6 +673,14 @@ function Uno() {
             {view.dir === 1 ? 'searah jarum jam ↻' : 'berlawanan ↺'}
           </span>
         }
+      />
+
+      <RoomNotice
+        room={room}
+        you={you}
+        receivedAt={r.receivedAt}
+        onKick={r.kick}
+        busy={r.busy}
       />
 
       <p
@@ -1094,7 +1054,12 @@ export default function UnoPage() {
 
   return (
     <GameShell name='uno' wide>
-      {mounted ? <Uno /> : null}
+      {mounted ? (
+        <>
+          <Uno />
+          <RoomChat game='uno' />
+        </>
+      ) : null}
     </GameShell>
   );
 }

@@ -1,4 +1,4 @@
-import { Room } from '@/lib/rooms/types';
+import { CHAT_KEEP, ChatMsg, Room } from '@/lib/rooms/types';
 
 const TTL_SECONDS = 2 * 60 * 60;
 
@@ -7,9 +7,26 @@ export interface RoomStore {
   /** Stores a new room. False if the code is already taken. */
   create(room: Room): Promise<boolean>;
   save(room: Room): Promise<void>;
+  /**
+   * Saves only if the stored room is still at `expectedVersion`, so a change
+   * made from a stale copy cannot overwrite a newer one. False if it moved on.
+   */
+  saveIf(room: Room, expectedVersion: number): Promise<boolean>;
+  /** The kept chat lines, oldest first */
+  chatList(code: string): Promise<ChatMsg[]>;
+  chatAdd(code: string, message: ChatMsg): Promise<void>;
 }
 
 const key = (code: string) => `room:${code}`;
+const chatKey = (code: string) => `room:${code}:chat`;
+
+/** Compare-and-set done atomically in Redis (Lua): only overwrite the version we read. */
+const SAVE_IF = `
+local cur = redis.call('GET', KEYS[1])
+if not cur then return 0 end
+if cjson.decode(cur).version ~= tonumber(ARGV[2]) then return 0 end
+redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3])
+return 1`;
 
 /** Upstash Redis over plain HTTPS, so it works anywhere the site does. */
 class RedisStore implements RoomStore {
@@ -58,16 +75,73 @@ class RedisStore implements RoomStore {
       TTL_SECONDS,
     ]);
   }
+
+  async saveIf(room: Room, expectedVersion: number) {
+    const result = await this.command([
+      'EVAL',
+      SAVE_IF,
+      1,
+      key(room.code),
+      JSON.stringify(room),
+      expectedVersion,
+      TTL_SECONDS,
+    ]);
+    return result === 1;
+  }
+
+  async chatList(code: string) {
+    const raw = (await this.command(['LRANGE', chatKey(code), 0, -1])) as
+      string[] | null;
+    return (raw ?? []).flatMap((line) => {
+      try {
+        return [JSON.parse(line) as ChatMsg];
+      } catch {
+        return [];
+      }
+    });
+  }
+
+  async chatAdd(code: string, message: ChatMsg) {
+    await this.command(['RPUSH', chatKey(code), JSON.stringify(message)]);
+    await this.command(['LTRIM', chatKey(code), -CHAT_KEEP, -1]);
+    await this.command(['EXPIRE', chatKey(code), TTL_SECONDS]);
+  }
 }
 
 /** Development only: lives in this process, which is why production needs Redis. */
 class MemoryStore implements RoomStore {
   private rooms: Map<string, { room: Room; expires: number }>;
+  private chats: Map<string, { lines: ChatMsg[]; expires: number }>;
 
   constructor() {
     // survive hot reloads in dev
-    const g = globalThis as unknown as { __rooms?: MemoryStore['rooms'] };
+    const g = globalThis as unknown as {
+      __rooms?: MemoryStore['rooms'];
+      __chats?: MemoryStore['chats'];
+    };
     this.rooms = g.__rooms ??= new Map();
+    this.chats = g.__chats ??= new Map();
+  }
+
+  async saveIf(room: Room, expectedVersion: number) {
+    const current = await this.get(room.code);
+    if (!current || current.version !== expectedVersion) return false;
+    await this.save(room);
+    return true;
+  }
+
+  async chatList(code: string) {
+    const entry = this.chats.get(code);
+    if (!entry || entry.expires < Date.now()) return [];
+    return structuredClone(entry.lines);
+  }
+
+  async chatAdd(code: string, message: ChatMsg) {
+    const lines = [...(await this.chatList(code)), message].slice(-CHAT_KEEP);
+    this.chats.set(code, {
+      lines,
+      expires: Date.now() + TTL_SECONDS * 1000,
+    });
   }
 
   async get(code: string) {

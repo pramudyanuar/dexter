@@ -1,6 +1,7 @@
 import {
   Board,
   Cell,
+  COLS,
   drop,
   emptyBoard,
   findWin,
@@ -57,6 +58,25 @@ export const connect4Game: GameDef<Connect4State> = {
     if (isFull(dropped.board)) return { ...base, status: 'draw' };
     return { ...base, turn: (1 - seat) as 0 | 1 };
   },
+
+  waiting: (state) =>
+    state.status === 'playing' ? { seats: [state.turn], seconds: 45 } : null,
+
+  // a random column that still has room
+  autoMove(state, seat, rng = Math.random) {
+    const open = Array.from({ length: COLS }, (_, c) => c).filter(
+      (c) => drop(state.board, c, (seat + 1) as 1 | 2) !== null,
+    );
+    return open.length ? { col: open[Math.floor(rng() * open.length)] } : null;
+  },
+
+  // whoever is left wins
+  eliminate: (state, seat) => ({
+    ...state,
+    status: 'won',
+    winner: (1 - seat) as 0 | 1,
+    line: null,
+  }),
 
   // nothing is hidden in Connect Four
   view: (state) => state,
