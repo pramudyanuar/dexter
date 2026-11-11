@@ -439,31 +439,44 @@ function Podium({
   if (places[1] !== undefined) steps.push({ seat: places[1], rank: 2 });
   if (places[0] !== undefined) steps.push({ seat: places[0], rank: 1 });
   if (places[2] !== undefined) steps.push({ seat: places[2], rank: 3 });
-  const HEIGHT = { 1: 'h-20', 2: 'h-14', 3: 'h-10' } as const;
-  const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' } as const;
+  const HEIGHT = { 1: 'h-24', 2: 'h-16', 3: 'h-12' } as const;
 
   return (
     <div className='a-slide-up mb-3'>
-      <div className='flex items-end justify-center gap-1.5'>
+      <div className='flex items-end justify-center gap-2'>
         {steps.map(({ seat, rank }) => (
           <div
             key={seat}
-            className='flex w-20 flex-col items-center justify-end'
+            className='flex w-24 flex-col items-center justify-end'
           >
-            <span className='text-xl'>{MEDAL[rank as 1 | 2 | 3]}</span>
             <span
               className={`mb-1 max-w-full truncate text-xs ${
-                seat === you ? 'font-bold text-accent' : 'text-ink'
+                seat === you ? 'font-semibold text-accent' : 'text-ink'
               }`}
             >
               {seatTitle(seat, you, names)}
             </span>
             <div
-              className={`flex w-full items-start justify-center rounded-t-md border border-b-0 border-line bg-card pt-1 text-xs font-bold text-mute ${
+              className={`flex w-full flex-col items-center justify-start gap-0.5 rounded-t-md border border-b-0 pt-2 ${
                 HEIGHT[rank as 1 | 2 | 3]
-              } ${rank === 1 ? 'bg-accent/15' : ''}`}
+              } ${
+                rank === 1
+                  ? 'border-accent/40 bg-accent/10'
+                  : 'border-line bg-card'
+              }`}
             >
-              #{rank}
+              <span
+                className={`text-lg font-bold tabular-nums ${
+                  rank === 1 ? 'text-accent' : 'text-ink'
+                }`}
+              >
+                {rank}
+              </span>
+              {rank === 1 && (
+                <span className='text-[10px] tracking-wide text-mute'>
+                  juara
+                </span>
+              )}
             </div>
           </div>
         ))}
@@ -500,7 +513,7 @@ function Uno() {
   if (!r.session) {
     return (
       <RoomLobby
-        blurb='# Uno untuk 2 sampai 4 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.'
+        blurb='# Uno untuk 2 sampai 8 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.'
         busy={r.busy}
         error={r.error}
         name={r.name}
@@ -763,7 +776,7 @@ function Uno() {
               <span className='text-sm font-semibold text-ink'>{count}</span>
               {place !== -1 ? (
                 <span className='text-[11px] font-bold text-accent'>
-                  {place === 0 ? '🏆 ' : ''}#{place + 1}
+                  {place === 0 ? 'juara' : `ke-${place + 1}`}
                 </span>
               ) : canCatch ? (
                 <button

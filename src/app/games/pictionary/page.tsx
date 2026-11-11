@@ -457,8 +457,8 @@ function PlayArea({
         {v.guesses.slice(-8).map((g, i) => (
           <li key={`${i}-${g.seat}-${g.text}`} className='a-slide-in'>
             {g.correct ? (
-              <span className='text-accent'>
-                🎉 {seatLabel(g.seat, you, r.room?.names)} menebak dengan benar!
+              <span className='font-medium text-accent'>
+                {seatLabel(g.seat, you, r.room?.names)} menebak dengan benar
               </span>
             ) : (
               <span className='text-mute'>

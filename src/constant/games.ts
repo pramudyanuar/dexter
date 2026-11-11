@@ -69,7 +69,7 @@ export const GAMES: readonly GameEntry[] = [
     title: 'Uno',
     online: true,
     href: '/games/uno',
-    description: 'Uno online untuk 2 sampai 4 pemain di device berbeda.',
+    description: 'Uno online untuk 2 sampai 8 pemain di device berbeda.',
     controls: 'pembuat room memulai setelah semua bergabung',
   },
   {

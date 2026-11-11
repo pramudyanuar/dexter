@@ -93,9 +93,13 @@ function Board({
                 <span className='a-pop block size-1.5 rounded-full bg-ink/60' />
               )}
               {kind === 'hit' && (
-                <span className={`${isLast ? 'a-reveal' : ''} text-sm`}>
-                  🔥
-                </span>
+                <span
+                  aria-label='kena'
+                  className={`${isLast ? 'a-reveal' : ''} block size-2.5 rotate-45 bg-err`}
+                  style={{
+                    clipPath: 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)',
+                  }}
+                />
               )}
               {isLast && (
                 <span className='a-boom pointer-events-none absolute inset-0 rounded-full border-2 border-hash' />
