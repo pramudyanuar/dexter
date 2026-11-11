@@ -201,11 +201,11 @@ function Minesweeper() {
                 </span>
               ) : isOpen && cell.mine ? (
                 <span
-                  className='a-reveal inline-block text-base'
+                  key='mine'
+                  aria-label='ranjau'
+                  className='a-reveal inline-block size-2.5 rounded-full bg-err'
                   style={{ animationDelay: `${(i % 9) * 0.05}s` }}
-                >
-                  💣
-                </span>
+                />
               ) : (
                 label
               )}

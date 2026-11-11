@@ -12,11 +12,56 @@ import RoomBar from '@/components/games/RoomBar';
 import { NameEditor, PlayerStrip } from '@/components/games/RoomGate';
 import RoomLobby from '@/components/games/RoomLobby';
 
-const SHAPE: Record<Pick, { icon: string; label: string }> = {
-  batu: { icon: '✊', label: 'batu' },
-  gunting: { icon: '✌️', label: 'gunting' },
-  kertas: { icon: '✋', label: 'kertas' },
+const LABEL: Record<Pick, string> = {
+  batu: 'batu',
+  gunting: 'gunting',
+  kertas: 'kertas',
 };
+
+/** Monochrome rock / scissors / paper marks, drawn as SVG so they scale cleanly. */
+function ShapeIcon({ pick, className }: { pick: Pick; className?: string }) {
+  const common = {
+    viewBox: '0 0 48 48',
+    className,
+    'aria-hidden': true as const,
+  };
+  if (pick === 'batu') {
+    return (
+      <svg {...common} fill='currentColor'>
+        <path d='M24 8c8 0 14 6 14 14.5C38 32 31.5 40 24 40S10 32 10 22.5C10 14 16 8 24 8Z' />
+      </svg>
+    );
+  }
+  if (pick === 'gunting') {
+    return (
+      <svg
+        {...common}
+        fill='none'
+        stroke='currentColor'
+        strokeWidth={3}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      >
+        <circle cx='12' cy='34' r='5' />
+        <circle cx='12' cy='14' r='5' />
+        <path d='M16 31 40 11M16 17l24 20' />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      {...common}
+      fill='none'
+      stroke='currentColor'
+      strokeWidth={3}
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M14 9h14l6 6v24H14z' />
+      <path d='M28 9v6h6' />
+    </svg>
+  );
+}
 
 /** Seconds each player gets to choose before a random pick is made for them. */
 const PICK_SECONDS = 10;
@@ -73,20 +118,20 @@ function RoundTimer({
 }
 
 /** Two shaking fists, then the real hand pops out. */
-function Hand({ icon, delay = 0 }: { icon: string; delay?: number }) {
+function Hand({ pick, delay = 0 }: { pick: Pick; delay?: number }) {
   const [shown, setShown] = React.useState(false);
   React.useEffect(() => {
     const t = setTimeout(() => setShown(true), 700 + delay);
     return () => clearTimeout(t);
   }, [delay]);
   return shown ? (
-    <span className='a-reveal inline-block'>{icon}</span>
+    <ShapeIcon pick={pick} className='a-reveal inline-block size-12' />
   ) : (
     <span
       className='a-fist inline-block'
       style={{ animationDelay: `${delay}ms` }}
     >
-      ✊
+      <ShapeIcon pick='batu' className='size-12' />
     </span>
   );
 }
@@ -199,18 +244,19 @@ function Suit() {
                 aria-pressed={chosen}
                 disabled={over || !!state.myPick || r.busy}
                 onClick={() => r.move({ pick })}
-                className={`group flex flex-col items-center gap-2 rounded-xl border-2 py-6 text-5xl transition duration-200 ${
+                className={`group flex flex-col items-center gap-2 rounded-xl border py-6 transition duration-200 ${
                   chosen
-                    ? 'a-pop border-accent bg-accent/15 shadow-lg'
-                    : 'border-line bg-card enabled:hover:-translate-y-1.5 enabled:hover:scale-105 enabled:hover:border-accent enabled:hover:shadow-lg enabled:active:scale-95'
+                    ? 'a-pop border-accent bg-accent/12 shadow-lg'
+                    : 'border-line bg-card enabled:hover:-translate-y-1 enabled:hover:border-line-strong enabled:hover:shadow-lg enabled:active:scale-95'
                 } disabled:cursor-default ${
-                  over || state.myPick ? (chosen ? '' : 'opacity-50') : ''
+                  over || state.myPick ? (chosen ? '' : 'opacity-40') : ''
                 }`}
               >
-                <span className='transition-transform group-enabled:group-hover:scale-125 group-enabled:group-hover:-rotate-6'>
-                  {SHAPE[pick].icon}
-                </span>
-                <span className='text-xs'>{SHAPE[pick].label}</span>
+                <ShapeIcon
+                  pick={pick}
+                  className='size-10 transition-transform group-enabled:group-hover:-translate-y-0.5'
+                />
+                <span className='text-xs'>{LABEL[pick]}</span>
               </button>
             );
           })}
@@ -231,7 +277,7 @@ function Suit() {
                 last.winner === you ? 'a-bob' : ''
               } ${last.winner === opponent ? 'opacity-50' : ''}`}
             >
-              <Hand icon={SHAPE[last.picks[you]].icon} />
+              <Hand pick={last.picks[you]} />
             </span>
             <span className='mx-5 text-sm text-mute'>vs</span>
             <span
@@ -240,7 +286,7 @@ function Suit() {
                 last.winner === opponent ? 'a-bob' : ''
               } ${last.winner === you ? 'opacity-50' : ''}`}
             >
-              <Hand icon={SHAPE[last.picks[opponent]].icon} delay={250} />
+              <Hand pick={last.picks[opponent]} delay={250} />
             </span>
           </p>
           <p className='mt-1 text-sm'>
