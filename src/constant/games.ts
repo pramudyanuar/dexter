@@ -2,8 +2,6 @@ export interface GameEntry {
   id: string;
   /** Friendly name for the menu */
   title: string;
-  /** An emoji shown on the menu card */
-  icon: string;
   /** Played with friends on other devices, through a room code */
   online?: boolean;
   href: string;
@@ -15,7 +13,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'wordle',
     title: 'Wordle',
-    icon: '🔤',
     href: '/games/wordle',
     description: 'Tebak kata 5 huruf dalam 6 kesempatan.',
     controls: 'ketik, Enter kirim',
@@ -23,7 +20,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'ular',
     title: 'Ular',
-    icon: '🐍',
     href: '/games/snake',
     description:
       'Makan sebanyak mungkin tanpa menabrak dinding atau badan sendiri.',
@@ -32,7 +28,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: '2048',
     title: '2048',
-    icon: '🔢',
     href: '/games/2048',
     description: 'Gabungkan angka yang sama sampai mencapai 2048.',
     controls: 'panah atau WASD, geser di layar sentuh',
@@ -40,7 +35,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'minesweeper',
     title: 'Minesweeper',
-    icon: '💣',
     href: '/games/minesweeper',
     description: 'Buka semua petak yang aman tanpa menyentuh ranjau.',
     controls: 'klik buka, klik kanan atau tahan lama untuk bendera',
@@ -48,7 +42,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'tetris',
     title: 'Tetris',
-    icon: '🧱',
     href: '/games/tetris',
     description: 'Susun balok jatuh menjadi baris penuh.',
     controls: 'panah geser/putar/turun, spasi jatuhkan, P jeda',
@@ -56,7 +49,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'connect4',
     title: 'Connect 4',
-    icon: '🔴',
     online: true,
     href: '/games/connect4',
     description:
@@ -66,7 +58,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'suit',
     title: 'Suit',
-    icon: '✊',
     online: true,
     href: '/games/suit',
     description:
@@ -76,7 +67,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'uno',
     title: 'Uno',
-    icon: '🃏',
     online: true,
     href: '/games/uno',
     description: 'Uno online untuk 2 sampai 4 pemain di device berbeda.',
@@ -85,7 +75,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'battleship',
     title: 'Kapal Perang',
-    icon: '🚢',
     online: true,
     href: '/games/battleship',
     description:
@@ -95,7 +84,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'gomoku',
     title: 'Gomoku',
-    icon: '⚫',
     online: true,
     href: '/games/gomoku',
     description: 'Lima berjajar di papan 15x15 untuk dua pemain.',
@@ -104,7 +92,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'dam',
     title: 'Dam',
-    icon: '🏁',
     online: true,
     href: '/games/checkers',
     description:
@@ -114,7 +101,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'catur',
     title: 'Catur',
-    icon: '♟️',
     online: true,
     href: '/games/chess',
     description:
@@ -124,7 +110,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'dadu-bohong',
     title: 'Dadu Bohong',
-    icon: '🎲',
     online: true,
     href: '/games/dice',
     description:
@@ -134,7 +119,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'domino',
     title: 'Domino',
-    icon: '🔳',
     online: true,
     href: '/games/domino',
     description: 'Domino online untuk 2 sampai 4 pemain.',
@@ -143,7 +127,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'kuis',
     title: 'Kuis',
-    icon: '❓',
     online: true,
     href: '/games/quiz',
     description:
@@ -153,7 +136,6 @@ export const GAMES: readonly GameEntry[] = [
   {
     id: 'tebak-gambar',
     title: 'Tebak Gambar',
-    icon: '🎨',
     online: true,
     href: '/games/pictionary',
     description:

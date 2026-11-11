@@ -32,14 +32,16 @@ export default function RoomLobby({
   );
 
   const field =
-    'rounded-xl border border-line bg-card px-3 py-2 placeholder:text-mute focus:border-info focus:ring-2 focus:ring-info/30 focus:outline-none';
+    'rounded-md border border-line bg-card px-3 py-2 placeholder:text-mute focus:border-mute focus:ring-0 focus:outline-none';
 
   return (
-    <div className='a-slide-up rounded-3xl border border-line/70 bg-card/80 p-5 shadow-sm sm:p-6'>
-      <p className='leading-relaxed text-mute'>{blurb.replace(/^#\s*/, '')}</p>
+    <div>
+      <p className='text-sm leading-relaxed text-mute'>
+        {blurb.replace(/^#\s*/, '')}
+      </p>
 
       <label className='mt-5 block'>
-        <span className='mb-1 block text-sm font-semibold'>Nama kamu</span>
+        <span className='mb-1.5 block text-sm'>Nama</span>
         <input
           value={name}
           onChange={(e) => onName(e.target.value.slice(0, NAME_MAX))}
@@ -52,8 +54,8 @@ export default function RoomLobby({
       </label>
 
       <div className='mt-5 grid gap-4 sm:grid-cols-2'>
-        <div className='flex flex-col justify-between gap-2 rounded-2xl bg-paper/70 p-4'>
-          <p className='text-sm text-mute'>Mulai room, lalu bagikan kodenya.</p>
+        <div className='flex flex-col justify-between gap-2 rounded-lg border border-line p-4'>
+          <p className='text-sm text-mute'>Buat room, lalu bagikan kodenya.</p>
           <button
             type='button'
             onClick={onCreate}
@@ -69,7 +71,7 @@ export default function RoomLobby({
             e.preventDefault();
             if (code.length === 5) onJoin(code);
           }}
-          className='flex flex-col gap-2 rounded-2xl bg-paper/70 p-4'
+          className='flex flex-col gap-2 rounded-lg border border-line p-4'
         >
           <p className='text-sm text-mute'>Punya kode dari teman?</p>
           <div className='flex gap-2'>

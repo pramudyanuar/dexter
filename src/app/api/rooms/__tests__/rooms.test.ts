@@ -325,8 +325,8 @@ describe('uno through the API', () => {
     const lobby = await (await poll(code, 0, tokens[0])).json();
     expect(lobby.room).toMatchObject({
       status: 'waiting',
-      joined: [true, true, true, false],
-      capacity: 4,
+      joined: [true, true, true, ...Array(5).fill(false)],
+      capacity: 8,
       minPlayers: 2,
       state: null,
     });

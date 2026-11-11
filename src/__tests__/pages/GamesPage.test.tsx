@@ -11,7 +11,7 @@ describe('Games menu', () => {
   it('is public: lists every game without asking for a session', () => {
     render(<GamesPage />);
 
-    expect(screen.getByText(/Mau main apa/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Games' })).toBeInTheDocument();
     expect(screen.queryByLabelText(/Kode OTP/i)).not.toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
 

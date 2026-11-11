@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { Card, Color, COLORS, UnoView } from '@/lib/games/uno';
+import { Card, Color, COLORS, stackable, UnoView } from '@/lib/games/uno';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
@@ -17,14 +17,14 @@ const BG: Record<Card['c'], string> = {
   Y: 'hsl(46 95% 52%)',
   G: 'hsl(135 55% 40%)',
   B: 'hsl(215 75% 52%)',
-  W: 'hsl(258 38% 30%)',
+  W: 'hsl(0 0% 14%)',
 };
 const DARK: Record<Card['c'], string> = {
   R: 'hsl(2 75% 36%)',
   Y: 'hsl(40 90% 40%)',
   G: 'hsl(135 55% 26%)',
   B: 'hsl(215 75% 36%)',
-  W: 'hsl(258 42% 22%)',
+  W: 'hsl(0 0% 7%)',
 };
 const SYMBOL: Record<string, string> = {
   S: '⊘',
@@ -214,10 +214,57 @@ function CardBack({
 const ORDINAL = ['pertama', 'kedua', 'ketiga', 'keempat'];
 const placeText = (place: number) => `juara ${ORDINAL[place] ?? place + 1}`;
 
+/** Stable small pseudo-random from a string, so a card stays where it landed. */
+const hash = (s: string) => {
+  let h = 0;
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h);
+};
+/** A scattered offset and tilt for a card sitting in the discard pile. */
+function scatterFor(card: Card, i: number) {
+  const h = hash(`${card.c}${card.v}:${i}`);
+  return {
+    rot: (h % 46) - 23, // -23..22 deg
+    x: ((h >> 3) % 22) - 11,
+    y: ((h >> 7) % 18) - 9,
+  };
+}
+
+/**
+ * Everyone sits around an oval table. `you` are at the bottom; the others are
+ * spread evenly around the rest of the ring in turn order, so it works for two
+ * up to eight players. Returns a seat's position as table percentages.
+ */
+function seatPos(seat: number, you: number, players: number) {
+  const rel = (((seat - you) % players) + players) % players;
+  const angle = Math.PI / 2 + (2 * Math.PI * rel) / players; // bottom = you
+  return {
+    left: 50 + 45 * Math.cos(angle),
+    top: 50 + 43 * Math.sin(angle),
+    angle,
+  };
+}
+/** Pixel offset a card flies in from (toward a seat) or out to (a draw). */
+const offsetTo = (left: number, top: number) => ({
+  x: ((left - 50) / 50) * 232,
+  y: ((top - 50) / 50) * 150,
+});
+
 function lastText(view: UnoView, you: number, names: (string | null)[]) {
   const e = view.last;
   if (!e) return null;
   const who = seatLabel(e.seat, you, names);
+  if (e.kind === 'play' && e.card && e.cards) {
+    const place = view.places.indexOf(e.seat);
+    const done =
+      place !== -1 && view.counts[e.seat] === 0
+        ? ` Kartunya habis, ${placeText(place)}!`
+        : '';
+    const colors = e.cards
+      .map((c) => (c.c === 'W' ? '' : COLOR_NAME[c.c]))
+      .join(', ');
+    return `${who} menumpuk ${e.cards.length} kartu ${face(e.card)} (${colors}).${done}`;
+  }
   if (e.kind === 'play' && e.card) {
     const place = view.places.indexOf(e.seat);
     const done =
@@ -230,6 +277,11 @@ function lastText(view: UnoView, you: number, names: (string | null)[]) {
     return e.passed
       ? `${who} menarik kartu dan melewati giliran.`
       : `${who} menarik kartu.`;
+  }
+  if (e.kind === 'uno') return `${who} teriak UNO!`;
+  if (e.kind === 'catch') {
+    const caught = seatLabel(e.target ?? 0, you, names);
+    return `${who} menangkap ${caught} yang lupa teriak UNO. ${caught} tarik 2 kartu.`;
   }
   return `${who} melewati giliran.`;
 }
@@ -245,11 +297,17 @@ function HandCard({
   fan,
   dropRef,
   onPlay,
+  onDrop,
   onDrag,
+  order,
 }: {
   card: Card;
   playable: boolean;
   dim: boolean;
+  /** Played by dropping on the pile; defaults to onPlay */
+  onDrop?: () => void;
+  /** Position in a stack being built (1 = first), if selected */
+  order?: number;
   animate?: 'deal';
   fan: number;
   dropRef: React.RefObject<HTMLDivElement | null>;
@@ -260,6 +318,7 @@ function HandCard({
   const [settling, setSettling] = React.useState(false);
   const origin = React.useRef<{ x: number; y: number } | null>(null);
   const moved = React.useRef(false);
+  const handled = React.useRef(false);
 
   const isOver = (e: React.PointerEvent) => {
     const rect = dropRef.current?.getBoundingClientRect();
@@ -277,6 +336,7 @@ function HandCard({
     if (!playable || e.button > 0) return;
     origin.current = { x: e.clientX, y: e.clientY };
     moved.current = false;
+    handled.current = false;
     setSettling(false);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -299,10 +359,15 @@ function HandCard({
     onDrag('idle');
     if (drop) {
       setPos(null); // the pile plays its own animation for the new top card
-      onPlay();
+      (onDrop ?? onPlay)();
     } else if (moved.current) {
       setSettling(true); // spring back to the hand
       setPos(null);
+    } else if (!cancel) {
+      // a plain tap. Handled here because pointer capture sends the click
+      // to this wrapper rather than the card button underneath.
+      handled.current = true;
+      onPlay();
     }
   };
 
@@ -315,9 +380,11 @@ function HandCard({
       onPointerUp={finish}
       onPointerCancel={(e) => finish(e, true)}
       onClickCapture={(e) => {
-        // a drag ends with a click on the same element: swallow it
-        if (moved.current) {
+        // a drag or a tap was already handled on pointer up: swallow its click
+        // (keyboard presses have no pointer events and still click the card)
+        if (moved.current || handled.current) {
           moved.current = false;
+          handled.current = false;
           e.stopPropagation();
         }
       }}
@@ -345,6 +412,71 @@ function HandCard({
         animate={animate}
         onClick={playable ? onPlay : undefined}
       />
+      {order !== undefined && (
+        <span
+          aria-hidden
+          className='pointer-events-none absolute -top-4 left-1/2 z-20 flex size-5 -translate-x-1/2 items-center justify-center rounded-full bg-white text-[11px] font-bold text-black shadow'
+        >
+          {order}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** 1st / 2nd / 3rd on a podium, with any remaining places listed below. */
+function Podium({
+  places,
+  you,
+  names,
+}: {
+  places: number[];
+  you: number;
+  names: (string | null)[];
+}) {
+  // podium order: 2nd on the left, 1st in the middle, 3rd on the right
+  const steps: { seat: number; rank: number }[] = [];
+  if (places[1] !== undefined) steps.push({ seat: places[1], rank: 2 });
+  if (places[0] !== undefined) steps.push({ seat: places[0], rank: 1 });
+  if (places[2] !== undefined) steps.push({ seat: places[2], rank: 3 });
+  const HEIGHT = { 1: 'h-20', 2: 'h-14', 3: 'h-10' } as const;
+  const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' } as const;
+
+  return (
+    <div className='a-slide-up mb-3'>
+      <div className='flex items-end justify-center gap-1.5'>
+        {steps.map(({ seat, rank }) => (
+          <div
+            key={seat}
+            className='flex w-20 flex-col items-center justify-end'
+          >
+            <span className='text-xl'>{MEDAL[rank as 1 | 2 | 3]}</span>
+            <span
+              className={`mb-1 max-w-full truncate text-xs ${
+                seat === you ? 'font-bold text-accent' : 'text-ink'
+              }`}
+            >
+              {seatTitle(seat, you, names)}
+            </span>
+            <div
+              className={`flex w-full items-start justify-center rounded-t-md border border-b-0 border-line bg-card pt-1 text-xs font-bold text-mute ${
+                HEIGHT[rank as 1 | 2 | 3]
+              } ${rank === 1 ? 'bg-accent/15' : ''}`}
+            >
+              #{rank}
+            </div>
+          </div>
+        ))}
+      </div>
+      {places.length > 3 && (
+        <ol className='mx-auto mt-2 w-full max-w-xs text-center text-xs text-mute'>
+          {places.slice(3).map((seat, i) => (
+            <li key={seat}>
+              #{i + 4} {seatTitle(seat, you, names)}
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -352,6 +484,16 @@ function HandCard({
 function Uno() {
   const r = useRoom<UnoView>('uno');
   const [choosing, setChoosing] = React.useState<number | null>(null);
+  /** Cards picked for a same-number stack, in play order */
+  const [picked, setPicked] = React.useState<{
+    version: number;
+    cards: number[];
+  } | null>(null);
+  // anything new from the server (a move, a draw) ends a half-built stack
+  const version = r.room?.version ?? 0;
+  const stack = picked?.version === version ? picked.cards : null;
+  const setStack = (cards: number[] | null) =>
+    setPicked(cards ? { version, cards } : null);
   const [drag, setDrag] = React.useState<DragState>('idle');
   const pileRef = React.useRef<HTMLDivElement>(null);
 
@@ -387,15 +529,27 @@ function Uno() {
         </p>
         <ul className='mx-auto w-full max-w-xs divide-y divide-line border-y border-line'>
           {room.joined.map((taken, seat) => (
-            <li key={seat} className='flex justify-between py-2 text-sm'>
+            <li
+              key={seat}
+              className='flex items-center justify-between py-2 text-sm'
+            >
               <span className={taken ? '' : 'text-mute'}>
                 {taken
                   ? seatTitle(seat, you, names)
                   : `kursi ${seat + 1} kosong`}
               </span>
-              {seat === 0 && taken && (
+              {seat === 0 && taken ? (
                 <span className='text-hash'>pembuat</span>
-              )}
+              ) : you === 0 && taken ? (
+                <button
+                  type='button'
+                  onClick={() => r.kick(seat)}
+                  disabled={r.busy}
+                  className='text-xs text-err hover:underline disabled:opacity-40'
+                >
+                  keluarkan
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -468,15 +622,79 @@ function Uno() {
     banner = <span className='text-mute'>Giliran {seatName(view.turn)}…</span>;
   }
 
+  const playStack = (cards: number[]) => {
+    setStack(null);
+    r.move({ type: 'play', index: cards[0], also: cards.slice(1) });
+  };
+
+  const stackOptions = stack ? stackable(view.hand, stack[0]) : [];
+
   const playCard = (index: number) => {
     const card = view.hand[index];
+    if (stack) {
+      // building a stack: tap to add or remove cards of the same number
+      if (index === stack[0]) return;
+      setStack(
+        stack.includes(index)
+          ? stack.filter((i) => i !== index)
+          : [...stack, index],
+      );
+      return;
+    }
     if (card.c === 'W') setChoosing(index);
+    else if (!view.canPass && stackable(view.hand, index).length > 0)
+      setStack([index]);
     else r.move({ type: 'play', index });
   };
 
+  /** Dropping a card on the pile plays it, with the stack if one is open. */
+  const dropCard = (index: number) => {
+    if (!stack) {
+      if (view.hand[index].c === 'W') setChoosing(index);
+      else r.move({ type: 'play', index });
+      return;
+    }
+    playStack(stack.includes(index) ? stack : [...stack, index]);
+  };
+
+  const players = view.players;
   const others = view.counts
     .map((count, seat) => ({ count, seat }))
     .filter((p) => p.seat !== you);
+
+  // a card tossed onto the pile flies in from the player who played it
+  const toss =
+    view.last?.kind === 'play'
+      ? (() => {
+          const p = seatPos(view.last.seat, you, players);
+          const o = offsetTo(p.left, p.top);
+          return { x: o.x, y: o.y, spin: p.left < 50 ? 150 : -150 };
+        })()
+      : null;
+
+  // cards pulled from the pile fly out to whoever drew them (+2/+4, draw, catch)
+  const drew = view.last?.drew ?? null;
+  const drewTo = drew
+    ? (() => {
+        const p = seatPos(drew.seat, you, players);
+        return { ...offsetTo(p.left, p.top), count: Math.min(drew.count, 4) };
+      })()
+    : null;
+
+  // a banner so skips, reverses and draws are obvious
+  const effect = (() => {
+    const e = view.last;
+    if (!e || e.kind !== 'play' || !e.card) return null;
+    const v = e.card.v;
+    const victim = e.drew ? seatName(e.drew.seat) : '';
+    if (v === 'S') return '⊘ Dilewati!';
+    if (v === 'V') return '⇄ Arah dibalik!';
+    if (v === 'D') return `+2 · ${victim} tarik 2`;
+    if (v === 'F') return `+4 · ${victim} tarik 4`;
+    if (v === 'W' || e.card.c === 'W')
+      return `Wild! Warna jadi ${COLOR_NAME[view.color]}`;
+    return null;
+  })();
 
   return (
     <>
@@ -492,124 +710,193 @@ function Uno() {
         }
       />
 
-      <ul
-        className='mb-4 flex flex-wrap justify-center gap-3'
-        aria-label='Pemain lain'
-      >
-        {others.map(({ count, seat }) => {
-          const active = !over && view.turn === seat;
-          const place = view.places.indexOf(seat);
-          return (
-            <li
-              key={seat}
-              data-seat={seat}
-              className={`rounded-md border px-3 py-2 text-center text-xs transition-colors ${
-                active
-                  ? 'a-glow border-accent bg-accent/10 text-ink'
-                  : 'border-line text-mute'
-              }`}
-            >
-              <p>{seatName(seat)}</p>
-              <div
-                aria-hidden
-                className='mx-auto my-1.5 flex h-10 items-center justify-center'
-                style={{ width: 28 + Math.min(count, 7) * 7 }}
-              >
-                {Array.from({ length: Math.min(count, 8) }, (_, i) => (
-                  <CardBack
-                    key={i}
-                    size='sm'
-                    className='-ml-5 first:ml-0'
-                    style={{ rotate: `${(i - Math.min(count, 8) / 2) * 4}deg` }}
-                  />
-                ))}
-              </div>
-              <p className='text-base text-ink'>{count}</p>
-              {count === 1 && !over && place === -1 && (
-                <p className='a-wiggle font-bold text-hash'>UNO!</p>
-              )}
-              {place !== -1 && (
-                <p className='font-bold text-accent'>
-                  {place === 0 ? '🏆 ' : ''}#{place + 1}
-                </p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-
       <p
         key={`${over}-${myTurn}-${view.turn}`}
-        className='a-slide-up mb-4 text-center text-sm'
+        className='a-slide-up mb-3 text-center text-sm'
         aria-live='polite'
       >
         {banner}
       </p>
 
-      <div className='mb-4 flex items-center justify-center gap-6 rounded-xl bg-card/60 py-5'>
-        <button
-          type='button'
-          aria-label='Tarik kartu'
-          disabled={!view.canDraw || r.busy}
-          onClick={() => r.move({ type: 'draw' })}
-          className='group relative flex h-32 w-[5.5rem] items-center justify-center disabled:opacity-70'
-        >
-          {/* a little stack behind the top of the pile */}
-          <CardBack
-            size='lg'
-            className='absolute translate-x-1 translate-y-1 opacity-70'
-          />
-          <CardBack
-            size='lg'
-            className={
-              view.canDraw && !r.busy
-                ? 'a-bob absolute ring-2 ring-accent group-hover:scale-105'
-                : 'absolute'
-            }
-          />
-          <span className='relative mt-24 rounded-full bg-paper/90 px-2 py-0.5 text-xs'>
-            tarik · {view.drawCount}
-          </span>
-        </button>
+      {/* ------------------------------------------------- the table */}
+      <div className='relative mx-auto mb-3 h-[21rem] w-full max-w-lg sm:h-80'>
+        {/* felt */}
+        <div className='absolute inset-6 rounded-[40%] border border-line bg-card/50 sm:inset-8' />
 
-        <div
-          ref={pileRef}
-          data-testid='pile'
-          data-drop={drag}
-          className={`relative rounded-xl p-1.5 text-center transition-all duration-200 ${
-            drag === 'over'
-              ? 'scale-110 bg-accent/25 ring-4 ring-accent'
-              : drag === 'drag'
-                ? 'a-glow ring-dashed bg-accent/10 ring-2 ring-accent/60'
-                : ''
-          }`}
-        >
-          {drag !== 'idle' && (
-            <span className='a-fade absolute -top-5 left-1/2 -translate-x-1/2 text-xs whitespace-nowrap text-accent'>
-              {drag === 'over' ? 'lepas!' : 'seret ke sini'}
-            </span>
-          )}
+        {others.map(({ count, seat }) => {
+          const active = !over && view.turn === seat;
+          const place = view.places.indexOf(seat);
+          const pos = seatPos(seat, you, players);
+          const safe = count === 1 && view.calledUno[seat];
+          const canCatch = view.catchable.includes(seat) && !over;
+          const shown = Math.min(count, 6);
+          return (
+            <div
+              key={seat}
+              data-seat={seat}
+              className='absolute flex w-[4.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1'
+              style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
+            >
+              <span
+                className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                  active
+                    ? 'a-glow border-accent bg-accent/15 text-ink'
+                    : 'border-line text-mute'
+                }`}
+              >
+                {seatName(seat)}
+              </span>
+              <div
+                aria-hidden
+                className='flex h-8 items-center justify-center'
+                style={{ width: 18 + shown * 6 }}
+              >
+                {Array.from({ length: shown }, (_, i) => (
+                  <CardBack
+                    key={i}
+                    size='sm'
+                    className='-ml-4 first:ml-0'
+                    style={{ rotate: `${(i - shown / 2) * 5}deg` }}
+                  />
+                ))}
+              </div>
+              <span className='text-sm font-semibold text-ink'>{count}</span>
+              {place !== -1 ? (
+                <span className='text-[11px] font-bold text-accent'>
+                  {place === 0 ? '🏆 ' : ''}#{place + 1}
+                </span>
+              ) : canCatch ? (
+                <button
+                  type='button'
+                  onClick={() => r.move({ type: 'catch', target: seat })}
+                  disabled={r.busy}
+                  className='a-wiggle text-[11px] text-err'
+                >
+                  tangkap!
+                </button>
+              ) : safe ? (
+                <span className='text-[11px] font-bold text-accent'>UNO ✓</span>
+              ) : null}
+            </div>
+          );
+        })}
+
+        {/* cards pulled from the pile, flying to whoever drew them */}
+        {drewTo && (
+          <div key={`drew-${version}`} aria-hidden>
+            {Array.from({ length: drewTo.count }, (_, i) => (
+              <div
+                key={i}
+                className='a-draw absolute top-1/2 left-1/2'
+                style={
+                  {
+                    '--to-x': `${drewTo.x}px`,
+                    '--to-y': `${drewTo.y}px`,
+                    '--spin': `${(i - 1) * 20}deg`,
+                    animationDelay: `${i * 90}ms`,
+                  } as React.CSSProperties
+                }
+              >
+                <CardBack size='sm' />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* what the last action card did */}
+        {effect && !over && (
           <div
-            key={`${view.top.c}${view.top.v}-${view.counts.join('.')}-${view.turn}`}
+            key={`fx-${version}`}
+            className='a-pop pointer-events-none absolute top-[14%] left-1/2 z-50 -translate-x-1/2 rounded-full border border-hash bg-paper/95 px-3 py-1 text-xs font-bold whitespace-nowrap text-hash shadow-lg'
           >
-            <UnoCard
-              card={view.top}
+            {effect}
+          </div>
+        )}
+
+        {/* center: draw pile, discard pile, colour */}
+        <div className='absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2.5'>
+          <button
+            type='button'
+            aria-label='Tarik kartu'
+            disabled={!view.canDraw || r.busy}
+            onClick={() => r.move({ type: 'draw' })}
+            className='group relative flex h-28 w-[4.75rem] items-center justify-center disabled:opacity-70'
+          >
+            <CardBack
               size='lg'
-              animate='play'
-              tilt={(view.counts.reduce((a, b) => a + b, 0) % 7) - 3}
+              className='absolute translate-x-1 translate-y-1 opacity-70'
+            />
+            <CardBack
+              size='lg'
+              className={
+                view.canDraw && !r.busy
+                  ? 'a-bob absolute ring-2 ring-accent group-hover:scale-105'
+                  : 'absolute'
+              }
+            />
+            <span className='relative mt-24 rounded-full bg-paper/90 px-2 py-0.5 text-[11px] whitespace-nowrap'>
+              tarik · {view.drawCount}
+            </span>
+          </button>
+
+          <div
+            ref={pileRef}
+            data-testid='pile'
+            data-drop={drag}
+            className={`relative h-36 w-28 rounded-xl transition-all duration-200 ${
+              drag === 'over'
+                ? 'scale-105 bg-accent/20 ring-4 ring-accent'
+                : drag === 'drag'
+                  ? 'a-glow ring-dashed bg-accent/10 ring-2 ring-accent/60'
+                  : ''
+            }`}
+          >
+            {drag !== 'idle' && (
+              <span className='a-fade absolute -top-5 left-1/2 z-50 -translate-x-1/2 text-xs whitespace-nowrap text-accent'>
+                {drag === 'over' ? 'lepas!' : 'seret ke sini'}
+              </span>
+            )}
+            {/* the messy stack of recent discards */}
+            {view.pile.map((card, i) => {
+              const isTop = i === view.pile.length - 1;
+              const s = scatterFor(card, i);
+              return (
+                <div
+                  key={`${card.c}${card.v}-${i}`}
+                  className='absolute top-1/2 left-1/2'
+                  style={{
+                    zIndex: i,
+                    transform: `translate(-50%, -50%) translate(${s.x}px, ${s.y}px) rotate(${s.rot}deg)`,
+                  }}
+                >
+                  {isTop && toss ? (
+                    <div
+                      key={version}
+                      className='a-toss'
+                      style={
+                        {
+                          '--from-x': `${toss.x}px`,
+                          '--from-y': `${toss.y}px`,
+                          '--spin': `${toss.spin}deg`,
+                        } as React.CSSProperties
+                      }
+                    >
+                      <UnoCard card={card} size='lg' />
+                    </div>
+                  ) : (
+                    <UnoCard card={card} size='lg' />
+                  )}
+                </div>
+              );
+            })}
+            <span
+              key={view.color}
+              data-color={view.color}
+              aria-label={`warna ${COLOR_NAME[view.color]}`}
+              className='a-pop absolute -right-2 -bottom-2 z-50 size-6 rounded-full border-2 border-white shadow-md'
+              style={{ background: BG[view.color] }}
             />
           </div>
-        </div>
-
-        <div className='text-center text-xs text-mute'>
-          <p>warna</p>
-          <span
-            key={view.color}
-            data-color={view.color}
-            className='a-pop mt-1 inline-block size-7 rounded-full border-2 border-white shadow-md'
-            style={{ background: BG[view.color] }}
-          />
-          <p className='mt-1 text-ink'>{COLOR_NAME[view.color]}</p>
         </div>
       </div>
 
@@ -621,25 +908,47 @@ function Uno() {
       </p>
 
       {over && view.places.length > 0 && (
-        <ol
-          className='a-slide-up mx-auto mb-3 w-full max-w-xs divide-y divide-line border-y border-line text-sm'
-          aria-label='Peringkat'
+        <Podium places={view.places} you={you} names={names} />
+      )}
+
+      {stack && (
+        <div
+          className='a-slide-up mb-3 flex flex-col items-center gap-2 text-center'
+          role='group'
+          aria-label='Tumpuk kartu'
         >
-          {view.places.map((seat, i) => (
-            <li key={seat} className='flex justify-between py-1.5'>
-              <span className={seat === you ? 'text-accent' : ''}>
-                {i + 1}. {seatTitle(seat, you, names)}
-              </span>
-              <span className='text-mute'>
-                {i === 0
-                  ? '🏆'
-                  : view.counts[seat] > 0
-                    ? `sisa ${view.counts[seat]} kartu`
-                    : ''}
-              </span>
-            </li>
-          ))}
-        </ol>
+          <p className='text-xs text-mute'>
+            Tumpuk kartu {face(view.hand[stack[0]])}: pilih kartu{' '}
+            {face(view.hand[stack[0]])} lain. Warna kartu terakhir yang berlaku.
+          </p>
+          <div className='flex gap-2 text-xs'>
+            <button
+              type='button'
+              onClick={() => playStack(stack)}
+              disabled={r.busy}
+              className='text-info'
+            >
+              mainkan {stack.length} kartu
+            </button>
+            {stack.length < stackOptions.length + 1 && (
+              <button
+                type='button'
+                onClick={() => playStack([stack[0], ...stackOptions])}
+                disabled={r.busy}
+                className='text-mute'
+              >
+                tumpuk semua ({stackOptions.length + 1})
+              </button>
+            )}
+            <button
+              type='button'
+              onClick={() => setStack(null)}
+              className='text-mute'
+            >
+              batal
+            </button>
+          </div>
+        </div>
       )}
 
       {choosing !== null && (
@@ -672,6 +981,20 @@ function Uno() {
               batal
             </button>
           </div>
+        </div>
+      )}
+
+      {view.canCallUno && !over && (
+        <div className='mb-2 flex justify-center'>
+          <button
+            type='button'
+            onClick={() => r.move({ type: 'uno' })}
+            disabled={r.busy}
+            aria-label='Teriak UNO'
+            className='a-bob rounded-full border-2 border-hash bg-hash/15 px-6 py-1.5 text-base font-black tracking-wider text-hash'
+          >
+            TERIAK UNO!
+          </button>
         </div>
       )}
 
@@ -714,7 +1037,10 @@ function Uno() {
         className='mt-auto flex flex-wrap justify-center gap-y-2 px-3 pt-6'
       >
         {view.hand.map((card, index) => {
-          const playable = view.playable.includes(index);
+          const playable = stack
+            ? stack[0] === index || stackOptions.includes(index)
+            : view.playable.includes(index);
+          const order = stack?.indexOf(index) ?? -1;
           const mid = (view.hand.length - 1) / 2;
           return (
             <HandCard
@@ -727,6 +1053,8 @@ function Uno() {
               dropRef={pileRef}
               onDrag={setDrag}
               onPlay={() => playCard(index)}
+              onDrop={() => dropCard(index)}
+              order={order === -1 ? undefined : order + 1}
             />
           );
         })}
@@ -735,11 +1063,14 @@ function Uno() {
       {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
 
       <p className='pt-4 text-center text-xs text-mute'>
-        Cocokkan warna atau angka, klik atau seret kartu ke tumpukan. Tidak ada
-        yang cocok? Tarik satu kartu: kalau bisa dimainkan boleh langsung
-        dipakai, kalau tidak giliran lewat. Wild +4 hanya jika tidak punya warna
-        yang berlaku. Yang kartunya habis duluan juara, sisanya lanjut sampai
-        tinggal satu. Room hilang sendiri setelah 2 jam.
+        Cocokkan warna atau angka, klik atau seret kartu ke tumpukan. Punya
+        beberapa kartu dengan angka yang sama? Mainkan sekaligus. Tidak ada yang
+        cocok? Tarik satu kartu: kalau bisa dimainkan boleh langsung dipakai,
+        kalau tidak giliran lewat. Wild +4 hanya jika tidak punya warna yang
+        berlaku. Sisa dua kartu? Teriak UNO sebelum main, kalau lupa dan sisa
+        satu kartu bisa ditangkap lawan dan tarik 2. Yang kartunya habis duluan
+        juara, sisanya lanjut sampai tinggal satu. Room hilang sendiri setelah 2
+        jam.
       </p>
     </>
   );

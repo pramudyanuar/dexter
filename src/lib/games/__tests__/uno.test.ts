@@ -7,6 +7,7 @@ import {
   deck,
   HAND_SIZE,
   shuffle,
+  stackable,
   start,
   unoGame,
   UnoState,
@@ -549,7 +550,12 @@ describe('with nothing to play', () => {
     const next = move(s, 0, { type: 'draw' });
     expect(next.hands[0]).toHaveLength(3);
     expect(next.turn).toBe(1);
-    expect(next.last).toEqual({ seat: 0, kind: 'draw', passed: true });
+    expect(next.last).toEqual({
+      seat: 0,
+      kind: 'draw',
+      passed: true,
+      drew: { seat: 0, count: 1 },
+    });
   });
 
   it('is not stuck after drawing a card that fits', () => {
@@ -560,5 +566,221 @@ describe('with nothing to play', () => {
     );
     const v = view(s, 0);
     expect([v.stuck, v.canPass, v.playable]).toEqual([false, true, [1]]);
+  });
+});
+
+describe('stacking the same number', () => {
+  const play3 = (s: UnoState, seat: number, index: number, also: number[]) =>
+    move(s, seat, { type: 'play', index, also });
+
+  it('plays every card of the stack in one turn, last colour counts', () => {
+    const s = game({
+      hands: [['R7', 'B7', 'G7', 'Y2'], ['R1'], ['B1']],
+      top: 'R5',
+    });
+    const next = play3(s, 0, 0, [2, 1]);
+    expect(next.hands[0].map(key)).toEqual(['Y2']);
+    expect(next.discard.slice(-3).map(key)).toEqual(['R7', 'G7', 'B7']);
+    expect(next.color).toBe('B');
+    expect(next.turn).toBe(1);
+    expect(next.last?.cards?.map(key)).toEqual(['R7', 'G7', 'B7']);
+    expect(key(next.last!.card!)).toBe('B7');
+  });
+
+  it('only needs the first card to fit', () => {
+    const s = game({ hands: [['B5', 'G5'], ['R1']], top: 'R5', color: 'R' });
+    // B5 fits by number; G5 rides along
+    expect(play3(s, 0, 1, [0]).color).toBe('B');
+    expect(
+      errorOf(() => play3(game({ hands: [['B7', 'G7'], ['R1']] }), 0, 0, [1])),
+    ).toMatchObject({ status: 400 });
+  });
+
+  it('wins when the stack empties the hand', () => {
+    const s = { ...game({ hands: [['R7', 'Y7'], ['R1']] }), places: [] };
+    const next = play3(s, 0, 0, [1]);
+    expect(next.winner).toBe(0);
+    expect(unoGame.isOver(next)).toBe(true);
+  });
+
+  it('rejects different numbers, action cards, repeats and bad indexes', () => {
+    const s = game({ hands: [['R7', 'B8', 'RS', 'BS', 'G7'], ['R1']] });
+    for (const also of [[1], [4, 4], [0], [9], ['x'], 'nope']) {
+      expect(
+        errorOf(() => move(s, 0, { type: 'play', index: 0, also })),
+      ).toMatchObject({ status: 400 });
+    }
+    const skip = game({ hands: [['RS', 'BS'], ['R1']] });
+    expect(errorOf(() => play3(skip, 0, 0, [1]))?.message).toMatch(/angka/);
+  });
+
+  it('is not allowed with the card just drawn', () => {
+    const s = move(game({ hands: [['B9', 'G7'], ['R1']], draw: ['R7'] }), 0, {
+      type: 'draw',
+    });
+    expect(errorOf(() => play3(s, 0, 2, [1]))?.message).toMatch(/menarik/);
+  });
+
+  it('lists what can be stacked on a card', () => {
+    const hand = ['R7', 'B7', 'RS', 'G7', 'Y1'].map(c);
+    expect(stackable(hand, 0)).toEqual([1, 3]);
+    expect(stackable(hand, 2)).toEqual([]);
+    expect(stackable(hand, 4)).toEqual([]);
+  });
+});
+
+describe('calling UNO and catching', () => {
+  const callUno = (s: UnoState, seat: number) => move(s, seat, { type: 'uno' });
+  const doCatch = (s: UnoState, seat: number, target: number) =>
+    move(s, seat, { type: 'catch', target });
+
+  it('a player on two cards can pre-call, then play down to one safely', () => {
+    let s: UnoState = {
+      ...game({ hands: [['R1', 'R2'], ['B1']], top: 'R5' }),
+      calledUno: [false, false],
+    };
+    s = callUno(s, 0);
+    expect(s.calledUno).toEqual([true, false]);
+    s = play(s, 0, 0); // down to one card, R2
+    const v = view(s, 1);
+    expect(v.counts[0]).toBe(1);
+    expect(v.catchable).toEqual([]); // called, so safe
+    expect(errorOf(() => doCatch(s, 1, 0))?.status).toBe(409);
+  });
+
+  it('a player who reaches one card without calling can be caught for two', () => {
+    let s: UnoState = {
+      ...game({
+        hands: [
+          ['R1', 'R2'],
+          ['B1', 'B2', 'B3'],
+        ],
+        top: 'R5',
+      }),
+      calledUno: [false, false],
+    };
+    s = play(s, 0, 0); // down to one, never called
+    expect(view(s, 1).catchable).toEqual([0]);
+    s = doCatch(s, 1, 0);
+    expect(s.hands[0]).toHaveLength(3); // drew two
+    expect(view(s, 1).catchable).toEqual([]); // no longer on one card
+    expect(s.last).toMatchObject({ seat: 1, kind: 'catch', target: 0 });
+  });
+
+  it('a belated UNO call before being caught keeps you safe', () => {
+    let s: UnoState = {
+      ...game({ hands: [['R1', 'R2'], ['B1']], top: 'R5' }),
+      calledUno: [false, false],
+    };
+    s = play(s, 0, 0); // one card, uncalled
+    s = callUno(s, 0); // call late, off-turn
+    expect(view(s, 1).catchable).toEqual([]);
+    expect(errorOf(() => doCatch(s, 1, 0))?.status).toBe(409);
+  });
+
+  it('drawing back up clears the call', () => {
+    let s: UnoState = {
+      ...game({ hands: [['R1', 'R2'], ['B1']], top: 'G9', draw: ['B7'] }),
+      calledUno: [false, false],
+    };
+    s = callUno(s, 0);
+    s = move(s, 0, { type: 'draw' }); // nothing fits R/color G, goes to two cards... actually draws
+    expect(s.hands[0].length).toBeGreaterThan(1);
+    expect(s.calledUno?.[0]).toBe(false);
+  });
+
+  it('rejects UNO with more than two cards and bad catch targets', () => {
+    const s: UnoState = {
+      ...game({ hands: [['R1', 'R2', 'R3'], ['B1']], top: 'R5' }),
+      calledUno: [false, false],
+    };
+    expect(errorOf(() => callUno(s, 0))?.status).toBe(400);
+    const one: UnoState = {
+      ...game({ hands: [['R1'], ['B1', 'B2']], top: 'R5' }),
+      calledUno: [false, false],
+    };
+    expect(errorOf(() => doCatch(one, 1, 1))?.status).toBe(400); // catch self
+    expect(errorOf(() => doCatch(one, 1, 9))?.status).toBe(400); // no such seat
+    expect(errorOf(() => doCatch(one, 0, 1))?.status).toBe(409); // target has two cards
+  });
+
+  it('the view offers a shout while on one or two cards', () => {
+    const s: UnoState = {
+      ...game({ hands: [['R1', 'R2'], ['B1']], top: 'R5' }),
+      calledUno: [false, false],
+    };
+    expect(view(s, 0).canCallUno).toBe(true);
+    const three: UnoState = {
+      ...game({ hands: [['R1', 'R2', 'R3'], ['B1']], top: 'R5' }),
+      calledUno: [false, false],
+    };
+    expect(view(three, 0).canCallUno).toBe(false);
+  });
+
+  it('exposes the recent discards for a stacked pile', () => {
+    const s = game({ hands: [['R1'], ['B1']], top: 'R5', draw: ['G1'] });
+    s.discard = [c('R2'), c('R3'), c('R5')];
+    expect(view(s, 0).pile.map(key)).toEqual(['R2', 'R3', 'R5']);
+  });
+});
+
+describe('cards drawn are reported for animation', () => {
+  it('a plus two records the victim and count', () => {
+    const s = play(
+      game({
+        hands: [
+          ['BD', 'Y1'],
+          ['R1', 'R2'],
+        ],
+        top: 'B9',
+      }),
+      0,
+      0,
+    );
+    expect(s.last?.drew).toEqual({ seat: 1, count: 2 });
+  });
+
+  it('a wild plus four records four cards for the next player', () => {
+    const s = play(
+      game({
+        hands: [
+          ['WF', 'Y1'],
+          ['R1', 'R2'],
+        ],
+        top: 'R5',
+        color: 'G',
+      }),
+      0,
+      0,
+      'B',
+    );
+    expect(s.last?.drew).toEqual({ seat: 1, count: 4 });
+  });
+
+  it('a plain draw records one card for the drawer', () => {
+    const s = move(
+      game({ hands: [['B2'], ['R1']], top: 'R5', draw: ['Y9'] }),
+      0,
+      {
+        type: 'draw',
+      },
+    );
+    expect(s.last?.drew).toEqual({ seat: 0, count: 1 });
+  });
+
+  it('a catch makes the caught player draw two, reported too', () => {
+    let s = {
+      ...game({
+        hands: [
+          ['R1', 'R2'],
+          ['B1', 'B2', 'B3'],
+        ],
+        top: 'R5',
+      }),
+      calledUno: [false, false],
+    } as UnoState;
+    s = play(s, 0, 0); // seat 0 to one card, uncalled
+    s = move(s, 1, { type: 'catch', target: 0 });
+    expect(s.last?.drew).toEqual({ seat: 0, count: 2 });
   });
 });

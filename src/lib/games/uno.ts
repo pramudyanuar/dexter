@@ -53,12 +53,18 @@ export function shuffle<T>(items: T[], rng: () => number = Math.random): T[] {
 
 export interface UnoEvent {
   seat: number;
-  kind: 'play' | 'draw' | 'pass';
+  kind: 'play' | 'draw' | 'pass' | 'uno' | 'catch';
   card?: Card;
   /** Colour chosen with a wild */
   color?: Color;
+  /** Every card of a stacked play, in order; `card` is the last one */
+  cards?: Card[];
   /** A draw that could not be played, so the turn moved on */
   passed?: boolean;
+  /** The seat caught not calling UNO (for a `catch` event) */
+  target?: number;
+  /** Cards pulled from the pile this move, so clients can animate them */
+  drew?: { seat: number; count: number };
 }
 
 export interface UnoState {
@@ -82,6 +88,8 @@ export interface UnoState {
   places?: number[];
   /** After drawing a playable card, its owner may play exactly that one */
   pending: { seat: number; index: number } | null;
+  /** Whether each seat has called "UNO" while down to one card. Missing in older states. */
+  calledUno?: boolean[];
   last: UnoEvent | null;
 }
 
@@ -93,6 +101,17 @@ const active = (s: UnoState) => s.players - placesOf(s).length;
 /** Over once only one player still holds cards (older states: on the first win). */
 const finished = (s: UnoState) =>
   s.places ? s.places.length >= s.players - 1 : s.winner !== null;
+
+const unoFlags = (s: UnoState) =>
+  (s.calledUno ??= Array<boolean>(s.players).fill(false));
+
+/** Clear the UNO call of every seat that is no longer sitting on one card. */
+function syncUnoFlags(s: UnoState) {
+  const flags = unoFlags(s);
+  for (let i = 0; i < s.players; i++) {
+    if (s.hands[i].length !== 1) flags[i] = false;
+  }
+}
 
 /** The seat `steps` turns after `from`, skipping players who already finished. */
 function nextSeat(s: UnoState, from: number, steps = 1) {
@@ -142,6 +161,7 @@ export function start(
     winner: null,
     places: [],
     pending: null,
+    calledUno: Array<boolean>(players).fill(false),
     last: null,
   };
 }
@@ -161,9 +181,96 @@ function deal(s: UnoState, seat: number, count: number, rng: () => number) {
 }
 
 type Move =
-  | { type: 'play'; index: number; color?: Color }
+  | {
+      type: 'play';
+      index: number;
+      color?: Color;
+      /** More cards with the same number, played on top in this order */
+      also?: number[];
+    }
   | { type: 'draw' }
-  | { type: 'pass' };
+  | { type: 'pass' }
+  | { type: 'uno' }
+  | { type: 'catch'; target: number };
+
+/** Call "UNO" while down to one card (or the two before playing the next). */
+function callUno(s: UnoState, seat: number) {
+  if (isOut(s, seat)) throw new RoomError('Kamu sudah selesai', 409);
+  const n = s.hands[seat].length;
+  if (n !== 1 && n !== 2) {
+    throw new RoomError('UNO cuma bisa saat sisa satu kartu', 400);
+  }
+  unoFlags(s)[seat] = true;
+  s.last = { seat, kind: 'uno' };
+}
+
+/** Catch a player who was left on one card without calling UNO: they draw two. */
+function catchUno(
+  s: UnoState,
+  seat: number,
+  target: unknown,
+  rng: () => number,
+) {
+  if (isOut(s, seat)) throw new RoomError('Kamu sudah selesai', 409);
+  if (
+    !Number.isInteger(target) ||
+    (target as number) < 0 ||
+    (target as number) >= s.players ||
+    target === seat
+  ) {
+    throw new RoomError('Pemain tidak ada', 400);
+  }
+  const t = target as number;
+  if (isOut(s, t)) throw new RoomError('Pemain itu sudah selesai', 409);
+  const flags = unoFlags(s);
+  if (s.hands[t].length !== 1 || flags[t]) {
+    throw new RoomError('Tidak bisa ditangkap', 409);
+  }
+  deal(s, t, 2, rng);
+  flags[t] = false;
+  s.last = { seat, kind: 'catch', target: t, drew: { seat: t, count: 2 } };
+}
+
+/**
+ * Validates the extra cards of a stacked play: only number cards, all with the
+ * same number as the first, each named once. Not allowed right after drawing.
+ */
+function stackOf(
+  s: UnoState,
+  hand: Card[],
+  index: number,
+  raw: unknown,
+): number[] {
+  if (raw === undefined || (Array.isArray(raw) && raw.length === 0)) return [];
+  if (!Array.isArray(raw)) throw new RoomError('Tumpukan tidak valid', 400);
+  if (s.pending) {
+    throw new RoomError('Setelah menarik, tidak bisa menumpuk kartu', 400);
+  }
+  const first = hand[index];
+  if (!isNumber(first)) {
+    throw new RoomError('Hanya kartu angka yang bisa ditumpuk', 400);
+  }
+  const seen = new Set([index]);
+  for (const i of raw) {
+    if (!Number.isInteger(i) || i < 0 || i >= hand.length || seen.has(i)) {
+      throw new RoomError('Kartu tidak ada', 400);
+    }
+    seen.add(i);
+    if (!isNumber(hand[i]) || hand[i].v !== first.v) {
+      throw new RoomError('Yang ditumpuk harus angka yang sama', 400);
+    }
+  }
+  return raw as number[];
+}
+
+/** Indexes of other cards that may be stacked on `index` (same number). */
+export function stackable(hand: Card[], index: number): number[] {
+  const first = hand[index];
+  if (!first || !isNumber(first)) return [];
+  return hand.flatMap((card, i) =>
+    i !== index && isNumber(card) && card.v === first.v ? [i] : [],
+  );
+}
 
 function play(
   s: UnoState,
@@ -195,15 +302,20 @@ function play(
     throw new RoomError('Pilih warna dulu', 400);
   }
 
-  hand.splice(index, 1);
-  s.discard.push(card);
-  s.color = card.c === 'W' ? (move.color as Color) : card.c;
+  const also = stackOf(s, hand, index, move.also);
+  const played = [card, ...also.map((i) => hand[i])];
+  // remove from the back so the earlier indexes stay valid
+  for (const i of [index, ...also].sort((a, b) => b - a)) hand.splice(i, 1);
+  s.discard.push(...played);
+  const lastCard = played[played.length - 1];
+  s.color = card.c === 'W' ? (move.color as Color) : (lastCard.c as Color);
   s.pending = null;
   s.last = {
     seat,
     kind: 'play',
-    card,
+    card: lastCard,
     color: card.c === 'W' ? s.color : undefined,
+    ...(played.length > 1 ? { cards: played } : {}),
   };
 
   if (hand.length === 0) {
@@ -229,14 +341,20 @@ function play(
       // with two players left a reverse works like a skip
       s.turn = active(s) === 2 && !out ? seat : nextSeat(s, seat);
       break;
-    case 'D':
-      deal(s, nextSeat(s, seat), 2, rng);
+    case 'D': {
+      const victim = nextSeat(s, seat);
+      deal(s, victim, 2, rng);
+      if (s.last) s.last.drew = { seat: victim, count: 2 };
       s.turn = nextSeat(s, seat, 2);
       break;
-    case 'F':
-      deal(s, nextSeat(s, seat), 4, rng);
+    }
+    case 'F': {
+      const victim = nextSeat(s, seat);
+      deal(s, victim, 4, rng);
+      if (s.last) s.last.drew = { seat: victim, count: 4 };
       s.turn = nextSeat(s, seat, 2);
       break;
+    }
     default:
       s.turn = nextSeat(s, seat);
   }
@@ -250,12 +368,13 @@ function drawCard(s: UnoState, seat: number, rng: () => number) {
   const drawn = s.hands[seat].length > before;
   const index = s.hands[seat].length - 1;
 
+  const drew = drawn ? { seat, count: 1 } : undefined;
   if (drawn && canPlay(s, s.hands[seat][index], s.hands[seat])) {
     // the drawn card fits: its owner decides whether to play it or pass
     s.pending = { seat, index };
-    s.last = { seat, kind: 'draw' };
+    s.last = { seat, kind: 'draw', drew };
   } else {
-    s.last = { seat, kind: 'draw', passed: true };
+    s.last = { seat, kind: 'draw', passed: true, drew };
     s.turn = nextSeat(s, seat);
   }
 }
@@ -263,7 +382,7 @@ function drawCard(s: UnoState, seat: number, rng: () => number) {
 export const unoGame: GameDef<UnoState> = {
   id: 'uno',
   minPlayers: 2,
-  maxPlayers: 4,
+  maxPlayers: 8,
   autoStart: false,
 
   start,
@@ -276,12 +395,23 @@ export const unoGame: GameDef<UnoState> = {
   move(state, seat, raw, rng = Math.random) {
     if (isOut(state, seat))
       throw new RoomError('Kartumu sudah habis, tunggu yang lain selesai', 409);
-    if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
     const move = raw as Move | null;
     if (!move || typeof move !== 'object')
       throw new RoomError('Langkah tidak valid', 400);
 
     const s = structuredClone(state);
+
+    // calling UNO and catching happen off-turn, so handle them first
+    if (move.type === 'uno') {
+      callUno(s, seat);
+      return s;
+    }
+    if (move.type === 'catch') {
+      catchUno(s, seat, move.target, rng);
+      return s;
+    }
+
+    if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
     switch (move.type) {
       case 'play':
         play(s, seat, move, rng);
@@ -303,6 +433,7 @@ export const unoGame: GameDef<UnoState> = {
       default:
         throw new RoomError('Langkah tidak dikenal', 400);
     }
+    syncUnoFlags(s);
     return s;
   },
 
@@ -324,21 +455,44 @@ export const unoGame: GameDef<UnoState> = {
               : [],
         )
       : [];
+    const counts = state.hands.map((h) => h.length);
+    const called = state.calledUno ?? Array<boolean>(state.players).fill(false);
+    const active = seat !== null && !finished(state) && !isOut(state, seat);
     return {
       players: state.players,
-      counts: state.hands.map((h) => h.length),
+      counts,
       hand,
       playable,
       stuck: myTurn && !state.pending && playable.length === 0,
       canDraw: myTurn && !state.pending,
       canPass: myTurn && state.pending?.seat === seat,
       top: top(state),
+      // the last few discards, oldest first, for a messy pile
+      pile: state.discard.slice(-7),
       color: state.color,
       turn: state.turn,
       dir: state.dir,
       drawCount: state.draw.length,
       winner: state.winner,
       places: placesOf(state),
+      calledUno: called,
+      // shout on your turn before playing your next-to-last card, or belatedly
+      // while already stuck on one card (before a rival catches you)
+      canCallUno:
+        active &&
+        seat !== null &&
+        !called[seat] &&
+        (counts[seat] === 1 ||
+          (counts[seat] === 2 && state.turn === seat && !finished(state))),
+      // seats you may catch: one card left, no UNO called, not you
+      catchable:
+        seat === null || !active
+          ? []
+          : counts.flatMap((n, j) =>
+              j !== seat && n === 1 && !called[j] && !isOut(state, j)
+                ? [j]
+                : [],
+            ),
       last: state.last,
     };
   },
@@ -358,6 +512,8 @@ export interface UnoView {
   canDraw: boolean;
   canPass: boolean;
   top: Card;
+  /** The last few discards, oldest first, so the pile can look stacked */
+  pile: Card[];
   color: Color;
   turn: number;
   dir: 1 | -1;
@@ -365,5 +521,11 @@ export interface UnoView {
   winner: number | null;
   /** Seats in finishing order; complete once the game is over */
   places: number[];
+  /** Whether each seat has shouted UNO while on one card */
+  calledUno: boolean[];
+  /** You can shout UNO right now */
+  canCallUno: boolean;
+  /** Seats you may catch for not calling UNO */
+  catchable: number[];
   last: UnoEvent | null;
 }

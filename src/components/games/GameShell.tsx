@@ -3,7 +3,7 @@ import * as React from 'react';
 
 import { GAMES } from '@/constant/games';
 
-/** The frame shared by the games: a light, playful look. The games are public. */
+/** The frame shared by the games: plain and dark. The games are public. */
 export default function GameShell({
   name,
   children,
@@ -22,27 +22,16 @@ export default function GameShell({
 
   return (
     <div className='games-ui flex min-h-dvh flex-col text-[15px] text-ink'>
-      <header className='sticky top-0 z-40 border-b border-line/70 bg-paper/70 backdrop-blur-md'>
-        <div className='mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-3'>
-          {name ? (
-            <Link
-              href='/games'
-              aria-label='Kembali ke daftar game'
-              className='flex size-9 items-center justify-center rounded-full bg-card text-lg shadow-sm transition-transform hover:-translate-x-0.5'
-            >
-              ←
-            </Link>
-          ) : (
-            <Link
-              href='/'
-              aria-label='Beranda'
-              className='flex size-9 items-center justify-center rounded-full bg-card text-lg shadow-sm transition-transform hover:-translate-x-0.5'
-            >
-              ⌂
-            </Link>
-          )}
-          <span className='flex items-center gap-2 text-lg font-bold'>
-            <span aria-hidden>{game?.icon ?? '🎮'}</span>
+      <header className='sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur'>
+        <div className='mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-2.5'>
+          <Link
+            href={name ? '/games' : '/'}
+            aria-label={name ? 'Kembali ke daftar game' : 'Beranda'}
+            className='flex size-8 items-center justify-center rounded-md border border-line text-mute transition-colors hover:border-[#3a3a3a] hover:text-ink'
+          >
+            ←
+          </Link>
+          <span className='text-sm font-semibold tracking-tight'>
             {game?.title ?? (name ? name : 'Games')}
           </span>
         </div>

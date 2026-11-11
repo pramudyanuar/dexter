@@ -3,6 +3,7 @@ import {
   act,
   cleanName,
   join,
+  kick,
   newRoom,
   rematch,
   rename,
@@ -73,7 +74,7 @@ describe('the registry', () => {
 describe('a new room', () => {
   it('has one seat per player slot, with the creator in seat 0', () => {
     const room = newRoom('uno', 'ABCDE', A);
-    expect(room.tokens).toEqual([A, null, null, null]);
+    expect(room.tokens).toEqual([A, ...Array(7).fill(null)]);
     expect(newRoom('suit', 'ABCDE', A).tokens).toEqual([A, null]);
     expect([room.status, room.state, room.version]).toEqual([
       'waiting',
@@ -111,7 +112,7 @@ describe('joining', () => {
       null,
       3,
     ]);
-    expect(room.tokens).toEqual([A, B, C, null]);
+    expect(room.tokens).toEqual([A, B, C, ...Array(5).fill(null)]);
   });
 
   it('gives a returning player their seat back without changing the room', () => {
@@ -123,7 +124,7 @@ describe('joining', () => {
 
   it('turns away a newcomer when full or already started', () => {
     expect(errorOf(() => join(connect4(), 'stranger', 'new'))).toBe(409);
-    const full = unoRoom([A, B, C, D]);
+    const full = connect4(); // two seats, both taken
     expect(errorOf(() => join(full, undefined, E))).toBe(409);
     const started = start(unoRoom([A, B]), A);
     expect(errorOf(() => join(started, undefined, C))).toBe(409);
@@ -303,8 +304,9 @@ describe('player names', () => {
     let room = newRoom('uno', 'ABCDE', A, 0, 'Eka');
     room = join(room, undefined, B, undefined, 'Budi').room;
     room = join(room, undefined, C).room;
-    expect(toView(room, C).names).toEqual(['Eka', 'Budi', null, null]);
-    expect(toView(room).names).toEqual(['Eka', 'Budi', null, null]);
+    const expected = ['Eka', 'Budi', ...Array(6).fill(null)];
+    expect(toView(room, C).names).toEqual(expected);
+    expect(toView(room).names).toEqual(expected);
   });
 
   it('lets a player rename only their own seat', () => {
@@ -320,5 +322,52 @@ describe('player names', () => {
     const { names: _, ...old } = connect4();
     expect(toView(old as Room, A).names).toEqual([null, null]);
     expect(rename(old as Room, A, 'Eka').names).toEqual(['Eka', null]);
+  });
+});
+
+describe('host removes a waiting player', () => {
+  const fill = (n: number) => {
+    let room = newRoom('uno', 'ABCDE', 'host', 0, 'Host');
+    const toks = ['host'];
+    for (let i = 1; i < n; i++) {
+      const t = `p${i}`;
+      room = join(room, undefined, t, undefined, `P${i}`).room;
+      toks.push(t);
+    }
+    return { room, toks };
+  };
+
+  it('frees the kicked seat and its name', () => {
+    const { room } = fill(3);
+    const next = kick(room, 'host', 1);
+    expect(next.tokens).toEqual([
+      'host',
+      null,
+      'p2',
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect(next.names?.[1]).toBeNull();
+    expect(next.version).toBe(room.version + 1);
+    // the freed seat can be taken again
+    expect(join(next, undefined, 'new').you).toBe(1);
+  });
+
+  it('only the host may kick, and not themselves or an empty/started seat', () => {
+    const { room } = fill(2);
+    expect(errorOf(() => kick(room, 'p1', 0))).toBe(403); // not host
+    expect(errorOf(() => kick(room, 'host', 0))).toBe(400); // self
+    expect(errorOf(() => kick(room, 'host', 9))).toBe(400); // no such seat
+    expect(kick(room, 'host', 5)).toBe(room); // empty seat: no change
+    const started = start(room, 'host');
+    expect(errorOf(() => kick(started, 'host', 1))).toBe(409); // already playing
+  });
+
+  it('uno seats up to eight players', () => {
+    expect(GAMES.uno.maxPlayers).toBe(8);
+    expect(newRoom('uno', 'ABCDE', 'host').tokens).toHaveLength(8);
   });
 });
