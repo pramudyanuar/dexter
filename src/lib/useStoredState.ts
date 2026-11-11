@@ -12,15 +12,31 @@ function subscribe(callback: () => void) {
 }
 
 /**
- * JSON state persisted in localStorage. Renders `initial` on the server and
+ * Where the value lives:
+ * - `local` is shared by every tab of this browser, and survives closing it.
+ *   Right for records and preferences.
+ * - `tab` belongs to this tab only (and survives a reload). Right for a game in
+ *   progress or the room you are sitting in, so two tabs do not share one game.
+ */
+export type StoredScope = 'local' | 'tab';
+
+const area = (scope: StoredScope) =>
+  scope === 'tab' ? sessionStorage : localStorage;
+
+/**
+ * JSON state persisted in the browser. Renders `initial` on the server and
  * during hydration, then switches to the stored value without a mismatch.
  */
-export default function useStoredState<T>(key: string, initial: T) {
+export default function useStoredState<T>(
+  key: string,
+  initial: T,
+  scope: StoredScope = 'local',
+) {
   const raw = React.useSyncExternalStore(
     subscribe,
     () => {
       try {
-        return localStorage.getItem(key);
+        return area(scope).getItem(key);
       } catch {
         return null;
       }
@@ -42,13 +58,13 @@ export default function useStoredState<T>(key: string, initial: T) {
   const setValue = React.useCallback(
     (next: T) => {
       try {
-        localStorage.setItem(key, JSON.stringify(next));
+        area(scope).setItem(key, JSON.stringify(next));
       } catch {
         // storage unavailable or full
       }
       window.dispatchEvent(new Event(EVENT));
     },
-    [key],
+    [key, scope],
   );
 
   return [value, setValue] as const;

@@ -4,17 +4,20 @@ import * as React from 'react';
 
 import {
   evaluate,
-  isValidWord,
+  indonesianWords,
   keyboardStates,
   LetterState,
+  loadWordList,
   MAX_GUESSES,
-  pickAnswer,
   WORD_LENGTH,
+  WordleLang,
+  WordList,
 } from '@/lib/games/wordle';
 import useStoredState from '@/lib/useStoredState';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import WordDefinition from '@/components/games/WordDefinition';
 
 interface Game {
   answer: string;
@@ -34,12 +37,43 @@ const KEY_ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
 const TILE: Record<LetterState, string> = {
   correct: 'bg-accent border-accent text-paper',
   present: 'bg-hash border-hash text-paper',
-  absent: 'bg-line border-line text-mute',
+  absent: 'bg-line border-line text-[var(--mute)]',
 };
 
+const LANGS: { id: WordleLang; label: string }[] = [
+  { id: 'id', label: 'Indonesia' },
+  { id: 'en', label: 'English' },
+];
+
 function Wordle() {
-  const [game, setGame] = useStoredState<Game | null>('wordle-game', null);
-  const [stats, setStats] = useStoredState<Stats>('wordle-stats', NO_STATS);
+  const [lang, setLang] = useStoredState<WordleLang>('wordle-lang', 'id');
+  // each language has its own game in progress and its own record; Indonesian
+  // keeps the original keys so nothing saved earlier is lost
+  const suffix = lang === 'id' ? '' : `-${lang}`;
+  const [game, setGame] = useStoredState<Game | null>(
+    `wordle-game${suffix}`,
+    null,
+    'tab',
+  );
+  const [stats, setStats] = useStoredState<Stats>(
+    `wordle-stats${suffix}`,
+    NO_STATS,
+  );
+  // Indonesian words are bundled; English ones are fetched the first time
+  const [lists, setLists] = React.useState<
+    Partial<Record<WordleLang, WordList>>
+  >({ id: indonesianWords });
+  const words = lists[lang];
+  React.useEffect(() => {
+    if (lists[lang]) return;
+    let cancelled = false;
+    loadWordList(lang).then((list) => {
+      if (!cancelled) setLists((prev) => ({ ...prev, [lang]: list }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [lang, lists]);
   const [current, setCurrent] = React.useState('');
   const [message, setMessage] = React.useState('');
   const [shake, setShake] = React.useState(0);
@@ -60,9 +94,10 @@ function Wordle() {
   const submit = () => {
     if (over) return;
     if (current.length < WORD_LENGTH) return flash('Kurang huruf');
-    if (!isValidWord(current)) return flash('Bukan kata dalam kamus');
+    if (!words) return flash('Memuat kamus…');
+    if (!words.isValid(current)) return flash('Bukan kata dalam kamus');
 
-    const secret = game?.answer ?? pickAnswer();
+    const secret = game?.answer ?? words.pick();
     const next = [...guesses, current];
     setGame({ answer: secret, guesses: next });
     setCurrent('');
@@ -115,6 +150,31 @@ function Wordle() {
 
   return (
     <>
+      <div
+        role='group'
+        aria-label='Bahasa kata'
+        className='mx-auto mb-4 flex w-fit gap-1 rounded-lg border border-line p-1'
+      >
+        {LANGS.map((l) => (
+          <button
+            key={l.id}
+            type='button'
+            aria-pressed={lang === l.id}
+            onClick={() => {
+              setLang(l.id);
+              setCurrent('');
+            }}
+            className={`rounded-md px-3 py-1 text-sm transition-colors ${
+              lang === l.id
+                ? 'bg-ink text-paper'
+                : 'text-[var(--mute)] hover:text-ink'
+            }`}
+          >
+            {l.label}
+          </button>
+        ))}
+      </div>
+
       <div
         role='grid'
         aria-label='Papan tebakan'
@@ -178,6 +238,8 @@ function Wordle() {
           </button>
         )}
       </div>
+
+      {over && <WordDefinition word={answer} lang={lang} />}
 
       <div className='mt-auto space-y-1.5 pt-4'>
         {KEY_ROWS.map((row, r) => (

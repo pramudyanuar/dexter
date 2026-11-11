@@ -6,20 +6,58 @@ export const MAX_GUESSES = 6;
 
 export type LetterState = 'correct' | 'present' | 'absent';
 
-let validWords: Set<string> | null = null;
+export type WordleLang = 'id' | 'en';
 
-/** Whether a guess is a real word: in the dictionary, or an answer word. */
-export function isValidWord(word: string): boolean {
-  validWords ??= new Set([
-    ...WORDLE_VALID_WORDS.split(' ').filter(Boolean),
-    ...WORDLE_ANSWERS,
-  ]);
-  return validWords.has(word.toLowerCase());
+/** The words of one language: what can be the answer, and what may be guessed. */
+export interface WordList {
+  answers: readonly string[];
+  isValid(word: string): boolean;
+  pick(rng?: () => number): string;
 }
 
-export function pickAnswer(rng: () => number = Math.random): string {
-  return WORDLE_ANSWERS[Math.floor(rng() * WORDLE_ANSWERS.length)];
+/** A word list from its answers and a space-separated list of other valid guesses. */
+export function makeWordList(
+  answers: readonly string[],
+  extra: string,
+): WordList {
+  let valid: Set<string> | null = null;
+  return {
+    answers,
+    isValid(word) {
+      valid ??= new Set([...extra.split(' ').filter(Boolean), ...answers]);
+      return valid.has(word.toLowerCase());
+    },
+    pick: (rng = Math.random) => answers[Math.floor(rng() * answers.length)],
+  };
 }
+
+const indonesian = makeWordList(WORDLE_ANSWERS, WORDLE_VALID_WORDS);
+
+let english: Promise<WordList> | null = null;
+
+/**
+ * The words for a language. English is a separate chunk of code (about 100 KB
+ * of words), so it is only downloaded when someone plays in English.
+ */
+export function loadWordList(lang: WordleLang): Promise<WordList> {
+  if (lang === 'id') return Promise.resolve(indonesian);
+  english ??= Promise.all([
+    import('@/constant/wordle-en-words'),
+    import('@/constant/wordle-en-valid'),
+  ]).then(([a, b]) =>
+    makeWordList(a.WORDLE_EN_ANSWERS, b.WORDLE_EN_VALID_WORDS),
+  );
+  return english;
+}
+
+/** The Indonesian list, available at once. */
+export const indonesianWords = indonesian;
+
+/** Whether a guess is a real Indonesian word: in the dictionary, or an answer word. */
+export const isValidWord = (word: string) => indonesian.isValid(word);
+
+export const pickAnswer = (rng: () => number = Math.random) =>
+  indonesian.pick(rng);
 
 /** Scores a guess. Repeated letters are only marked as often as they occur. */
 export function evaluate(guess: string, answer: string): LetterState[] {
