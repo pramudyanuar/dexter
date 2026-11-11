@@ -539,6 +539,147 @@ function HandCard({
   );
 }
 
+/** Four small colour dots, shown for a wild's "colour changed" moment. */
+function ColorDots() {
+  return (
+    <span className='flex gap-1'>
+      {COLORS.map((c) => (
+        <span
+          key={c}
+          className='size-3 rounded-full'
+          style={{ background: BG[c] }}
+        />
+      ))}
+    </span>
+  );
+}
+
+type EventSpec = {
+  label: string;
+  tone: string;
+  big?: boolean;
+  ring?: boolean;
+  node?: React.ReactNode;
+};
+
+/** What to show in the centre of the table for the game's latest event. */
+function eventSpec(event: UnoView['last'], color: Color): EventSpec | null {
+  if (!event) return null;
+  if (event.kind === 'uno')
+    return { label: 'UNO!', tone: 'var(--accent)', big: true, ring: true };
+  if (event.kind === 'catch')
+    return { label: 'KENA TANGKAP', tone: 'var(--err)', ring: true };
+  if (event.kind === 'draw')
+    return {
+      label:
+        event.drew && event.drew.count > 1 ? `+${event.drew.count}` : 'TARIK',
+      tone: 'var(--mute)',
+    };
+  if (event.kind === 'play' && event.card) {
+    const c = event.card;
+    const tone = c.c === 'W' ? BG[color] : BG[c.c];
+    switch (c.v) {
+      case 'S':
+        return {
+          label: 'DILEWATI',
+          tone,
+          ring: true,
+          node: <Glyph v='S' className='size-11' />,
+        };
+      case 'V':
+        return {
+          label: 'BALIK ARAH',
+          tone,
+          ring: true,
+          node: (
+            <span className='a-rev inline-flex'>
+              <Glyph v='V' className='size-11' />
+            </span>
+          ),
+        };
+      case 'D':
+        return {
+          label: 'TARIK 2',
+          tone,
+          ring: true,
+          node: <span className='text-4xl font-black'>+2</span>,
+        };
+      case 'F':
+        return {
+          label: 'TARIK 4',
+          tone: BG[color],
+          ring: true,
+          node: <span className='text-4xl font-black'>+4</span>,
+        };
+      case 'W':
+        return {
+          label: 'GANTI WARNA',
+          tone: BG[color],
+          ring: true,
+          node: <ColorDots />,
+        };
+      default:
+        return null; // plain number: the card toss is presentation enough
+    }
+  }
+  return null;
+}
+
+/**
+ * The cinematic centre-of-table announcement for the latest event. Keyed by
+ * `version` so it replays on every new event, then fades out on its own (no
+ * timers to leak). Purely decorative, so it never blocks interaction.
+ */
+function CenterEvent({
+  event,
+  color,
+  version,
+}: {
+  event: UnoView['last'];
+  color: Color;
+  version: number;
+}) {
+  const spec = eventSpec(event, color);
+  if (!spec) return null;
+  const glow = `color-mix(in srgb, ${spec.tone} 45%, transparent)`;
+  return (
+    <div
+      key={version}
+      aria-hidden
+      className='pointer-events-none absolute inset-0 z-40'
+    >
+      {spec.ring && (
+        <span
+          className='a-ring absolute top-[45%] left-1/2 size-28 rounded-full border-2'
+          style={{ borderColor: spec.tone }}
+        />
+      )}
+      <div
+        className={`${spec.big ? 'a-uno' : 'a-event'} absolute top-[45%] left-1/2 flex flex-col items-center gap-1.5`}
+      >
+        {spec.node && (
+          <span className='drop-shadow' style={{ color: spec.tone }}>
+            {spec.node}
+          </span>
+        )}
+        <span
+          className={`rounded-xl border px-4 py-1.5 font-black tracking-wider ${
+            spec.big ? 'text-5xl' : 'text-xl'
+          }`}
+          style={{
+            color: spec.tone,
+            borderColor: spec.tone,
+            background: 'rgba(12,13,16,0.82)',
+            boxShadow: `0 0 26px ${glow}, inset 0 0 14px ${glow}`,
+          }}
+        >
+          {spec.label}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** 1st / 2nd / 3rd on a podium, with any remaining places listed below. */
 function Podium({
   places,
@@ -833,20 +974,6 @@ function Uno() {
     : null;
 
   // a banner so skips, reverses and draws are obvious
-  const effect = (() => {
-    const e = view.last;
-    if (!e || e.kind !== 'play' || !e.card) return null;
-    const v = e.card.v;
-    const victim = e.drew ? seatName(e.drew.seat) : '';
-    if (v === 'S') return '⊘ Dilewati!';
-    if (v === 'V') return '⇄ Arah dibalik!';
-    if (v === 'D') return `+2 · ${victim} tarik 2`;
-    if (v === 'F') return `+4 · ${victim} tarik 4`;
-    if (v === 'W' || e.card.c === 'W')
-      return `Wild! Warna jadi ${COLOR_NAME[view.color]}`;
-    return null;
-  })();
-
   return (
     <>
       {view.winner === you && <Confetti />}
@@ -881,6 +1008,18 @@ function Uno() {
               'inset 0 0 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
           }}
         />
+        {/* ambient: a slow light sweep, clipped to the felt */}
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-4 overflow-hidden rounded-[46%] sm:inset-6'
+        >
+          <span className='a-sweep absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/8 to-transparent' />
+        </div>
+
+        {/* cinematic announcement for the latest event */}
+        {!over && (
+          <CenterEvent event={view.last} color={view.color} version={version} />
+        )}
 
         {others.map(({ count, seat }) => {
           const active = !over && view.turn === seat;
@@ -966,16 +1105,6 @@ function Uno() {
           </div>
         )}
 
-        {/* what the last action card did */}
-        {effect && !over && (
-          <div
-            key={`fx-${version}`}
-            className='a-pop pointer-events-none absolute top-[14%] left-1/2 z-50 -translate-x-1/2 rounded-full border border-hash bg-paper/95 px-3 py-1 text-xs font-bold whitespace-nowrap text-hash shadow-lg'
-          >
-            {effect}
-          </div>
-        )}
-
         {/* center: draw pile, discard pile, colour */}
         <div className='absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2.5'>
           <button
@@ -983,7 +1112,7 @@ function Uno() {
             aria-label='Tarik kartu'
             disabled={!view.canDraw || r.busy}
             onClick={() => r.move({ type: 'draw' })}
-            className='group relative flex h-28 w-[4.75rem] items-center justify-center disabled:opacity-70'
+            className='group a-float relative flex h-28 w-[4.75rem] items-center justify-center disabled:opacity-70'
           >
             <CardBack
               size='lg'
@@ -1022,7 +1151,7 @@ function Uno() {
             {/* the current-colour wheel, sitting behind the pile */}
             <ColorWheel
               color={view.color}
-              className='pointer-events-none absolute top-1/2 left-1/2 size-44 -translate-x-1/2 -translate-y-1/2 opacity-90 drop-shadow-[0_6px_18px_rgba(0,0,0,0.5)]'
+              className='a-breathe pointer-events-none absolute top-1/2 left-1/2 size-44 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_6px_18px_rgba(0,0,0,0.5)]'
             />
             {/* the messy stack of recent discards */}
             {view.pile.map((card, i) => {

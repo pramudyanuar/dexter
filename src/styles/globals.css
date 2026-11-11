@@ -551,7 +551,132 @@
   }
 }
 
+/* ----- central event presentations (pop in, hold, fade) ----- */
+@keyframes g-event {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.55);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.14);
+  }
+  26% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+/* the big UNO shout: a livelier bounce */
+@keyframes g-uno {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(-10deg);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.3) rotate(4deg);
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(0.92) rotate(-3deg);
+  }
+  44% {
+    transform: translate(-50%, -50%) scale(1.1) rotate(1deg);
+  }
+  60% {
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+}
+/* an impact ring that expands behind a special-card event */
+@keyframes g-ring {
+  0% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.6);
+  }
+}
+/* two reverse arrows turning once */
+@keyframes g-rev {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* ----- idle / ambient ----- */
+@keyframes g-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-140%) skewX(-16deg);
+  }
+  8% {
+    opacity: 0.4;
+  }
+  34% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(240%) skewX(-16deg);
+  }
+}
+@keyframes g-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes g-breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.12));
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  .a-event {
+    animation: g-event 1.25s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  }
+  .a-uno {
+    animation: g-uno 1.5s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  }
+  .a-ring {
+    animation: g-ring 0.85s ease-out both;
+  }
+  .a-rev {
+    animation: g-rev 2s cubic-bezier(0.5, 0, 0.5, 1) both;
+  }
+  .a-sweep {
+    animation: g-sweep 9s ease-in-out 2s infinite;
+  }
+  .a-float {
+    animation: g-float 3.4s ease-in-out infinite;
+  }
+  .a-breathe {
+    animation: g-breathe 3.6s ease-in-out infinite;
+  }
   .a-pop {
     animation: g-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
