@@ -5,22 +5,40 @@ import type { GameId } from '@/lib/rooms/types';
  * pure: they take a state and return a new one, throwing RoomError for illegal
  * moves, so they can be tested without any server.
  */
+/** What the room tells a game about who is who. */
+export interface GameCtx {
+  /** Seat of the room's admin (the moderator in games that have one) */
+  host: number;
+}
+
 export interface GameDef<S = unknown> {
   id: GameId;
   minPlayers: number;
   maxPlayers: number;
   /** Start once every seat is taken; otherwise the host starts the game. */
   autoStart: boolean;
-  start(players: number, rng?: () => number): S;
+  start(players: number, rng?: () => number, options?: unknown): S;
+  /**
+   * Settings the admin may change in the waiting room. `sanitizeOptions` turns
+   * whatever a client sent into a complete, safe settings object.
+   */
+  defaultOptions?: unknown;
+  sanitizeOptions?(raw: unknown): unknown;
   /** A new round after one has ended. */
   restart(previous: S, players: number, rng?: () => number): S;
-  move(state: S, seat: number, move: unknown, rng?: () => number): S;
+  move(
+    state: S,
+    seat: number,
+    move: unknown,
+    rng?: () => number,
+    ctx?: GameCtx,
+  ): S;
   /**
    * What `seat` may see. This is the only way game state leaves the server, so
    * hidden information (hands, unrevealed picks) must be removed here.
    * `seat` is null for someone who is not playing.
    */
-  view(state: S, seat: number | null): unknown;
+  view(state: S, seat: number | null, ctx?: GameCtx): unknown;
   isOver(state: S): boolean;
 
   /**

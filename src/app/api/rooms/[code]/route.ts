@@ -10,6 +10,7 @@ import {
   rename,
   revive,
   seatOf,
+  setOptions,
   start,
   sweep,
   toView,
@@ -138,6 +139,15 @@ export async function POST(req: Request, { params }: Context) {
       case 'start': {
         const next = await mutate(store, room, (r) =>
           start(r, body.token, cryptoRng()),
+        );
+        return NextResponse.json(
+          { room: toView(next, body.token) },
+          { headers: NO_STORE },
+        );
+      }
+      case 'options': {
+        const next = await mutate(store, room, (r) =>
+          setOptions(r, body.token, body.options),
         );
         return NextResponse.json(
           { room: toView(next, body.token) },

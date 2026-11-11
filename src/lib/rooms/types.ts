@@ -11,7 +11,8 @@ export type GameId =
   | 'dice'
   | 'domino'
   | 'quiz'
-  | 'pictionary';
+  | 'pictionary'
+  | 'sekata';
 export type RoomStatus = 'waiting' | 'playing' | 'over';
 
 /**
@@ -28,6 +29,8 @@ export interface Room {
   status: RoomStatus;
   /** Game-specific, null until the game starts */
   state: unknown | null;
+  /** Settings the admin chose in the waiting room (games that have settings) */
+  options?: unknown;
   /** Bumped on every change, so clients can ask "anything new since N?" */
   version: number;
   createdAt: number;
@@ -72,6 +75,8 @@ export interface RoomView<V = unknown> {
   version: number;
   /** The game's view for this seat (hidden information removed) */
   state: V | null;
+  /** The game's settings: the admin's choice, or the defaults */
+  options: unknown;
   /** Seats removed from the game; they can no longer act */
   out: boolean[];
   /** Missed turns per seat, out of `maxStrikes` */

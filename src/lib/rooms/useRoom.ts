@@ -213,6 +213,8 @@ export function useRoom<V>(game: GameId) {
     create,
     join,
     start: () => act('start'),
+    /** Admin: change the game's settings before it starts */
+    setOptions: (options: unknown) => act('options', { options }),
     /** Host removes a waiting player by seat. */
     kick: (seat: number) => act('kick', { seat }),
     move: (move: unknown) => act('move', { move }),

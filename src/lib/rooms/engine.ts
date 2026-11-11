@@ -107,7 +107,7 @@ function begin(room: Room, rng?: () => number, now = Date.now()): Room {
   return {
     ...tidy,
     status: 'playing',
-    state: GAMES[room.game].start(seated(tidy), rng),
+    state: GAMES[room.game].start(seated(tidy), rng, room.options),
     out: Array<boolean>(n).fill(false),
     strikes: Array<number>(n).fill(0),
     left: Array<number | null>(n).fill(null),
@@ -221,6 +221,27 @@ export function start(
   return begin(room, rng, now);
 }
 
+/** The admin changes the game's settings while everyone is still waiting. */
+export function setOptions(
+  room: Room,
+  token: unknown,
+  raw: unknown,
+  now = Date.now(),
+): Room {
+  requireHost(room, token, 'mengubah pengaturan');
+  if (room.status !== 'waiting')
+    throw new RoomError('Pengaturan hanya bisa diubah sebelum mulai', 409);
+  const def = GAMES[room.game];
+  if (!def.sanitizeOptions)
+    throw new RoomError('Game ini tidak punya pengaturan', 400);
+  return {
+    ...room,
+    options: def.sanitizeOptions(raw),
+    stamp: now,
+    version: room.version + 1,
+  };
+}
+
 export function act(
   room: Room,
   token: unknown,
@@ -238,7 +259,7 @@ export function act(
     throw new RoomError('Permainan sudah selesai', 409);
 
   const def = GAMES[room.game];
-  const state = def.move(room.state, seat, move, rng);
+  const state = def.move(room.state, seat, move, rng, { host: hostOf(room) });
   return {
     ...room,
     state,
@@ -473,7 +494,11 @@ export function toView(
     capacity: room.tokens.length,
     minPlayers: def.minPlayers,
     version: room.version,
-    state: room.state === null ? null : def.view(room.state, seat),
+    state:
+      room.state === null
+        ? null
+        : def.view(room.state, seat, { host: hostOf(room) }),
+    options: room.options ?? def.defaultOptions ?? null,
     out,
     outWhy: whyOf(room),
     strikes: strikesOf(room),

@@ -15,6 +15,7 @@ const base: RoomView = {
   minPlayers: 2,
   version: 3,
   state: {},
+  options: null,
   out: [false, false, false],
   outWhy: [null, null, null],
   strikes: [0, 0, 0],

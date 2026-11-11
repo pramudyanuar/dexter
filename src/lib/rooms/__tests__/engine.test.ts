@@ -9,6 +9,7 @@ import {
   rename,
   seated,
   seatOf,
+  setOptions,
   start,
   toView,
 } from '@/lib/rooms/engine';
@@ -52,6 +53,7 @@ describe('the registry', () => {
       'gomoku',
       'pictionary',
       'quiz',
+      'sekata',
       'suit',
       'uno',
       'unoflip',
@@ -372,5 +374,67 @@ describe('host removes a waiting player', () => {
   it('uno seats up to eight players', () => {
     expect(GAMES.uno.maxPlayers).toBe(8);
     expect(newRoom('uno', 'ABCDE', 'host').tokens).toHaveLength(8);
+  });
+});
+
+describe('game settings (Sekata)', () => {
+  const sekataRoom = (tokens: string[]) =>
+    tokens
+      .slice(1)
+      .reduce(
+        (room, t) => join(room, undefined, t).room,
+        newRoom('sekata', 'ABCDE', tokens[0]),
+      );
+  type SView = { config: { mode: string; handSize: number }; counts: number[] };
+
+  it('shows the defaults until the host changes them', () => {
+    const room = sekataRoom([A, B, C]);
+    expect(toView(room, A).options).toMatchObject({
+      mode: 'classic',
+      handSize: 10,
+    });
+  });
+
+  it('lets only the host change them, and only before the game starts', () => {
+    const room = sekataRoom([A, B, C]);
+    expect(errorOf(() => setOptions(room, B, { mode: 'point' }))).toBe(403);
+    const set = setOptions(room, A, { mode: 'point', handSize: 99 });
+    expect(set.version).toBe(room.version + 1);
+    // clamped, and everyone sees the same thing
+    expect(toView(set, B).options).toMatchObject({
+      mode: 'point',
+      handSize: 15,
+    });
+    expect(errorOf(() => setOptions(start(set, A), A, {}))).toBe(409);
+    // games with no settings refuse
+    expect(errorOf(() => setOptions(unoRoom([A, B]), A, {}))).toBe(400);
+  });
+
+  it('starts with the chosen settings, and keeps them for a rematch', () => {
+    const set = setOptions(sekataRoom([A, B, C]), A, { handSize: 6 });
+    const started = start(set, A);
+    const view = toView(started, A).state as SView;
+    expect(view.counts).toEqual([6, 6, 6]);
+    expect(view.config.handSize).toBe(6);
+    // needs three players
+    expect(errorOf(() => start(sekataRoom([A, B]), A))).toBe(409);
+  });
+
+  it('plays a word through the room, with the other players kept out of your hand', () => {
+    const started = start(sekataRoom([A, B, C]), A);
+    const mine = (toView(started, A).state as { hand: { id: string }[] }).hand;
+    const theirs = (toView(started, B).state as { hand: { id: string }[] })
+      .hand;
+    expect(mine).toHaveLength(10);
+    // playing someone else's card is refused by the server
+    expect(
+      errorOf(() =>
+        act(started, A, { type: 'submit', cards: [theirs[0].id, mine[0].id] }),
+      ),
+    ).toBe(409);
+    // each player gets their own cards, and the view holds no one else's
+    const bView = toView(started, B).state as { hand: { id: string }[] };
+    const mineIds = new Set(mine.map((c) => c.id));
+    expect(bView.hand.some((c) => mineIds.has(c.id))).toBe(false);
   });
 });
