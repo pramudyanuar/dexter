@@ -802,6 +802,14 @@ describe('calling UNO and catching', () => {
     expect(view(three, 0).canCallUno).toBe(false);
   });
 
+  it('offers no shout on two cards when neither can be played, since you must draw', () => {
+    const stuck: UnoState = {
+      ...game({ hands: [['B1', 'B2'], ['B3']], top: 'R5' }),
+      calledUno: [false, false],
+    };
+    expect(view(stuck, 0).canCallUno).toBe(false);
+  });
+
   it('exposes the recent discards for a stacked pile', () => {
     const s = game({ hands: [['R1'], ['B1']], top: 'R5', draw: ['G1'] });
     s.discard = [c('R2'), c('R3'), c('R5')];

@@ -618,7 +618,8 @@ export function makeGame(variant: Variant, id: GameId): GameDef<XState> {
           live &&
           seat !== null &&
           !called[seat] &&
-          (counts[seat] === 1 || (counts[seat] === 2 && state.turn === seat)),
+          (counts[seat] === 1 ||
+            (counts[seat] === 2 && state.turn === seat && playable.length > 0)),
         catchable:
           seat === null || !live
             ? []

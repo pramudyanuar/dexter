@@ -1056,6 +1056,23 @@ function Uno({ game }: { game: UnoKind }) {
             tone: 'text-err',
           };
     }
+    if (e.kind === 'catch') {
+      const target = e.target ?? 0;
+      return {
+        icon: 'catch' as IconKind,
+        big: 'CAUGHT!',
+        sub: `${seatName(e.seat)} ${verb(e.seat, you, 'catch')} ${seatName(target)}: no UNO, ${draws(target)} ${e.drew?.count ?? 2} cards`,
+        tone: 'text-err',
+      };
+    }
+    if (e.kind === 'uno') {
+      return {
+        icon: 'uno' as IconKind,
+        big: 'UNO!',
+        sub: `${seatName(e.seat)} ${verb(e.seat, you, 'call')} UNO`,
+        tone: 'text-accent',
+      };
+    }
     if (e.kind === 'take') {
       const n = e.drew?.count ?? 0;
       return {

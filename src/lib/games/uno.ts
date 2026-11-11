@@ -648,7 +648,11 @@ export const unoGame: GameDef<UnoState> = {
         seat !== null &&
         !called[seat] &&
         (counts[seat] === 1 ||
-          (counts[seat] === 2 && state.turn === seat && !finished(state))),
+          (counts[seat] === 2 &&
+            state.turn === seat &&
+            !finished(state) &&
+            // with nothing to play you must draw, so there is nothing to announce
+            playable.length > 0)),
       // seats you may catch: one card left, no UNO called, not you
       catchable:
         seat === null || !active
