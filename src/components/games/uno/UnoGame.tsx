@@ -2,7 +2,16 @@
 
 import * as React from 'react';
 
-import { Card, Color, COLORS, stackable, UnoView } from '@/lib/games/uno';
+import {
+  Card,
+  Color,
+  COLORS,
+  DARK_COLORS,
+  stackable,
+  UnoView,
+} from '@/lib/games/uno';
+import type { UnoXView } from '@/lib/games/unox';
+import type { GameId } from '@/lib/rooms/types';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
@@ -21,6 +30,10 @@ const BG: Record<Card['c'], string> = {
   Y: 'hsl(46 95% 52%)',
   G: 'hsl(135 55% 40%)',
   B: 'hsl(215 75% 52%)',
+  P: 'hsl(325 78% 58%)',
+  T: 'hsl(176 70% 36%)',
+  O: 'hsl(24 92% 54%)',
+  U: 'hsl(268 56% 52%)',
   W: 'hsl(0 0% 14%)',
 };
 const DARK: Record<Card['c'], string> = {
@@ -28,6 +41,10 @@ const DARK: Record<Card['c'], string> = {
   Y: 'hsl(40 90% 40%)',
   G: 'hsl(135 55% 26%)',
   B: 'hsl(215 75% 36%)',
+  P: 'hsl(325 70% 38%)',
+  T: 'hsl(176 70% 22%)',
+  O: 'hsl(24 85% 36%)',
+  U: 'hsl(268 56% 32%)',
   W: 'hsl(0 0% 7%)',
 };
 const SYMBOL: Record<string, string> = {
@@ -36,15 +53,80 @@ const SYMBOL: Record<string, string> = {
   D: '+2',
   W: 'W',
   F: '+4',
+  L: '⟲',
+  D1: '+1',
+  D5: '+5',
+  SE: '⊘',
+  WD2: '+2',
+  WDC: '+C',
+  D4: '+4',
+  DA: 'ALL',
+  WR4: '+4',
+  W6: '+6',
+  W10: '+10',
+  WRL: '?',
 };
 const COLOR_NAME: Record<Color, string> = {
   R: 'red',
   Y: 'yellow',
   G: 'green',
   B: 'blue',
+  P: 'pink',
+  T: 'teal',
+  O: 'orange',
+  U: 'purple',
 };
+/**
+ * Every colour has its own shape, so cards can be told apart without relying on
+ * colour: circle for red, square for blue, star for yellow, triangle for green.
+ */
+const SHAPE_PATH: Record<Color, React.ReactNode> = {
+  R: <circle cx='12' cy='12' r='8.5' />,
+  B: <rect x='4' y='4' width='16' height='16' rx='2' />,
+  Y: (
+    <path d='M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.2 1.3-6.6L2.5 9.4l6.6-.8z' />
+  ),
+  G: <path d='M12 3.5L21.5 20.5h-19z' strokeLinejoin='round' />,
+  P: <path d='M12 2.5l9 9.5-9 9.5-9-9.5z' strokeLinejoin='round' />,
+  T: <path d='M12 2.5l8 4.5v10l-8 4.5-8-4.5V7z' strokeLinejoin='round' />,
+  O: <path d='M12 2.8l9 6.6-3.4 10.6H6.4L3 9.4z' strokeLinejoin='round' />,
+  U: (
+    <path d='M12 20.5S3 14.8 3 8.6a4.6 4.6 0 0 1 9-1.2 4.6 4.6 0 0 1 9 1.2c0 6.200-9 11.900-9 11.900z' />
+  ),
+};
+
+function ColorShape({
+  color,
+  className = 'size-4',
+  fill = '#fff',
+  stroke = 'rgb(0 0 0 / 0.75)',
+}: {
+  color: Color;
+  className?: string;
+  fill?: string;
+  stroke?: string;
+}) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      className={className}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth='1.8'
+      aria-hidden
+    >
+      {SHAPE_PATH[color]}
+    </svg>
+  );
+}
+
 const WILD_BG =
   'conic-gradient(from 45deg, hsl(2 75% 52%) 0 25%, hsl(46 95% 52%) 0 50%, hsl(135 55% 40%) 0 75%, hsl(215 75% 52%) 0 100%)';
+const WILD_BG_DARK =
+  'conic-gradient(from 45deg, hsl(325 78% 58%) 0 25%, hsl(24 92% 54%) 0 50%, hsl(176 70% 36%) 0 75%, hsl(268 56% 52%) 0 100%)';
+
+/** Which side of a Flip deck is showing (always light in the other games). */
+const SideContext = React.createContext<'light' | 'dark'>('light');
 
 const face = (card: Card) => SYMBOL[card.v] ?? card.v;
 const describe = (card: Card) =>
@@ -71,6 +153,21 @@ function Glyph({ v, className }: { v: string; className?: string }) {
       <svg {...common}>
         <circle cx='12' cy='12' r='8' />
         <path d='M6.5 17.5l11-11' />
+      </svg>
+    );
+  }
+  if (v === 'SE') {
+    return (
+      <svg {...common}>
+        <circle cx='12' cy='12' r='9' />
+        <path d='M5.5 18.5l13-13M9 20l11-11' />
+      </svg>
+    );
+  }
+  if (v === 'L') {
+    return (
+      <svg {...common} strokeWidth={2.6}>
+        <path d='M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4' />
       </svg>
     );
   }
@@ -110,10 +207,11 @@ function UnoCard({
   delay?: number;
 }) {
   const Tag = onClick ? 'button' : 'div';
+  const side = React.useContext(SideContext);
   const wild = card.c === 'W';
   const big = size === 'lg';
-  const small =
-    card.v === 'D' || card.v === 'F' || card.v === 'S' || card.v === 'V';
+  const small = card.v !== 'W' && !/^[0-9]$/.test(card.v);
+  const long = (SYMBOL[card.v] ?? card.v).length >= 3;
 
   return (
     <Tag
@@ -124,7 +222,11 @@ function UnoCard({
       aria-label={describe(card)}
       style={
         {
-          background: wild ? WILD_BG : BG[card.c],
+          background: wild
+            ? side === 'dark'
+              ? WILD_BG_DARK
+              : WILD_BG
+            : BG[card.c],
           color: card.c === 'Y' ? '#1b1b1b' : '#fff',
           '--tilt': `${tilt}deg`,
           animationDelay: delay ? `${delay}ms` : undefined,
@@ -156,15 +258,43 @@ function UnoCard({
           v={card.v}
           className={
             small
-              ? big
-                ? 'size-12 text-4xl'
-                : 'size-8 text-2xl'
+              ? long
+                ? big
+                  ? 'text-3xl'
+                  : 'text-lg'
+                : big
+                  ? 'size-12 text-4xl'
+                  : 'size-8 text-2xl'
               : big
                 ? 'text-6xl'
                 : 'text-4xl'
           }
         />
       </span>
+      {/* the colour's shape: a faint one behind the value, and in two corners */}
+      {!wild && (
+        <>
+          <span
+            aria-hidden
+            className='pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.16]'
+          >
+            <ColorShape
+              color={card.c as Color}
+              className={big ? 'size-20' : 'size-12'}
+              fill={DARK[card.c]}
+              stroke='none'
+            />
+          </span>
+          <ColorShape
+            color={card.c as Color}
+            className={`absolute top-1 right-1 drop-shadow ${big ? 'size-4' : 'size-3'}`}
+          />
+          <ColorShape
+            color={card.c as Color}
+            className={`absolute bottom-1 left-1 drop-shadow ${big ? 'size-4' : 'size-3'}`}
+          />
+        </>
+      )}
       {/* corner indexes */}
       <span
         aria-hidden
@@ -274,7 +404,9 @@ type IconKind =
   | 'uno'
   | 'catch'
   | 'draw'
-  | 'play';
+  | 'play'
+  | 'flip'
+  | 'swap';
 
 /** A small line icon for every kind of table event. */
 function EventIcon({
@@ -360,6 +492,15 @@ function EventIcon({
           <path d='M12 9.5v5M9.5 12h5' {...line} />
         </>
       )}
+      {kind === 'flip' && (
+        <path
+          d='M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4'
+          {...line}
+        />
+      )}
+      {kind === 'swap' && (
+        <path d='M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4' {...line} />
+      )}
       {kind === 'play' && (
         <>
           {card(6.5, 4)}
@@ -373,16 +514,21 @@ function EventIcon({
 /** Which icon goes with the last thing that happened. */
 function iconOf(e: NonNullable<UnoView['last']>): IconKind {
   if (e.kind === 'play') {
+    if (e.mercy?.length) return 'wrong';
     const v = e.card?.v;
-    if (v === 'S') return 'skip';
-    if (v === 'V') return 'reverse';
-    if (v === 'D') return 'plus2';
-    if (v === 'F') return 'plus4';
-    if (v === 'W') return 'wild';
+    if (e.flipped) return 'flip';
+    if (e.swapped !== undefined) return 'swap';
+    if (e.rotated || v === 'V' || v === 'WR4') return 'reverse';
+    if (v === 'S' || v === 'SE') return 'skip';
+    if (v === 'D' || v === 'D1' || v === 'D5' || v === 'D4' || v === 'WD2')
+      return 'plus2';
+    if (v === 'F' || v === 'W6' || v === 'W10' || v === 'WDC') return 'plus4';
+    if (v === 'W' || v === 'WRL') return 'wild';
     return 'play';
   }
   if (e.kind === 'challenge') return e.caught ? 'caught' : 'wrong';
   if (e.kind === 'pass') return 'skip';
+  if (e.kind === 'take') return 'draw';
   return e.kind;
 }
 
@@ -396,6 +542,27 @@ function lastText(view: UnoView, you: number, names: (string | null)[]) {
       ? ` Out of cards: ${placeText(place)}!`
       : '';
   };
+  const extras = () => {
+    let t = '';
+    if (e.dumped) t += ` ${verb(e.seat, you, 'drop')} ${e.dumped} more.`;
+    if (e.flipped) t += ` Now on the ${e.flipped} side.`;
+    if (e.swapped !== undefined)
+      t += ` ${who} swapped hands with ${seatNameFor('en', e.swapped, you, names)}.`;
+    if (e.rotated) t += ' Everyone passed their hand along.';
+    if (e.drew && e.kind === 'play') {
+      t += ` ${seatNameFor('en', e.drew.seat, you, names)} ${verb(e.drew.seat, you, 'draw')} ${e.drew.count}.`;
+    }
+    if (e.mercy?.length) {
+      t += ` ${e.mercy
+        .map((m) => seatNameFor('en', m, you, names))
+        .join(
+          ', ',
+        )} hit 25 cards and ${e.mercy.length > 1 ? 'are' : 'is'} out!`;
+    }
+    return t;
+  };
+  if (e.kind === 'take')
+    return `${who} ${verb(e.seat, you, 'take')} ${e.drew?.count ?? 0} cards.${e.mercy?.length ? extras() : ''}`;
   if (e.kind === 'play' && e.card && e.cards) {
     const colors = e.cards
       .map((c) => (c.c === 'W' ? '' : COLOR_NAME[c.c]))
@@ -403,12 +570,12 @@ function lastText(view: UnoView, you: number, names: (string | null)[]) {
     return `${who} stacked ${e.cards.length} cards of ${face(e.card)} (${colors}).${out(e.seat)}`;
   }
   if (e.kind === 'play' && e.card) {
-    return `${who} ${verb(e.seat, you, 'play')} ${describe(e.card)}${e.color ? `, color ${COLOR_NAME[e.color]}` : ''}.${out(e.seat)}`;
+    return `${who} ${verb(e.seat, you, 'play')} ${describe(e.card)}${e.color ? `, color ${COLOR_NAME[e.color]}` : ''}.${extras()}${out(e.seat)}`;
   }
   if (e.kind === 'draw') {
     return e.passed
-      ? `${who} ${verb(e.seat, you, 'draw')} a card and ${verb(e.seat, you, 'pass')}.`
-      : `${who} ${verb(e.seat, you, 'draw')} a card.`;
+      ? `${who} ${verb(e.seat, you, 'draw')} ${e.drew && e.drew.count > 1 ? `${e.drew.count} cards` : 'a card'} and ${verb(e.seat, you, 'pass')}.${e.mercy?.length ? extras() : ''}`
+      : `${who} ${verb(e.seat, you, 'draw')} ${e.drew && e.drew.count > 1 ? `${e.drew.count} cards` : 'a card'}.`;
   }
   if (e.kind === 'uno') return `${who} ${verb(e.seat, you, 'call')} UNO!`;
   if (e.kind === 'accept')
@@ -664,9 +831,21 @@ function UnoKeys({
   return null;
 }
 
-function Uno() {
-  const r = useRoom<UnoView>('uno');
+type UnoKind = Extract<GameId, 'uno' | 'unoflip' | 'unomercy'>;
+
+const BLURB: Record<UnoKind, string> = {
+  uno: '# Uno untuk 2 sampai 8 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.',
+  unoflip:
+    '# Uno Flip: kartu dua sisi. Kartu FLIP membalik semuanya ke sisi gelap yang jauh lebih kejam. 2 sampai 8 pemain.',
+  unomercy:
+    '# Uno No Mercy: hukuman bisa ditumpuk, 7 tukar kartu, 0 oper kartu, dan 25 kartu langsung gugur. 2 sampai 8 pemain.',
+};
+
+function Uno({ game }: { game: UnoKind }) {
+  const r = useRoom<UnoXView>(game);
   const [choosing, setChoosing] = React.useState<number | null>(null);
+  /** A No Mercy 7 waiting for the player to swap hands with */
+  const [swapping, setSwapping] = React.useState<number | null>(null);
   /** Cards picked for a same-number stack, in play order */
   const [picked, setPicked] = React.useState<{
     version: number;
@@ -685,7 +864,7 @@ function Uno() {
   if (!r.session) {
     return (
       <RoomLobby
-        blurb='# Uno untuk 2 sampai 8 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.'
+        blurb={BLURB[game]}
         busy={r.busy}
         error={r.error}
         name={r.name}
@@ -749,6 +928,17 @@ function Uno() {
         Waiting for {seatName(view.challenge.victim)} to answer the +4…
       </span>
     );
+  } else if (view.penalty > 0) {
+    banner = myTurn ? (
+      <span className='text-err'>
+        {view.penalty} cards stacked on you. Answer with a draw card, or take
+        them.
+      </span>
+    ) : (
+      <span className='text-hash'>
+        {view.penalty} cards stacked on {seatName(view.turn)}…
+      </span>
+    );
   } else if (view.stuck) {
     banner = (
       <span className='text-hash'>No card fits. Draw from the pile.</span>
@@ -768,6 +958,9 @@ function Uno() {
 
   const stackOptions = stack ? stackable(view.hand, stack[0]) : [];
 
+  /** In No Mercy a 7 swaps hands, so it needs a player to swap with. */
+  const swaps = (card: Card) => view.variant === 'nomercy' && card.v === '7';
+
   const playCard = (index: number) => {
     const card = view.hand[index];
     if (stack) {
@@ -781,7 +974,12 @@ function Uno() {
       return;
     }
     if (card.c === 'W') setChoosing(index);
-    else if (!view.canPass && stackable(view.hand, index).length > 0)
+    else if (swaps(card)) setSwapping(index);
+    else if (
+      !view.variant &&
+      !view.canPass &&
+      stackable(view.hand, index).length > 0
+    )
       setStack([index]);
     else r.move({ type: 'play', index });
   };
@@ -790,6 +988,7 @@ function Uno() {
   const dropCard = (index: number) => {
     if (!stack) {
       if (view.hand[index].c === 'W') setChoosing(index);
+      else if (swaps(view.hand[index])) setSwapping(index);
       else r.move({ type: 'play', index });
       return;
     }
@@ -833,6 +1032,14 @@ function Uno() {
     const e = view.last;
     if (!e) return null;
     const draws = (seat: number) => verb(seat, you, 'draw');
+    if (e.mercy?.length) {
+      return {
+        icon: 'wrong' as IconKind,
+        big: 'NO MERCY!',
+        sub: `${e.mercy.map((m) => seatName(m)).join(', ')} hit 25 cards`,
+        tone: 'text-err',
+      };
+    }
     if (e.kind === 'challenge') {
       const target = e.target ?? 0;
       return e.caught
@@ -849,32 +1056,68 @@ function Uno() {
             tone: 'text-err',
           };
     }
+    if (e.kind === 'take') {
+      const n = e.drew?.count ?? 0;
+      return {
+        icon: 'plus4' as IconKind,
+        big: `+${n}`,
+        sub: `${seatName(e.seat)} ${verb(e.seat, you, 'take')} ${n} cards`,
+        tone: 'text-err',
+      };
+    }
     if (e.kind !== 'play' || !e.card) return null;
     const v = e.card.v;
     const who = seatName(e.seat);
     const victimSeat = e.drew?.seat ?? view.challenge?.victim ?? -1;
     const victim = seatName(victimSeat);
-    if (v === 'S')
-      return {
-        icon: 'skip' as IconKind,
-        big: 'SKIPPED!',
-        sub: who,
-        tone: 'text-err',
-      };
-    if (v === 'V')
-      return {
-        icon: 'reverse' as IconKind,
-        big: 'REVERSE!',
-        sub: who,
-        tone: 'text-info',
-      };
+    const n = e.drew?.count ?? 0;
+    const hit = `${victim} ${draws(victimSeat)} ${n} ${n === 1 ? 'card' : 'cards'}`;
+    // No Mercy: the stack waiting for the next player
+    const stacked = `${seatName(view.turn)}: stack or take ${view.penalty}`;
+    const big = (icon: IconKind, text: string, sub: string, tone: string) => ({
+      icon,
+      big: text,
+      sub,
+      tone,
+    });
+    if (v === 'S') return big('skip', 'SKIPPED!', who, 'text-err');
+    if (v === 'SE')
+      return big('skip', 'SKIP EVERYONE!', `${who} goes again`, 'text-err');
+    if (v === 'V') return big('reverse', 'REVERSE!', who, 'text-info');
+    if (v === 'L')
+      return big('flip', 'FLIP!', `Now the ${e.flipped} side`, 'text-accent');
     if (v === 'D')
-      return {
-        icon: 'plus2' as IconKind,
-        big: '+2',
-        sub: `${victim} ${draws(victimSeat)} 2 cards`,
-        tone: 'text-hash',
-      };
+      return big('plus2', '+2', view.penalty ? stacked : hit, 'text-hash');
+    if (v === 'D1') return big('plus2', '+1', hit, 'text-hash');
+    if (v === 'D5') return big('plus4', '+5', hit, 'text-err');
+    if (v === 'WD2') return big('plus2', '+2', hit, 'text-hash');
+    if (v === 'WDC') return big('plus4', 'DRAW COLOR', hit, 'text-err');
+    if (v === 'D4') return big('plus4', '+4', stacked, 'text-err');
+    if (v === 'W6') return big('plus4', '+6', stacked, 'text-err');
+    if (v === 'W10') return big('plus4', '+10', stacked, 'text-err');
+    if (v === 'WR4') return big('reverse', 'REVERSE +4', stacked, 'text-err');
+    if (v === 'WRL') return big('wild', 'ROULETTE!', hit, 'text-err');
+    if (v === 'DA')
+      return big(
+        'play',
+        'DISCARD ALL',
+        `${who} dropped ${e.dumped ?? 0} more`,
+        'text-info',
+      );
+    if (e.swapped !== undefined)
+      return big(
+        'swap',
+        'SWAP!',
+        `${who} ↔ ${seatName(e.swapped)}`,
+        'text-info',
+      );
+    if (e.rotated)
+      return big(
+        'swap',
+        'PASS IT ON!',
+        'Every hand moves one seat',
+        'text-info',
+      );
     if (v === 'F') {
       return {
         icon: 'plus4' as IconKind,
@@ -896,587 +1139,681 @@ function Uno() {
   })();
 
   return (
-    <LangProvider value='en'>
-      {view.winner === you && <Confetti />}
-      {over && view.places.length > 0 && podiumClosed !== version && (
-        <div
-          role='dialog'
-          aria-label='Results'
-          className='a-pop fixed top-24 left-1/2 z-[65] w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-line-strong bg-card p-5 shadow-2xl'
-        >
-          <button
-            type='button'
-            onClick={() => setPodiumClosed(version)}
-            aria-label='Close'
-            className='absolute top-2 right-3 text-mute hover:text-ink'
+    <SideContext.Provider value={view.side ?? 'light'}>
+      <LangProvider value='en'>
+        {view.winner === you && <Confetti />}
+        {over && view.places.length > 0 && podiumClosed !== version && (
+          <div
+            role='dialog'
+            aria-label='Results'
+            className='a-pop fixed top-24 left-1/2 z-[65] w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-line-strong bg-card p-5 shadow-2xl'
           >
-            ×
-          </button>
-          <Podium places={view.places} you={you} names={names} />
-          <div className='mt-3 flex justify-center'>
             <button
               type='button'
-              onClick={r.rematch}
-              disabled={r.busy}
-              className='rounded-full border-2 border-accent bg-accent/15 px-6 py-2 font-semibold text-accent'
+              onClick={() => setPodiumClosed(version)}
+              aria-label='Close'
+              className='absolute top-2 right-3 text-mute hover:text-ink'
             >
-              Play again
+              ×
             </button>
+            <Podium places={view.places} you={you} names={names} />
+            <div className='mt-3 flex justify-center'>
+              <button
+                type='button'
+                onClick={r.rematch}
+                disabled={r.busy}
+                className='rounded-full border-2 border-accent bg-accent/15 px-6 py-2 font-semibold text-accent'
+              >
+                Play again
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-      <PlayersPanel
-        room={room}
-        you={you}
-        turn={over ? null : view.turn}
-        detail={(seat) => (
-          <span className='text-xs font-semibold text-ink tabular-nums'>
-            {view.places.includes(seat)
-              ? 'done'
-              : `${view.counts[seat]} ${view.counts[seat] === 1 ? 'card' : 'cards'}`}
-          </span>
         )}
-      />
-
-      {/* a fixed-height strip, so whatever it says never moves the table */}
-      <div className='mb-2 h-[4.25rem]'>
-        <p
-          key={`${over}-${myTurn}-${view.turn}`}
-          className='a-slide-up text-center text-sm'
-          aria-live='polite'
-        >
-          {banner}
-        </p>
-        <RoomNotice
+        <PlayersPanel
           room={room}
           you={you}
-          receivedAt={r.receivedAt}
-          onKick={r.kick}
-          busy={r.busy}
-          code={r.session.code}
-          onLeave={r.leave}
+          turn={over ? null : view.turn}
+          detail={(seat) => (
+            <span className='text-xs font-semibold text-ink tabular-nums'>
+              {view.places.includes(seat)
+                ? 'done'
+                : view.variant === 'nomercy'
+                  ? `${view.counts[seat]}/25`
+                  : `${view.counts[seat]} ${view.counts[seat] === 1 ? 'card' : 'cards'}`}
+            </span>
+          )}
         />
-      </div>
 
-      {/* ------------------------------------------------- the table */}
-      <div className='relative mx-auto mb-3 h-[21rem] w-full max-w-lg sm:h-80'>
-        {/* felt */}
-        <div className='absolute inset-6 rounded-[40%] border border-line bg-card/50 sm:inset-8' />
-        {/* arrows of dashes flowing around the felt the way play goes; a reverse flashes it */}
-        <svg
-          key={`${view.dir}-${view.last?.kind === 'play' && view.last.card?.v === 'V' ? version : 0}`}
-          aria-hidden
-          data-testid='direction'
-          data-dir={view.dir}
-          viewBox='0 0 100 100'
-          preserveAspectRatio='none'
-          className={`pointer-events-none absolute inset-6 size-[calc(100%-3rem)] overflow-visible sm:inset-8 sm:size-[calc(100%-4rem)] ${
-            view.last?.kind === 'play' && view.last.card?.v === 'V'
-              ? 'a-ring-flash'
-              : ''
-          }`}
-        >
-          <rect
-            x='1'
-            y='1'
-            width='98'
-            height='98'
-            rx='40'
-            ry='40'
-            pathLength='100'
-            fill='none'
-            stroke='var(--accent)'
-            strokeOpacity='0.55'
-            strokeWidth='2.5'
-            strokeLinecap='round'
-            strokeDasharray='1.2 2.8'
-            vectorEffect='non-scaling-stroke'
-            className={view.dir === 1 ? 'a-flow' : 'a-flow-rev'}
+        {/* a fixed-height strip, so whatever it says never moves the table */}
+        <div className='mb-2 h-[4.25rem]'>
+          <p
+            key={`${over}-${myTurn}-${view.turn}`}
+            className='a-slide-up text-center text-sm'
+            aria-live='polite'
+          >
+            {banner}
+          </p>
+          <RoomNotice
+            room={room}
+            you={you}
+            receivedAt={r.receivedAt}
+            onKick={r.kick}
+            busy={r.busy}
+            code={r.session.code}
+            onLeave={r.leave}
           />
-        </svg>
+        </div>
 
-        {others.map(({ count, seat }) => {
-          const active = !over && view.turn === seat;
-          const place = view.places.indexOf(seat);
-          const pos = seatPos(seat, you, players);
-          const safe = count === 1 && view.calledUno[seat];
-          const canCatch = view.catchable.includes(seat) && !over;
-          const shown = Math.min(count, 6);
-          const just =
-            !over &&
-            view.last?.kind === 'play' &&
-            view.last.seat === seat &&
-            !!view.last.card;
-          const got = !over && view.last?.drew?.seat === seat;
-          const lit = just || got;
-          return (
-            <div
-              key={seat}
-              data-seat={seat}
-              className='absolute flex w-[4.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1'
-              style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
-            >
-              <span
-                key={lit ? `hit-${version}` : 'idle'}
-                className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
-                  just ? 'a-hit' : ''
-                }${
-                  active
-                    ? 'a-glow border-accent bg-accent/15 text-ink'
-                    : lit
-                      ? 'border-accent text-ink'
-                      : 'border-line text-mute'
-                }`}
-              >
-                {seatName(seat)}
-              </span>
-              <div
-                aria-hidden
-                className='flex h-8 items-center justify-center'
-                style={{ width: 18 + shown * 6 }}
-              >
-                {Array.from({ length: shown }, (_, i) => (
-                  <CardBack
-                    key={i}
-                    size='sm'
-                    className='-ml-4 first:ml-0'
-                    style={{ rotate: `${(i - shown / 2) * 5}deg` }}
-                  />
-                ))}
-              </div>
-              <span className='flex items-center gap-1 text-sm font-semibold text-ink'>
-                {count}
-                {lit && (
-                  <span
-                    key={`just-${version}`}
-                    className={`a-pop rounded-full px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap ${
-                      got ? 'bg-err text-paper' : 'bg-accent text-paper'
-                    }`}
-                  >
-                    {got
-                      ? `+${view.last!.drew!.count}`
-                      : `main ${face(view.last!.card!)}`}
-                  </span>
-                )}
-              </span>
-              {place !== -1 ? (
-                <span className='text-[11px] font-bold text-accent'>
-                  {place === 0 ? 'winner' : `#${place + 1}`}
-                </span>
-              ) : canCatch ? (
-                <span className='a-wiggle text-[11px] text-err'>
-                  forgot UNO!
-                </span>
-              ) : safe ? (
-                <span className='text-[11px] font-bold text-accent'>UNO ✓</span>
-              ) : null}
-            </div>
-          );
-        })}
-
-        {/* cards pulled from the pile, flying to whoever drew them */}
-        {drewTo && (
-          <div key={`drew-${version}`} aria-hidden>
-            {Array.from({ length: drewTo.count }, (_, i) => (
-              <div
-                key={i}
-                className='a-draw absolute top-1/2 left-1/2'
-                style={
-                  {
-                    '--to-x': `${drewTo.x}px`,
-                    '--to-y': `${drewTo.y}px`,
-                    '--spin': `${(i - 1) * 20}deg`,
-                    animationDelay: `${i * 90}ms`,
-                  } as React.CSSProperties
-                }
-              >
-                <CardBack size='sm' />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* what the last action card did */}
-        {effect && !over && (
+        {/* ------------------------------------------------- the table */}
+        <div className='relative mx-auto mb-3 h-[21rem] w-full max-w-lg sm:h-80'>
+          {/* felt */}
           <div
-            key={`fx-${version}`}
+            key={`felt-${view.side ?? 'light'}`}
+            data-side={view.side ?? 'light'}
+            className={`absolute inset-6 rounded-[40%] border transition-colors duration-500 sm:inset-8 ${
+              view.side === 'dark'
+                ? 'a-flipboard border-[hsl(268_50%_40%)] bg-[hsl(268_40%_14%)]/80'
+                : 'border-line bg-card/50'
+            }`}
+          />
+          {/* arrows of dashes flowing around the felt the way play goes; a reverse flashes it */}
+          <svg
+            key={`${view.dir}-${view.last?.kind === 'play' && view.last.card?.v === 'V' ? version : 0}`}
             aria-hidden
-            className='a-fx pointer-events-none fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/35'
-          >
-            <EventIcon
-              kind={effect.icon}
-              className={`mb-2 size-24 drop-shadow-[0_6px_0_rgb(0_0_0/0.45)] sm:size-32 ${effect.tone}`}
-            />
-            <span
-              className={`text-6xl font-black tracking-tight drop-shadow-[0_6px_0_rgb(0_0_0/0.45)] sm:text-8xl ${effect.tone}`}
-            >
-              {effect.big}
-            </span>
-            <span className='mt-2 rounded-full bg-paper/90 px-4 py-1 text-base font-semibold text-ink sm:text-xl'>
-              {effect.sub}
-            </span>
-          </div>
-        )}
-
-        {/* center: draw pile, discard pile, colour */}
-        <div className='absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-7'>
-          <button
-            type='button'
-            aria-label='Draw a card'
-            disabled={!view.canDraw || r.busy}
-            onClick={() => r.move({ type: 'draw' })}
-            className='group relative flex h-32 w-[5.25rem] items-center justify-center disabled:opacity-70'
-          >
-            {/* a stack: the more cards left, the taller it looks */}
-            {Array.from({ length: layers }, (_, i) => {
-              const top = i === layers - 1;
-              const back = (i - layers + 1) * 2.5;
-              return (
-                <span
-                  key={i}
-                  className='absolute'
-                  style={{
-                    translate: `${back}px ${-back}px`,
-                    rotate: top ? undefined : `${i % 2 ? 1.2 : -1.2}deg`,
-                  }}
-                >
-                  <CardBack
-                    size='lg'
-                    className={`scale-[0.8] ${
-                      top && view.canDraw && !r.busy
-                        ? 'a-bob ring-2 ring-accent group-hover:scale-[0.86]'
-                        : top
-                          ? 'transition-transform group-hover:scale-[0.84]'
-                          : 'brightness-75'
-                    }`}
-                  />
-                </span>
-              );
-            })}
-            <span className='relative mt-[8.5rem] rounded-full bg-paper/90 px-2 py-0.5 text-[11px] whitespace-nowrap'>
-              draw · {view.drawCount}
-            </span>
-          </button>
-
-          <div
-            ref={pileRef}
-            data-testid='pile'
-            data-drop={drag}
-            className={`relative h-32 w-24 rounded-xl transition-all duration-200 ${
-              drag === 'over'
-                ? 'scale-105 bg-accent/20 ring-4 ring-accent'
-                : drag === 'drag'
-                  ? 'a-glow ring-dashed bg-accent/10 ring-2 ring-accent/60'
-                  : ''
+            data-testid='direction'
+            data-dir={view.dir}
+            viewBox='0 0 100 100'
+            preserveAspectRatio='none'
+            className={`pointer-events-none absolute inset-6 size-[calc(100%-3rem)] overflow-visible sm:inset-8 sm:size-[calc(100%-4rem)] ${
+              view.last?.kind === 'play' && view.last.card?.v === 'V'
+                ? 'a-ring-flash'
+                : ''
             }`}
           >
-            {drag !== 'idle' && (
-              <span className='a-fade absolute -top-5 left-1/2 z-50 -translate-x-1/2 text-xs whitespace-nowrap text-accent'>
-                {drag === 'over' ? 'drop!' : 'drag here'}
-              </span>
-            )}
-            {/* the messy stack of recent discards */}
-            {view.pile.map((card, i) => {
-              const isTop = i === view.pile.length - 1;
-              const s = scatterFor(card, i);
-              return (
-                <div
-                  key={`${card.c}${card.v}-${i}`}
-                  className='absolute top-1/2 left-1/2'
-                  style={{
-                    zIndex: i,
-                    transform: `translate(-50%, -50%) translate(${s.x}px, ${s.y}px) rotate(${s.rot}deg)`,
-                  }}
-                >
-                  <div className='scale-[0.8]'>
-                    {isTop && toss ? (
-                      <div
-                        key={version}
-                        className='a-toss'
-                        style={
-                          {
-                            '--from-x': `${toss.x}px`,
-                            '--from-y': `${toss.y}px`,
-                            '--spin': `${toss.spin}deg`,
-                          } as React.CSSProperties
-                        }
-                      >
-                        <UnoCard card={card} size='lg' />
-                      </div>
-                    ) : (
-                      <UnoCard card={card} size='lg' />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            <span
-              key={view.color}
-              data-color={view.color}
-              aria-label={`color ${COLOR_NAME[view.color]}`}
-              className='a-pop absolute -right-2 -bottom-2 z-50 size-6 rounded-full border-2 border-white shadow-md'
-              style={{ background: BG[view.color] }}
+            <rect
+              x='1'
+              y='1'
+              width='98'
+              height='98'
+              rx='40'
+              ry='40'
+              pathLength='100'
+              fill='none'
+              stroke='var(--accent)'
+              strokeOpacity='0.55'
+              strokeWidth='2.5'
+              strokeLinecap='round'
+              strokeDasharray='1.2 2.8'
+              vectorEffect='non-scaling-stroke'
+              className={view.dir === 1 ? 'a-flow' : 'a-flow-rev'}
             />
+          </svg>
+
+          {others.map(({ count, seat }) => {
+            const active = !over && view.turn === seat;
+            const place = view.places.indexOf(seat);
+            const pos = seatPos(seat, you, players);
+            const safe = count === 1 && view.calledUno[seat];
+            const canCatch = view.catchable.includes(seat) && !over;
+            const shown = Math.min(count, 6);
+            const just =
+              !over &&
+              view.last?.kind === 'play' &&
+              view.last.seat === seat &&
+              !!view.last.card;
+            const got = !over && view.last?.drew?.seat === seat;
+            const lit = just || got;
+            return (
+              <div
+                key={seat}
+                data-seat={seat}
+                className='absolute flex w-[4.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1'
+                style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
+              >
+                <span
+                  key={lit ? `hit-${version}` : 'idle'}
+                  className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                    just ? 'a-hit' : ''
+                  }${
+                    active
+                      ? 'a-glow border-accent bg-accent/15 text-ink'
+                      : lit
+                        ? 'border-accent text-ink'
+                        : 'border-line text-mute'
+                  }`}
+                >
+                  {seatName(seat)}
+                </span>
+                <div
+                  aria-hidden
+                  className='flex h-8 items-center justify-center'
+                  style={{ width: 18 + shown * 6 }}
+                >
+                  {Array.from({ length: shown }, (_, i) => (
+                    <CardBack
+                      key={i}
+                      size='sm'
+                      className='-ml-4 first:ml-0'
+                      style={{ rotate: `${(i - shown / 2) * 5}deg` }}
+                    />
+                  ))}
+                </div>
+                <span
+                  className={`flex items-center gap-1 text-sm font-semibold ${
+                    view.variant === 'nomercy' && count >= 20
+                      ? 'a-wiggle text-err'
+                      : 'text-ink'
+                  }`}
+                >
+                  {count}
+                  {view.variant === 'nomercy' && count >= 20 && (
+                    <span className='text-[10px] font-normal'>/25</span>
+                  )}
+                  {lit && (
+                    <span
+                      key={`just-${version}`}
+                      className={`a-pop rounded-full px-1.5 py-0.5 text-[10px] font-bold whitespace-nowrap ${
+                        got ? 'bg-err text-paper' : 'bg-accent text-paper'
+                      }`}
+                    >
+                      {got
+                        ? `+${view.last!.drew!.count}`
+                        : `main ${face(view.last!.card!)}`}
+                    </span>
+                  )}
+                </span>
+                {place !== -1 ? (
+                  <span className='text-[11px] font-bold text-accent'>
+                    {place === 0 ? 'winner' : `#${place + 1}`}
+                  </span>
+                ) : canCatch ? (
+                  <span className='a-wiggle text-[11px] text-err'>
+                    forgot UNO!
+                  </span>
+                ) : safe ? (
+                  <span className='text-[11px] font-bold text-accent'>
+                    UNO ✓
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
+
+          {/* cards pulled from the pile, flying to whoever drew them */}
+          {drewTo && (
+            <div key={`drew-${version}`} aria-hidden>
+              {Array.from({ length: drewTo.count }, (_, i) => (
+                <div
+                  key={i}
+                  className='a-draw absolute top-1/2 left-1/2'
+                  style={
+                    {
+                      '--to-x': `${drewTo.x}px`,
+                      '--to-y': `${drewTo.y}px`,
+                      '--spin': `${(i - 1) * 20}deg`,
+                      animationDelay: `${i * 90}ms`,
+                    } as React.CSSProperties
+                  }
+                >
+                  <CardBack size='sm' />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* what the last action card did */}
+          {effect && !over && (
+            <div
+              key={`fx-${version}`}
+              aria-hidden
+              className='a-fx pointer-events-none fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/35'
+            >
+              <EventIcon
+                kind={effect.icon}
+                className={`mb-2 size-24 drop-shadow-[0_6px_0_rgb(0_0_0/0.45)] sm:size-32 ${effect.tone}`}
+              />
+              <span
+                className={`text-6xl font-black tracking-tight drop-shadow-[0_6px_0_rgb(0_0_0/0.45)] sm:text-8xl ${effect.tone}`}
+              >
+                {effect.big}
+              </span>
+              <span className='mt-2 rounded-full bg-paper/90 px-4 py-1 text-base font-semibold text-ink sm:text-xl'>
+                {effect.sub}
+              </span>
+            </div>
+          )}
+
+          {/* center: draw pile, discard pile, colour */}
+          <div className='absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-7'>
+            <button
+              type='button'
+              aria-label='Draw a card'
+              disabled={!view.canDraw || r.busy}
+              onClick={() => r.move({ type: 'draw' })}
+              className='group relative flex h-32 w-[5.25rem] items-center justify-center disabled:opacity-70'
+            >
+              {/* a stack: the more cards left, the taller it looks */}
+              {Array.from({ length: layers }, (_, i) => {
+                const top = i === layers - 1;
+                const back = (i - layers + 1) * 2.5;
+                return (
+                  <span
+                    key={i}
+                    className='absolute'
+                    style={{
+                      translate: `${back}px ${-back}px`,
+                      rotate: top ? undefined : `${i % 2 ? 1.2 : -1.2}deg`,
+                    }}
+                  >
+                    <CardBack
+                      size='lg'
+                      className={`scale-[0.8] ${
+                        top && view.canDraw && !r.busy
+                          ? 'a-bob ring-2 ring-accent group-hover:scale-[0.86]'
+                          : top
+                            ? 'transition-transform group-hover:scale-[0.84]'
+                            : 'brightness-75'
+                      }`}
+                    />
+                  </span>
+                );
+              })}
+              <span className='relative mt-[8.5rem] rounded-full bg-paper/90 px-2 py-0.5 text-[11px] whitespace-nowrap'>
+                draw · {view.drawCount}
+              </span>
+            </button>
+
+            <div
+              ref={pileRef}
+              data-testid='pile'
+              data-drop={drag}
+              className={`relative h-32 w-24 rounded-xl transition-all duration-200 ${
+                drag === 'over'
+                  ? 'scale-105 bg-accent/20 ring-4 ring-accent'
+                  : drag === 'drag'
+                    ? 'a-glow ring-dashed bg-accent/10 ring-2 ring-accent/60'
+                    : ''
+              }`}
+            >
+              {drag !== 'idle' && (
+                <span className='a-fade absolute -top-5 left-1/2 z-50 -translate-x-1/2 text-xs whitespace-nowrap text-accent'>
+                  {drag === 'over' ? 'drop!' : 'drag here'}
+                </span>
+              )}
+              {/* the messy stack of recent discards */}
+              {view.pile.map((card, i) => {
+                const isTop = i === view.pile.length - 1;
+                const s = scatterFor(card, i);
+                return (
+                  <div
+                    key={`${card.c}${card.v}-${i}`}
+                    className='absolute top-1/2 left-1/2'
+                    style={{
+                      zIndex: i,
+                      transform: `translate(-50%, -50%) translate(${s.x}px, ${s.y}px) rotate(${s.rot}deg)`,
+                    }}
+                  >
+                    <div className='scale-[0.8]'>
+                      {isTop && toss ? (
+                        <div
+                          key={version}
+                          className='a-toss'
+                          style={
+                            {
+                              '--from-x': `${toss.x}px`,
+                              '--from-y': `${toss.y}px`,
+                              '--spin': `${toss.spin}deg`,
+                            } as React.CSSProperties
+                          }
+                        >
+                          <UnoCard card={card} size='lg' />
+                        </div>
+                      ) : (
+                        <UnoCard card={card} size='lg' />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <span
+                key={view.color}
+                data-color={view.color}
+                aria-label={`color ${COLOR_NAME[view.color]}`}
+                className='a-pop absolute -right-2 -bottom-2 z-50 flex size-7 items-center justify-center rounded-full border-2 border-white shadow-md'
+                style={{ background: BG[view.color] }}
+              >
+                <ColorShape color={view.color} className='size-4' />
+              </span>
+              {view.penalty > 0 && (
+                <span
+                  key={`pen-${view.penalty}`}
+                  className='a-pop absolute -top-3 -left-3 z-50 flex size-10 items-center justify-center rounded-full border-2 border-white bg-err text-sm font-black text-white shadow-lg'
+                >
+                  +{view.penalty}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <p
-        className='mt-1 mb-2 flex h-5 items-center justify-center gap-1.5 text-xs text-mute'
-        data-testid='last-event'
-      >
-        {view.last && <EventIcon kind={iconOf(view.last)} className='size-4' />}
-        {lastText(view, you, names)}
-      </p>
+        <p
+          className='mt-1 mb-2 flex h-5 items-center justify-center gap-1.5 text-xs text-mute'
+          data-testid='last-event'
+        >
+          {view.last && (
+            <EventIcon kind={iconOf(view.last)} className='size-4' />
+          )}
+          {lastText(view, you, names)}
+        </p>
 
-      {/* prompts and actions live in one reserved zone, so the hand stays put */}
-      <div className='mb-2 flex min-h-[9.5rem] flex-col items-center justify-center gap-2'>
-        {stack && (
-          <div
-            className='flex flex-col items-center gap-2 text-center'
-            role='group'
-            aria-label='Stack cards'
-          >
-            <p className='text-xs text-mute'>
-              Stacking {face(view.hand[stack[0]])}s: pick more{' '}
-              {face(view.hand[stack[0]])} cards. The last card sets the color.
-            </p>
-            <div className='flex gap-3 text-xs'>
-              <button
-                type='button'
-                onClick={() => playStack(stack)}
-                disabled={r.busy}
-                className='text-info'
-              >
-                play {stack.length} {stack.length === 1 ? 'card' : 'cards'}
-              </button>
-              {stack.length < stackOptions.length + 1 && (
+        {/* prompts and actions live in one reserved zone, so the hand stays put */}
+        <div className='mb-2 flex min-h-[9.5rem] flex-col items-center justify-center gap-2'>
+          {stack && (
+            <div
+              className='flex flex-col items-center gap-2 text-center'
+              role='group'
+              aria-label='Stack cards'
+            >
+              <p className='text-xs text-mute'>
+                Stacking {face(view.hand[stack[0]])}s: pick more{' '}
+                {face(view.hand[stack[0]])} cards. The last card sets the color.
+              </p>
+              <div className='flex gap-3 text-xs'>
                 <button
                   type='button'
-                  onClick={() => playStack([stack[0], ...stackOptions])}
+                  onClick={() => playStack(stack)}
                   disabled={r.busy}
+                  className='text-info'
+                >
+                  play {stack.length} {stack.length === 1 ? 'card' : 'cards'}
+                </button>
+                {stack.length < stackOptions.length + 1 && (
+                  <button
+                    type='button'
+                    onClick={() => playStack([stack[0], ...stackOptions])}
+                    disabled={r.busy}
+                    className='text-mute'
+                  >
+                    stack all ({stackOptions.length + 1})
+                  </button>
+                )}
+                <button
+                  type='button'
+                  onClick={() => setStack(null)}
                   className='text-mute'
                 >
-                  stack all ({stackOptions.length + 1})
+                  cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {choosing !== null && (
+            <div
+              className='flex flex-col items-center gap-2'
+              role='group'
+              aria-label='Pick a color'
+            >
+              <p className='text-xs'>Pick a color:</p>
+              <div className='flex gap-2'>
+                {(view.side === 'dark' ? DARK_COLORS : COLORS).map((color) => (
+                  <button
+                    key={color}
+                    type='button'
+                    aria-label={`Color ${COLOR_NAME[color]}`}
+                    data-pick-color={color}
+                    title={COLOR_NAME[color]}
+                    onClick={() => {
+                      r.move({ type: 'play', index: choosing, color });
+                      setChoosing(null);
+                    }}
+                    className='flex size-12 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform hover:scale-125 active:scale-95'
+                    style={{ background: BG[color] }}
+                  >
+                    <ColorShape color={color} className='size-6' />
+                  </button>
+                ))}
+                <button
+                  type='button'
+                  onClick={() => setChoosing(null)}
+                  className='px-2 text-xs text-mute hover:text-ink'
+                >
+                  cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {swapping !== null && (
+            <div
+              className='flex flex-col items-center gap-2'
+              role='group'
+              aria-label='Pick a player to swap with'
+            >
+              <p className='text-xs'>Swap hands with:</p>
+              <div className='flex flex-wrap justify-center gap-2'>
+                {others
+                  .filter((p) => !view.places.includes(p.seat))
+                  .map(({ seat, count }) => (
+                    <button
+                      key={seat}
+                      type='button'
+                      onClick={() => {
+                        r.move({ type: 'play', index: swapping, target: seat });
+                        setSwapping(null);
+                      }}
+                      disabled={r.busy}
+                      className='rounded-full border-2 border-line-strong px-4 py-1.5 text-sm font-semibold transition-colors hover:border-accent hover:text-accent'
+                    >
+                      {seatName(seat)} · {count}
+                    </button>
+                  ))}
+                <button
+                  type='button'
+                  onClick={() => setSwapping(null)}
+                  className='px-2 text-xs text-mute hover:text-ink'
+                >
+                  cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {view.penalty > 0 && view.canDraw && !over && (
+            <button
+              type='button'
+              onClick={() => r.move({ type: 'draw' })}
+              disabled={r.busy}
+              className='a-wiggle rounded-full border-2 border-err bg-err/15 px-6 py-2 font-black text-err'
+            >
+              TAKE {view.penalty} CARDS
+            </button>
+          )}
+
+          {view.canChallenge && view.challenge && !over && (
+            <div
+              className='flex flex-col items-center gap-2 text-center'
+              role='group'
+              aria-label='Answer the +4'
+            >
+              <p className='text-sm'>
+                Challenge if you think {seatName(view.challenge.from)} holds a{' '}
+                <span
+                  className='inline-flex items-center gap-1 font-bold'
+                  style={{ color: BG[view.challenge.color] }}
+                >
+                  <ColorShape color={view.challenge.color} className='size-4' />
+                  {COLOR_NAME[view.challenge.color]}
+                </span>{' '}
+                card.
+              </p>
+              <p className='text-xs text-mute'>
+                Right: they draw 4. Wrong: you draw 6.
+              </p>
+              <div className='flex gap-3'>
+                <button
+                  type='button'
+                  onClick={() => r.move({ type: 'challenge' })}
+                  disabled={r.busy}
+                  className='rounded-full border-2 border-err bg-err/15 px-6 py-2 font-black text-err'
+                >
+                  CHALLENGE!
+                </button>
+                <button
+                  type='button'
+                  onClick={() => r.move({ type: 'accept' })}
+                  disabled={r.busy}
+                  className='rounded-full border-2 border-line-strong px-6 py-2 font-semibold'
+                >
+                  Accept, draw 4
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(view.stuck && view.canDraw) || view.canPass ? (
+            <div className='flex items-center justify-center gap-4 text-xs'>
+              {view.stuck && view.canDraw && (
+                <button
+                  type='button'
+                  onClick={() => r.move({ type: 'draw' })}
+                  disabled={r.busy}
+                  className='a-bob text-info hover:underline'
+                >
+                  draw a card
                 </button>
               )}
-              <button
-                type='button'
-                onClick={() => setStack(null)}
-                className='text-mute'
-              >
-                cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {choosing !== null && (
-          <div
-            className='flex flex-col items-center gap-2'
-            role='group'
-            aria-label='Pick a color'
-          >
-            <p className='text-xs'>Pick a color:</p>
-            <div className='flex gap-2'>
-              {COLORS.map((color) => (
+              {view.canPass && (
                 <button
-                  key={color}
                   type='button'
-                  aria-label={`Color ${COLOR_NAME[color]}`}
-                  data-pick-color={color}
-                  onClick={() => {
-                    r.move({ type: 'play', index: choosing, color });
-                    setChoosing(null);
-                  }}
-                  className='size-11 rounded-full border-2 border-white shadow-md transition-transform hover:scale-125 active:scale-95'
-                  style={{ background: BG[color] }}
-                />
-              ))}
-              <button
-                type='button'
-                onClick={() => setChoosing(null)}
-                className='px-2 text-xs text-mute hover:text-ink'
-              >
-                cancel
-              </button>
+                  onClick={() => r.move({ type: 'pass' })}
+                  disabled={r.busy}
+                  className='text-info hover:underline'
+                >
+                  pass, keep it
+                </button>
+              )}
             </div>
-          </div>
-        )}
+          ) : null}
 
-        {view.canChallenge && view.challenge && !over && (
-          <div
-            className='flex flex-col items-center gap-2 text-center'
-            role='group'
-            aria-label='Answer the +4'
-          >
-            <p className='text-sm'>
-              Challenge if you think {seatName(view.challenge.from)} holds a{' '}
-              <span
-                className='font-bold'
-                style={{ color: BG[view.challenge.color] }}
-              >
-                {COLOR_NAME[view.challenge.color]}
-              </span>{' '}
-              card.
-            </p>
-            <p className='text-xs text-mute'>
-              Right: they draw 4. Wrong: you draw 6.
-            </p>
-            <div className='flex gap-3'>
-              <button
-                type='button'
-                onClick={() => r.move({ type: 'challenge' })}
-                disabled={r.busy}
-                className='rounded-full border-2 border-err bg-err/15 px-6 py-2 font-black text-err'
-              >
-                CHALLENGE!
-              </button>
-              <button
-                type='button'
-                onClick={() => r.move({ type: 'accept' })}
-                disabled={r.busy}
-                className='rounded-full border-2 border-line-strong px-6 py-2 font-semibold'
-              >
-                Accept, draw 4
-              </button>
-            </div>
-          </div>
-        )}
-
-        {(view.stuck && view.canDraw) || view.canPass ? (
-          <div className='flex items-center justify-center gap-4 text-xs'>
-            {view.stuck && view.canDraw && (
-              <button
-                type='button'
-                onClick={() => r.move({ type: 'draw' })}
-                disabled={r.busy}
-                className='a-bob text-info hover:underline'
-              >
-                draw a card
-              </button>
-            )}
-            {view.canPass && (
-              <button
-                type='button'
-                onClick={() => r.move({ type: 'pass' })}
-                disabled={r.busy}
-                className='text-info hover:underline'
-              >
-                pass, keep it
-              </button>
-            )}
-          </div>
-        ) : null}
-
-        {!over && (view.canCallUno || catchable.length > 0) && (
-          <div className='flex flex-wrap items-center justify-center gap-2'>
-            {view.canCallUno && (
-              <button
-                type='button'
-                onClick={() => r.move({ type: 'uno' })}
-                disabled={r.busy}
-                aria-label='Call UNO'
-                aria-keyshortcuts='U'
-                className='a-bob rounded-full border-2 border-hash bg-hash/15 px-6 py-2 text-base font-black tracking-wider text-hash'
-              >
-                CALL UNO!
-                <kbd className='ml-2 rounded border border-hash/60 px-1.5 text-xs font-bold'>
-                  U
-                </kbd>
-              </button>
-            )}
-            {catchable.map((seat, i) => (
-              <button
-                key={seat}
-                type='button'
-                onClick={() => r.move({ type: 'catch', target: seat })}
-                disabled={r.busy}
-                aria-keyshortcuts={i === 0 ? 'T' : undefined}
-                className='a-wiggle rounded-full border-2 border-err bg-err/15 px-5 py-2 text-base font-black text-err'
-              >
-                CATCH {seatName(seat).toUpperCase()}!
-                {i === 0 && (
-                  <kbd className='ml-2 rounded border border-err/60 px-1.5 text-xs font-bold'>
-                    T
+          {!over && (view.canCallUno || catchable.length > 0) && (
+            <div className='flex flex-wrap items-center justify-center gap-2'>
+              {view.canCallUno && (
+                <button
+                  type='button'
+                  onClick={() => r.move({ type: 'uno' })}
+                  disabled={r.busy}
+                  aria-label='Call UNO'
+                  aria-keyshortcuts='U'
+                  className='a-bob rounded-full border-2 border-hash bg-hash/15 px-6 py-2 text-base font-black tracking-wider text-hash'
+                >
+                  CALL UNO!
+                  <kbd className='ml-2 rounded border border-hash/60 px-1.5 text-xs font-bold'>
+                    U
                   </kbd>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+                </button>
+              )}
+              {catchable.map((seat, i) => (
+                <button
+                  key={seat}
+                  type='button'
+                  onClick={() => r.move({ type: 'catch', target: seat })}
+                  disabled={r.busy}
+                  aria-keyshortcuts={i === 0 ? 'T' : undefined}
+                  className='a-wiggle rounded-full border-2 border-err bg-err/15 px-5 py-2 text-base font-black text-err'
+                >
+                  CATCH {seatName(seat).toUpperCase()}!
+                  {i === 0 && (
+                    <kbd className='ml-2 rounded border border-err/60 px-1.5 text-xs font-bold'>
+                      T
+                    </kbd>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-      <div
-        data-testid='hand'
-        aria-label='Your hand'
-        className='mt-auto flex flex-wrap justify-center gap-y-2 px-3 pt-6'
-      >
-        {view.hand.map((card, index) => {
-          const playable = stack
-            ? stack[0] === index || stackOptions.includes(index)
-            : view.playable.includes(index);
-          const order = stack?.indexOf(index) ?? -1;
-          const mid = (view.hand.length - 1) / 2;
-          return (
-            <HandCard
-              key={`${index}-${card.c}${card.v}`}
-              card={card}
-              playable={playable && !r.busy}
-              dim={!over && !playable}
-              animate={
-                drewMine && index >= view.hand.length - drewMine
-                  ? 'draw'
-                  : !view.last
-                    ? 'deal'
-                    : undefined
-              }
-              delay={
-                drewMine && index >= view.hand.length - drewMine
-                  ? 450 + (index - (view.hand.length - drewMine)) * 140
-                  : !view.last
-                    ? index * 70
-                    : undefined
-              }
-              fan={(index - mid) * 1.5}
-              dropRef={pileRef}
-              onDrag={setDrag}
-              onPlay={() => playCard(index)}
-              onDrop={() => dropCard(index)}
-              order={order === -1 ? undefined : order + 1}
-            />
-          );
-        })}
-      </div>
+        <div
+          data-testid='hand'
+          aria-label='Your hand'
+          className='mt-auto flex flex-wrap justify-center gap-y-2 px-3 pt-6'
+        >
+          {view.hand.map((card, index) => {
+            const playable = stack
+              ? stack[0] === index || stackOptions.includes(index)
+              : view.playable.includes(index);
+            const order = stack?.indexOf(index) ?? -1;
+            const mid = (view.hand.length - 1) / 2;
+            return (
+              <HandCard
+                key={`${index}-${card.c}${card.v}`}
+                card={card}
+                playable={playable && !r.busy}
+                dim={!over && !playable}
+                animate={
+                  drewMine && index >= view.hand.length - drewMine
+                    ? 'draw'
+                    : !view.last
+                      ? 'deal'
+                      : undefined
+                }
+                delay={
+                  drewMine && index >= view.hand.length - drewMine
+                    ? 450 + (index - (view.hand.length - drewMine)) * 140
+                    : !view.last
+                      ? index * 70
+                      : undefined
+                }
+                fan={(index - mid) * 1.5}
+                dropRef={pileRef}
+                onDrag={setDrag}
+                onPlay={() => playCard(index)}
+                onDrop={() => dropCard(index)}
+                order={order === -1 ? undefined : order + 1}
+              />
+            );
+          })}
+        </div>
 
-      <UnoKeys
-        enabled={!over && !out && !r.busy}
-        onUno={view.canCallUno ? () => r.move({ type: 'uno' }) : undefined}
-        onCatch={
-          catchable.length > 0
-            ? () => r.move({ type: 'catch', target: catchable[0] })
-            : undefined
-        }
-      />
+        <UnoKeys
+          enabled={!over && !out && !r.busy}
+          onUno={view.canCallUno ? () => r.move({ type: 'uno' }) : undefined}
+          onCatch={
+            catchable.length > 0
+              ? () => r.move({ type: 'catch', target: catchable[0] })
+              : undefined
+          }
+        />
 
-      {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
-    </LangProvider>
+        {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
+      </LangProvider>
+    </SideContext.Provider>
   );
 }
 
-export default function UnoPage() {
+export default function UnoGame({
+  game,
+  shell = true,
+}: {
+  game: UnoKind;
+  /** Wrap in the game frame; off when the caller already provides one */
+  shell?: boolean;
+}) {
   const mounted = useMounted();
-
-  return (
-    <GameShell name='uno' wide>
-      {mounted ? (
-        <>
-          <Uno />
-          <LangProvider value='en'>
-            <RoomChat game='uno' />
-          </LangProvider>
-        </>
-      ) : null}
+  const body = mounted ? (
+    <>
+      <Uno game={game} />
+      <LangProvider value='en'>
+        <RoomChat game={game} />
+      </LangProvider>
+    </>
+  ) : null;
+  return shell ? (
+    <GameShell name={game} wide>
+      {body}
     </GameShell>
+  ) : (
+    body
   );
 }

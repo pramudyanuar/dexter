@@ -594,6 +594,16 @@
     transform: none;
   }
 }
+@keyframes g-flipboard {
+  0% {
+    transform: perspective(600px) rotateY(90deg) scale(0.9);
+    opacity: 0.3;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
 @keyframes g-fx {
   0% {
     opacity: 0;
@@ -669,6 +679,9 @@
 }
 .a-splash-art {
   animation: g-splash-art 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.a-flipboard {
+  animation: g-flipboard 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .a-fx {
   animation: g-fx 1.8s ease-out both;

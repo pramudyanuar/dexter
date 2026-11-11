@@ -9,9 +9,11 @@ export interface GameEntry {
   href: string;
   description: string;
   controls: string;
+  /** Reachable and known to the game pages, but not a card of its own on the menu */
+  hidden?: boolean;
 }
 
-export const GAMES: readonly GameEntry[] = [
+const ALL_GAMES: readonly GameEntry[] = [
   {
     id: 'wordle',
     players: '1',
@@ -79,7 +81,30 @@ export const GAMES: readonly GameEntry[] = [
     title: 'Uno',
     online: true,
     href: '/games/uno',
-    description: 'Uno online untuk 2 sampai 8 pemain di device berbeda.',
+    description:
+      'Uno online untuk 2 sampai 8 pemain: pilih klasik, Flip, atau No Mercy.',
+    controls: 'pembuat room memulai setelah semua bergabung',
+  },
+  {
+    id: 'unoflip',
+    hidden: true,
+    players: '2–8',
+    title: 'Uno Flip',
+    online: true,
+    href: '/games/unoflip',
+    description:
+      'Kartu dua sisi: satu kartu FLIP membalik semuanya ke sisi gelap yang jauh lebih kejam.',
+    controls: 'pembuat room memulai setelah semua bergabung',
+  },
+  {
+    id: 'unomercy',
+    hidden: true,
+    players: '2–8',
+    title: 'Uno No Mercy',
+    online: true,
+    href: '/games/unomercy',
+    description:
+      'Hukuman ditumpuk, tukar dan oper kartu, dan 25 kartu langsung gugur.',
     controls: 'pembuat room memulai setelah semua bergabung',
   },
   {
@@ -160,3 +185,9 @@ export const GAMES: readonly GameEntry[] = [
     controls: 'gambar dengan mouse atau jari, tebak lewat kolom teks',
   },
 ];
+
+/** What the menu lists: every game that has a card of its own. */
+export const GAMES: readonly GameEntry[] = ALL_GAMES.filter((g) => !g.hidden);
+
+/** Every game page, including the variants reached from another game's start screen. */
+export const GAME_PAGES: readonly GameEntry[] = ALL_GAMES;

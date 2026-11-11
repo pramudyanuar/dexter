@@ -413,7 +413,17 @@ function Suit() {
   );
 }
 
-function Uno() {
+type UnoCards = [string, string][];
+
+function UnoArt({
+  cards = [
+    ['#d94f4f', '7'],
+    ['#3f74d6', '+2'],
+    ['#e4b52e', '5'],
+  ],
+}: {
+  cards?: UnoCards;
+}) {
   const card = (
     x: number,
     rot: number,
@@ -459,18 +469,18 @@ function Uno() {
       {card(
         54,
         -14,
-        '#d94f4f',
-        '7',
+        cards[0][0],
+        cards[0][1],
         'group-hover:-translate-x-2 group-hover:-rotate-6',
       )}
       {card(
         106,
         14,
-        '#3f74d6',
-        '+2',
+        cards[1][0],
+        cards[1][1],
         'group-hover:translate-x-2 group-hover:rotate-6',
       )}
-      {card(80, 0, '#e4b52e', '5', 'group-hover:-translate-y-2')}
+      {card(80, 0, cards[2][0], cards[2][1], 'group-hover:-translate-y-2')}
     </Frame>
   );
 }
@@ -971,6 +981,28 @@ function Pictionary() {
   );
 }
 
+const Uno = () => <UnoArt />;
+/** Flip: the dark side's colours and the FLIP card. */
+const UnoFlip = () => (
+  <UnoArt
+    cards={[
+      ['#d4488f', '5'],
+      ['#7b4cc0', '+5'],
+      ['#1e9e91', '⟲'],
+    ]}
+  />
+);
+/** No Mercy: the big penalties. */
+const UnoMercy = () => (
+  <UnoArt
+    cards={[
+      ['#c43434', '+6'],
+      ['#2a2d36', '+4'],
+      ['#e4b52e', '25'],
+    ]}
+  />
+);
+
 const ART: Record<string, () => React.JSX.Element> = {
   wordle: Wordle,
   snake: Snake,
@@ -980,6 +1012,8 @@ const ART: Record<string, () => React.JSX.Element> = {
   connect4: Connect4,
   suit: Suit,
   uno: Uno,
+  unoflip: UnoFlip,
+  unomercy: UnoMercy,
   battleship: Battleship,
   gomoku: Gomoku,
   checkers: Checkers,

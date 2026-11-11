@@ -4,7 +4,7 @@ import * as React from 'react';
 import RememberGame from '@/components/games/RememberGame';
 import Splash from '@/components/games/Splash';
 
-import { GAMES } from '@/constant/games';
+import { GAME_PAGES } from '@/constant/games';
 
 /** The frame shared by the games: plain and dark. The games are public. */
 export default function GameShell({
@@ -23,7 +23,7 @@ export default function GameShell({
 }) {
   // pages pass the menu id (e.g. `chess`) or the route (`snake`)
   const game = name
-    ? GAMES.find((g) => g.id === name || g.href === `/games/${name}`)
+    ? GAME_PAGES.find((g) => g.id === name || g.href === `/games/${name}`)
     : undefined;
 
   return (
