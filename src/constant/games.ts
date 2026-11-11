@@ -108,6 +108,16 @@ const ALL_GAMES: readonly GameEntry[] = [
     controls: 'pembuat room memulai setelah semua bergabung',
   },
   {
+    id: 'sekata',
+    players: '3–10',
+    title: 'Sekata',
+    online: true,
+    href: '/games/sekata',
+    description:
+      'Susun kartu suku kata jadi kata bahasa Indonesia, secepat mungkin bareng teman.',
+    controls: 'pilih atau seret kartu, lalu kirim katanya',
+  },
+  {
     id: 'battleship',
     players: '2',
     title: 'Battleship',

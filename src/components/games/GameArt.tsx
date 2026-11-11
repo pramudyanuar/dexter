@@ -981,6 +981,61 @@ function Pictionary() {
   );
 }
 
+/** Sekata: syllable cards that spell a word. */
+function Sekata() {
+  const card = (
+    x: number,
+    rot: number,
+    fill: string,
+    label: string,
+    hover: string,
+  ) => (
+    <g transform={`translate(${x} 52) rotate(${rot})`}>
+      <g className={move(hover)}>
+        <rect
+          x='-18'
+          y='-28'
+          width='36'
+          height='54'
+          rx='6'
+          fill={fill}
+          stroke='#fff'
+          strokeWidth='2'
+        />
+        <text
+          x='0'
+          y='7'
+          textAnchor='middle'
+          fontSize='17'
+          fontWeight='900'
+          fill='#3a1f2b'
+        >
+          {label}
+        </text>
+      </g>
+    </g>
+  );
+  return (
+    <Frame>
+      {card(
+        50,
+        -8,
+        '#f8b8cd',
+        'MA',
+        'group-hover:-translate-x-2 group-hover:-rotate-6',
+      )}
+      {card(88, 2, '#f8b8cd', 'NA', 'group-hover:-translate-y-2')}
+      {card(
+        125,
+        10,
+        '#f7dc6a',
+        'DI',
+        'group-hover:translate-x-2 group-hover:rotate-6',
+      )}
+    </Frame>
+  );
+}
+
 const Uno = () => <UnoArt />;
 /** Flip: the dark side's colours and the FLIP card. */
 const UnoFlip = () => (
@@ -1012,6 +1067,7 @@ const ART: Record<string, () => React.JSX.Element> = {
   connect4: Connect4,
   suit: Suit,
   uno: Uno,
+  sekata: Sekata,
   unoflip: UnoFlip,
   unomercy: UnoMercy,
   battleship: Battleship,

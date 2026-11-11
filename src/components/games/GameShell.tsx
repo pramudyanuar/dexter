@@ -12,6 +12,7 @@ export default function GameShell({
   children,
   wide,
   menu,
+  fluid,
 }: {
   /** The game's route name (e.g. `uno`); omit on the menu page. */
   name?: string;
@@ -20,6 +21,8 @@ export default function GameShell({
   wide?: boolean;
   /** The games list itself: widest column, and no way "back" from it. */
   menu?: boolean;
+  /** Fills the width (leaving room for the docked chat); the page sets its own column. */
+  fluid?: boolean;
 }) {
   // pages pass the menu id (e.g. `chess`) or the route (`snake`)
   const game = name
@@ -44,7 +47,15 @@ export default function GameShell({
       <main
         className={`mx-auto flex w-full flex-1 flex-col px-4 pb-6 ${
           menu ? 'pt-6' : 'pt-16'
-        } ${menu ? 'max-w-7xl' : wide ? 'max-w-xl' : 'max-w-md'}`}
+        } ${
+          fluid
+            ? 'max-w-none min-[1700px]:pr-4 xl:pr-[22rem]'
+            : menu
+              ? 'max-w-7xl'
+              : wide
+                ? 'max-w-xl'
+                : 'max-w-md'
+        }`}
       >
         {children}
       </main>
