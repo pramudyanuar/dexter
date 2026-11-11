@@ -2,6 +2,7 @@ import Link from 'next/link';
 import * as React from 'react';
 
 import RememberGame from '@/components/games/RememberGame';
+import Splash from '@/components/games/Splash';
 
 import { GAMES } from '@/constant/games';
 
@@ -27,33 +28,23 @@ export default function GameShell({
 
   return (
     <div className='games-ui flex min-h-dvh flex-col text-[15px] text-ink'>
-      <header className='sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur'>
-        <div
-          className={`mx-auto flex w-full items-center gap-3 px-4 py-2.5 ${
-            menu ? 'max-w-7xl' : 'max-w-3xl'
-          }`}
+      {name && (
+        <Link
+          href='/games'
+          aria-label='Kembali ke daftar game'
+          className='fixed top-3 left-3 z-40 flex size-9 items-center justify-center rounded-full border border-line bg-paper/80 text-mute backdrop-blur transition-colors hover:border-[#3a3a3a] hover:text-ink'
         >
-          {name && (
-            <Link
-              href='/games'
-              aria-label='Kembali ke daftar game'
-              className='flex size-8 items-center justify-center rounded-md border border-line text-mute transition-colors hover:border-[#3a3a3a] hover:text-ink'
-            >
-              ←
-            </Link>
-          )}
-          <span className='text-sm font-semibold tracking-tight'>
-            {game?.title ?? (name ? name : 'Games')}
-          </span>
-        </div>
-      </header>
+          ←
+        </Link>
+      )}
 
       {game && <RememberGame id={game.id} />}
+      {game && <Splash id={game.id} title={game.title} />}
 
       <main
-        className={`mx-auto flex w-full flex-1 flex-col px-4 py-6 ${
-          menu ? 'max-w-7xl' : wide ? 'max-w-xl' : 'max-w-md'
-        }`}
+        className={`mx-auto flex w-full flex-1 flex-col px-4 pb-6 ${
+          menu ? 'pt-6' : 'pt-16'
+        } ${menu ? 'max-w-7xl' : wide ? 'max-w-xl' : 'max-w-md'}`}
       >
         {children}
       </main>

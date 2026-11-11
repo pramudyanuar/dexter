@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 
+import { useLang } from '@/components/games/lang';
+
 /** Copy text to the clipboard and say what was copied for a moment. */
 export function useCopy() {
   const [copied, setCopied] = React.useState('');
@@ -37,44 +39,57 @@ export default function RoomBar({
   onLeave: () => void;
 }) {
   const { copied, copy } = useCopy();
+  const en = useLang() === 'en';
 
   return (
-    <div className='mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-line bg-surface/50 px-3 py-2'>
+    <div className='mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-line bg-surface/50 px-3 py-2 text-sm'>
       <button
         type='button'
         onClick={() => copy('code', code)}
-        aria-label={`Salin kode room ${code}`}
+        aria-label={en ? `Copy room code ${code}` : `Salin kode room ${code}`}
         className='group flex items-center gap-2 text-left'
       >
-        <span className='text-xs text-[var(--mute)]'>Room</span>
+        <span className='text-xs text-[var(--mute)]'>
+          {en ? 'Room' : 'Room'}
+        </span>
         <span className='font-mono text-sm font-medium tracking-[0.2em] text-ink'>
           {code}
         </span>
-        <span className='text-xs text-[var(--mute)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100'>
-          {copied === 'code' ? 'tersalin' : 'salin'}
+        <span className='hidden text-xs text-[var(--mute)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:inline'>
+          {copied === 'code'
+            ? en
+              ? 'copied'
+              : 'tersalin'
+            : en
+              ? 'copy'
+              : 'salin'}
         </span>
       </button>
 
       {right && <div className='text-xs'>{right}</div>}
 
-      <div className='flex items-center gap-2'>
-        {share && (
-          <button
-            type='button'
-            onClick={() => copy('link', inviteLink(code))}
-            className={small}
-          >
-            {copied === 'link' ? 'Link tersalin' : 'Salin link'}
-          </button>
-        )}
+      {share && (
         <button
           type='button'
-          onClick={onLeave}
-          className={`${small} hover:border-err hover:text-err`}
+          onClick={() => copy('link', inviteLink(code))}
+          className={small}
         >
-          Keluar
+          {copied === 'link'
+            ? en
+              ? 'Link copied'
+              : 'Link tersalin'
+            : en
+              ? 'Copy link'
+              : 'Salin link'}
         </button>
-      </div>
+      )}
+      <button
+        type='button'
+        onClick={onLeave}
+        className={`${small} hover:border-err hover:text-err`}
+      >
+        {en ? 'Leave' : 'Keluar'}
+      </button>
     </div>
   );
 }

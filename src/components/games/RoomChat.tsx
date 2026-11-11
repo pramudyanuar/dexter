@@ -5,21 +5,27 @@ import * as React from 'react';
 import { CHAT_MAX_LENGTH, ChatMsg, GameId } from '@/lib/rooms/types';
 import type { RoomSession } from '@/lib/rooms/useRoom';
 import useStoredState from '@/lib/useStoredState';
+import useWide from '@/lib/useWide';
 
-import { seatLabel } from '@/components/games/RoomGate';
+import { seatName, useLang, useText } from '@/components/games/lang';
 
 const POLL_CLOSED_MS = 3000;
 const POLL_OPEN_MS = 1200;
 
-const time = (at: number) =>
-  new Date(at).toLocaleTimeString('id-ID', {
+const time = (at: number, locale: string) =>
+  new Date(at).toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
   });
 
 function Chat({ session }: { session: RoomSession }) {
   const { code, token, you } = session;
-  const [open, setOpen] = React.useState(false);
+  const t = useText();
+  const lang = useLang();
+  const wide = useWide();
+  const [openByHand, setOpen] = React.useState(false);
+  // on a wide screen the chat is a panel that is always there
+  const open = wide || openByHand;
   const [lines, setLines] = React.useState<ChatMsg[]>([]);
   const [seen, setSeen] = React.useState(0);
   const [text, setText] = React.useState('');
@@ -67,8 +73,8 @@ function Chat({ session }: { session: RoomSession }) {
   }, [open, lines]);
 
   React.useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
+    if (openByHand) inputRef.current?.focus();
+  }, [openByHand]);
 
   const unread = open
     ? 0
@@ -98,31 +104,43 @@ function Chat({ session }: { session: RoomSession }) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setText(body);
-        setError(data.error ?? 'Pesan gagal dikirim');
+        setError(data.error ?? t.sendFailed);
         return;
       }
       void fetchNew();
     } catch {
       setText(body);
-      setError('Pesan gagal dikirim');
+      setError(t.sendFailed);
     }
   };
 
   return (
-    <div className='fixed right-4 bottom-4 z-40 flex flex-col items-end gap-2'>
+    <div
+      className={
+        wide
+          ? 'fixed top-4 right-4 bottom-4 z-30 flex w-80 flex-col'
+          : 'fixed right-4 bottom-4 z-40 flex flex-col items-end gap-2'
+      }
+    >
       {open && (
         <section
-          aria-label='Chat room'
-          className='a-slide-up flex h-[min(24rem,60dvh)] w-80 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-line-strong bg-card shadow-2xl'
+          aria-label={t.chatRoom}
+          className={`a-slide-up flex flex-col overflow-hidden rounded-xl border border-line-strong bg-card shadow-2xl ${
+            wide
+              ? 'h-full w-full'
+              : 'h-[min(24rem,60dvh)] w-80 max-w-[calc(100vw-2rem)]'
+          }`}
           onKeyDown={(e) => {
             // keep typing here from triggering game shortcuts
             e.stopPropagation();
-            if (e.key === 'Escape') toggle();
+            if (e.key === 'Escape' && !wide) toggle();
           }}
         >
           <div className='flex items-center justify-between border-b border-line px-3 py-2 text-sm'>
-            <span className='font-medium'>Chat</span>
-            <span className='text-xs text-[var(--mute)]'>room {code}</span>
+            <span className='font-medium'>{t.chat}</span>
+            <span className='text-xs text-[var(--mute)]'>
+              {t.room} {code}
+            </span>
           </div>
 
           <div
@@ -133,7 +151,7 @@ function Chat({ session }: { session: RoomSession }) {
           >
             {lines.length === 0 && (
               <p className='pt-6 text-center text-xs text-[var(--mute)]'>
-                Belum ada pesan. Sapa temanmu.
+                {t.noMessages}
               </p>
             )}
             {lines.map((l) => {
@@ -144,7 +162,7 @@ function Chat({ session }: { session: RoomSession }) {
                   className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}
                 >
                   <span className='mb-0.5 text-[11px] text-[var(--mute)]'>
-                    {mine ? 'Kamu' : seatLabel(l.seat, you)} · {time(l.at)}
+                    {seatName(lang, l.seat, you)} · {time(l.at, t.locale)}
                   </span>
                   <span
                     className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
@@ -171,8 +189,8 @@ function Chat({ session }: { session: RoomSession }) {
               value={text}
               onChange={(e) => setText(e.target.value)}
               maxLength={CHAT_MAX_LENGTH}
-              placeholder='Tulis pesan…'
-              aria-label='Pesan'
+              placeholder={t.write}
+              aria-label={t.message}
               autoComplete='off'
               className='min-w-0 flex-1'
             />
@@ -181,32 +199,34 @@ function Chat({ session }: { session: RoomSession }) {
               disabled={!text.trim()}
               className='rounded-lg bg-ink px-3 text-sm font-medium text-paper transition-opacity disabled:opacity-40'
             >
-              Kirim
+              {t.send}
             </button>
           </form>
         </section>
       )}
 
-      <button
-        type='button'
-        onClick={toggle}
-        aria-expanded={open}
-        aria-label={
-          unread
-            ? `Chat, ${unread} pesan baru`
-            : open
-              ? 'Tutup chat'
-              : 'Buka chat'
-        }
-        className='flex items-center gap-2 rounded-full border border-line-strong bg-card px-4 py-2 text-sm shadow-lg transition-[transform,border-color] hover:-translate-y-0.5 hover:border-[var(--mute)] active:scale-95'
-      >
-        Chat
-        {unread > 0 && (
-          <span className='a-pop flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-paper'>
-            {unread}
-          </span>
-        )}
-      </button>
+      {!wide && (
+        <button
+          type='button'
+          onClick={toggle}
+          aria-expanded={open}
+          aria-label={
+            unread
+              ? `Chat, ${unread} pesan baru`
+              : open
+                ? 'Tutup chat'
+                : 'Buka chat'
+          }
+          className='flex items-center gap-2 rounded-full border border-line-strong bg-card px-4 py-2 text-sm shadow-lg transition-[transform,border-color] hover:-translate-y-0.5 hover:border-[var(--mute)] active:scale-95'
+        >
+          Chat
+          {unread > 0 && (
+            <span className='a-pop flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-paper'>
+              {unread}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 }
