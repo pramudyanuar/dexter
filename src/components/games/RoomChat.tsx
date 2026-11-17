@@ -21,9 +21,11 @@ const time = (at: number, locale: string) =>
 function Chat({
   session,
   names,
+  corner,
 }: {
   session: RoomSession;
   names?: (string | null)[];
+  corner?: 'top' | 'bottom';
 }) {
   const { code, token, you } = session;
   const t = useText();
@@ -38,6 +40,9 @@ function Chat({
   /** Where your next line goes; null when you may not talk right now */
   const [channel, setChannel] = React.useState<string | null>('all');
   const [error, setError] = React.useState('');
+  /** Names as the room knows them, for games that do not pass their own */
+  const [roomNames, setRoomNames] = React.useState<(string | null)[]>([]);
+  const shownNames = names ?? roomNames;
   const lastId = React.useRef<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -54,7 +59,16 @@ function Chat({
       const data = (await res.json()) as {
         messages: ChatMsg[];
         channel?: string | null;
+        names?: (string | null)[];
       };
+      if (data.names) {
+        const next = data.names;
+        setRoomNames((prev) =>
+          prev.length === next.length && prev.every((n, i) => n === next[i])
+            ? prev
+            : next,
+        );
+      }
       // games with private chat say where this player may talk right now
       setChannel(data.channel === undefined ? 'all' : data.channel);
       if (!data.messages.length) return;
@@ -133,7 +147,9 @@ function Chat({
       className={
         wide
           ? 'fixed top-4 right-4 bottom-4 z-30 flex w-80 flex-col'
-          : 'fixed right-4 bottom-4 z-40 flex flex-col items-end gap-2'
+          : `fixed right-4 z-40 flex flex-col items-end gap-2 ${
+              corner === 'top' ? 'top-3 flex-col-reverse' : 'bottom-4'
+            }`
       }
     >
       {open && (
@@ -176,7 +192,7 @@ function Chat({
                   className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}
                 >
                   <span className='mb-0.5 text-[11px] text-[var(--mute)]'>
-                    {seatName(lang, l.seat, you, names)} ·{' '}
+                    {seatName(lang, l.seat, you, shownNames)} ·{' '}
                     {time(l.at, t.locale)}
                     {l.channel && (
                       <span className='ml-1 rounded bg-hash/15 px-1 text-[10px] text-hash uppercase'>
@@ -263,10 +279,13 @@ function Chat({
 export default function RoomChat({
   game,
   names,
+  corner = 'bottom',
 }: {
   game: GameId;
-  /** Players' names, for games that want the chat to show them */
+  /** Players' names; when left out the chat asks the room for them */
   names?: (string | null)[];
+  /** Where the chat button sits on a narrow screen (top keeps it off a hand of cards) */
+  corner?: 'top' | 'bottom';
 }) {
   const [session] = useStoredState<RoomSession | null>(
     `room-session-${game}`,
@@ -275,6 +294,6 @@ export default function RoomChat({
   );
   // a new room starts a new conversation
   return session ? (
-    <Chat key={session.code} session={session} names={names} />
+    <Chat key={session.code} session={session} names={names} corner={corner} />
   ) : null;
 }

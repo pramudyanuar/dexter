@@ -534,3 +534,28 @@ describe('a game with a moderator (Werewolf)', () => {
     expect(chatPolicy(room(3), 0)).toEqual({ send: 'all', read: ['all'] });
   });
 });
+
+describe('reactions', () => {
+  it('do not reset the turn clock, while a real move does', () => {
+    const room = start(unoRoom([A, B]), A, undefined, 1000);
+    const seat = (room.state as { turn: number }).turn;
+    const other = seat === 0 ? B : A;
+    const reacted = act(
+      room,
+      other,
+      { type: 'emote', e: '😂' },
+      undefined,
+      9000,
+    );
+    expect(reacted.stamp).toBe(room.stamp);
+    expect(reacted.version).toBe(room.version + 1);
+    const moved = act(
+      reacted,
+      seat === 0 ? A : B,
+      { type: 'draw' },
+      undefined,
+      9500,
+    );
+    expect(moved.stamp).toBe(9500);
+  });
+});

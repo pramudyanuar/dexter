@@ -63,6 +63,20 @@ async function room() {
 }
 
 describe('chat', () => {
+  it("sends the players' names along, so the chat can say who is talking", async () => {
+    const made = await (
+      await create(
+        new Request('http://x/api/rooms', {
+          method: 'POST',
+          headers: { 'x-forwarded-for': `10.1.0.${++ip}` },
+          body: JSON.stringify({ game: 'uno', name: 'Sari' }),
+        }),
+      )
+    ).json();
+    const { names } = await (await read(made.code)).json();
+    expect(names[0]).toBe('Sari');
+  });
+
   it('delivers lines in order, tagged with the sender seat', async () => {
     const { code, A, B } = await room();
     expect((await say(code, A, 'halo')).status).toBe(200);

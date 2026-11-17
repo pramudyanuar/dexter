@@ -45,7 +45,8 @@ export async function GET(req: Request, { params }: Context) {
             .slice(known + 1)
             .filter((l) => policy.read.includes(l.channel ?? 'all'));
     return NextResponse.json(
-      { messages: fresh, channel: policy.send },
+      // the names go along, so every game's chat can say who is talking
+      { messages: fresh, channel: policy.send, names: room?.names ?? [] },
       { headers: NO_STORE },
     );
   } catch {

@@ -431,3 +431,39 @@ describe('whole games', () => {
     },
   );
 });
+
+describe('what the table can see', () => {
+  it('Flip shows the side not in play of every hand and of the draw pile', () => {
+    const s = game('flip', {
+      hands: [['R1/T9', 'G2/P3'], ['G1/O4']],
+      draw: ['B7/U8', 'Y2/O6'],
+    });
+    const v = view(flip, s, 0);
+    expect(v.backs?.map((h) => h.map(key))).toEqual([['T9', 'P3'], ['O4']]);
+    expect(v.drawBack).toEqual(c('O6'));
+    // the side in play stays hidden
+    expect(JSON.stringify(v)).not.toContain('"G1"');
+    expect(v.peek).toBeUndefined();
+
+    const dark = view(flip, { ...s, side: 'dark', color: 'P' as never }, 0);
+    expect(dark.backs?.map((h) => h.map(key))).toEqual([['R1', 'G2'], ['G1']]);
+  });
+
+  it('No Mercy has no second side, and a knocked-out player may watch', () => {
+    const s = game('nomercy', { hands: [['R1'], ['G1', 'B2'], ['Y3']] });
+    expect(view(mercy, s, 0).backs).toBeUndefined();
+    expect(view(mercy, s, 0).peek).toBeUndefined();
+    const out = {
+      ...s,
+      hands: [[], s.hands[1], s.hands[2]],
+      dropped: [0],
+      turn: 1,
+    };
+    expect(view(mercy, out, 0).peek?.map((h) => h && h.map(key))).toEqual([
+      null,
+      ['G1', 'B2'],
+      ['Y3'],
+    ]);
+    expect(view(mercy, out, 1).peek).toBeUndefined();
+  });
+});

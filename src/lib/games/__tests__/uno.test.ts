@@ -881,3 +881,48 @@ describe('cards drawn are reported for animation', () => {
     expect(s.last?.drew).toEqual({ seat: 0, count: 2 });
   });
 });
+
+describe('watching after you are done', () => {
+  it('shows the other hands only to a player who is out of cards', () => {
+    const s: UnoState = {
+      ...game({ hands: [[], ['G1', 'G2'], ['Y3', 'B4']], turn: 1 }),
+      places: [0],
+      winner: 0,
+    };
+    expect(view(s, 0).peek?.map((h) => h && h.map(key))).toEqual([
+      null,
+      ['G1', 'G2'],
+      ['Y3', 'B4'],
+    ]);
+    // those still playing learn nothing
+    expect(view(s, 1).peek).toBeUndefined();
+    expect(view(s, 2).peek).toBeUndefined();
+    expect(view(s, null).peek).toBeUndefined();
+  });
+});
+
+describe('reactions', () => {
+  it('anyone may send one, off turn or already done, and the game stays as it was', () => {
+    const s: UnoState = {
+      ...game({ hands: [[], ['G1', 'G2'], ['Y3', 'B4']], turn: 1 }),
+      places: [0],
+      winner: 0,
+    };
+    const a = move(s, 0, { type: 'emote', e: '🔥' });
+    expect(a.emote).toEqual({ seat: 0, e: '🔥', n: 1 });
+    const b = move(a, 2, { type: 'emote', e: '🔥' });
+    expect(b.emote).toEqual({ seat: 2, e: '🔥', n: 2 });
+    expect(b.turn).toBe(1);
+    expect(b.last).toBe(s.last);
+    expect(view(b, 1).emote?.seat).toBe(2);
+    expect(unoGame.passive?.({ type: 'emote', e: '🔥' })).toBe(true);
+    expect(unoGame.passive?.({ type: 'draw' })).toBe(false);
+  });
+
+  it('refuses anything that is not one of the reactions', () => {
+    const s = game({ hands: [['R1'], ['G1']] });
+    expect(
+      errorOf(() => move(s, 0, { type: 'emote', e: 'hello' }))?.status,
+    ).toBe(400);
+  });
+});

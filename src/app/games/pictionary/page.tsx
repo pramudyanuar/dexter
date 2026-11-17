@@ -307,7 +307,7 @@ function PlayArea({
         ))}
       </ul>
 
-      <div key={v.round} className='a-slide-up mb-2 text-center'>
+      <div key={`info-${v.round}`} className='a-slide-up mb-2 text-center'>
         <p className='text-xs text-mute'>
           ronde {v.round + 1} dari {v.rounds}
           {v.last && (
@@ -337,14 +337,15 @@ function PlayArea({
         )}
       </div>
 
+      {/* each of these starts over with the round; siblings need their own keys */}
       <RoundClock
-        key={v.round}
+        key={`clock-${v.round}`}
         isDrawer={isDrawer}
         onNext={() => r.move({ type: 'next', round: v.round })}
       />
 
       <Canvas
-        key={v.round}
+        key={`canvas-${v.round}`}
         strokes={v.strokes}
         canDraw={isDrawer}
         color={color}

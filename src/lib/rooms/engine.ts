@@ -307,7 +307,7 @@ export function act(
     status: def.isOver(state) ? 'over' : 'playing',
     // playing again means they are back
     left: put(leftOf(timed), seat, null),
-    stamp: now,
+    stamp: def.passive?.(move) ? stampOf(timed) : now,
     version: timed.version + 1,
   };
 }

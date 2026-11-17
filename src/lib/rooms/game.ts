@@ -54,6 +54,11 @@ export interface GameDef<S = unknown> {
     /** Seats that pressed "keluar" and may still come back (a game may pause for them) */
     away?: number[],
   ): S | null;
+  /**
+   * Moves that are not play (a reaction, say): the turn clock keeps running, so
+   * nobody can stall by sending them.
+   */
+  passive?(move: unknown): boolean;
   /** Chat rules for the state the game is in (otherwise everyone talks to everyone). */
   chat?(state: S, seat: number | null): ChatPolicy;
   /**

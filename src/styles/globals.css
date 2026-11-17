@@ -370,8 +370,8 @@
 @keyframes g-toss {
   0% {
     transform: translate(var(--from-x, 0), var(--from-y, 0))
-      rotate(var(--spin, 0)) scale(0.55);
-    opacity: 0.7;
+      rotate(var(--spin, 0)) scale(var(--from-scale, 0.55));
+    opacity: var(--from-o, 0.7);
   }
   15% {
     opacity: 1;
@@ -423,7 +423,8 @@
 /* A card arriving in your own hand from the pile above it. */
 @keyframes g-draw-in {
   0% {
-    transform: translateY(-230px) rotate(-18deg) scale(0.6);
+    transform: translate(var(--in-x, 0), var(--in-y, -230px)) rotate(-18deg)
+      scale(0.6);
     opacity: 0;
   }
   25% {
@@ -1079,4 +1080,497 @@
 }
 .a-spark {
   animation: g-spark 0.5s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ Uno */
+/*
+ * The whole game fits the screen: the table takes whatever height is left and
+ * everything on it is sized from the table itself (container units), so a phone
+ * and a wide monitor both get a table that fills the space with nothing to
+ * scroll.
+ */
+.uno-stage {
+  --card-hand: clamp(2.9rem, min(14vw, 12dvh), 5.25rem);
+}
+.uno-table {
+  container-type: size;
+}
+.uno-table-in {
+  --pile-w: clamp(3.1rem, min(15cqw, 23cqh), 6.25rem);
+  --mini-w: clamp(1.15rem, min(4.4cqw, 6.2cqh), 2rem);
+}
+/* A phone on its side has width to spare and no height: the status line moves
+ * up between the corner buttons, and prompts go to the side of the table. */
+@media (max-height: 520px) and (min-width: 640px) {
+  .uno-stage {
+    margin-top: -2.9rem;
+    --card-hand: clamp(2.6rem, 11dvh, 4rem);
+  }
+  .uno-head {
+    height: 2.9rem;
+    max-width: min(32rem, 100% - 14rem);
+  }
+  .uno-table-in {
+    --pile-w: clamp(2.6rem, 26cqh, 5rem);
+    --mini-w: clamp(1rem, 7cqh, 1.6rem);
+  }
+  .uno-center {
+    top: 56%;
+    left: 38%;
+  }
+  .uno-actions {
+    justify-content: flex-end;
+    bottom: 12%;
+  }
+}
+
+/* Every action at the table is the same pill; only its colour says what kind
+ * it is: the usual move (go), a penalty or an accusation (bad), UNO (warn), a
+ * way out (quiet). */
+.uno-btn {
+  --tone: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  min-height: 2.5rem;
+  border: 2px solid color-mix(in oklab, var(--tone) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tone) 14%, var(--paper));
+  padding: 0.4rem 1.15rem;
+  color: var(--tone);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    translate 0.18s var(--ease),
+    scale 0.18s var(--ease),
+    background-color 0.18s var(--ease),
+    border-color 0.18s var(--ease);
+}
+.uno-btn:hover:not(:disabled) {
+  translate: 0 -1px;
+  border-color: var(--tone);
+  background: color-mix(in oklab, var(--tone) 24%, var(--paper));
+}
+.uno-btn:active:not(:disabled) {
+  scale: 0.96;
+}
+.uno-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.uno-btn-go {
+  --tone: var(--accent);
+}
+.uno-btn-bad {
+  --tone: var(--err);
+}
+.uno-btn-warn {
+  --tone: var(--hash);
+}
+.uno-btn-quiet {
+  --tone: var(--mute);
+}
+.uno-btn kbd {
+  border: 1px solid color-mix(in oklab, var(--tone) 55%, transparent);
+  border-radius: 0.3rem;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+}
+
+/* One card. An `em` is a tenth of its width, so every detail scales with it. */
+.uno-card {
+  --w: 3.5rem;
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: var(--w);
+  height: calc(var(--w) * 1.5);
+  font-size: calc(var(--w) / 10);
+  border-radius: 1.3em;
+  background: linear-gradient(160deg, #ffffff, #e4e1d9);
+  box-shadow:
+    0 0.12em 0 rgb(0 0 0 / 0.4),
+    0 0.7em 1.3em -0.5em rgb(0 0 0 / 0.65);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    translate 0.24s var(--ease-spring),
+    scale 0.24s var(--ease-spring),
+    box-shadow 0.2s ease,
+    filter 0.25s ease;
+}
+/* the dark side of a Flip deck has a black frame instead of a white one */
+.uno-card-dark {
+  background: linear-gradient(160deg, #34343c, #08080a);
+}
+.uno-card-face {
+  position: absolute;
+  inset: 0.6em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.8em;
+  box-shadow: inset 0 0 0 0.08em rgb(0 0 0 / 0.25);
+}
+.uno-card-oval {
+  position: absolute;
+  inset: 7% 9%;
+  border-radius: 50%;
+  transform: rotate(24deg);
+  box-shadow:
+    inset 0 -0.35em 0.7em rgb(0 0 0 / 0.2),
+    0 0.15em 0.4em rgb(0 0 0 / 0.3);
+}
+.uno-card-gloss {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    118deg,
+    rgb(255 255 255 / 0.3) 0%,
+    rgb(255 255 255 / 0.07) 30%,
+    transparent 46%
+  );
+}
+.uno-card-sheen {
+  position: absolute;
+  inset: -20% -60%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 40%,
+    rgb(255 255 255 / 0.6) 50%,
+    transparent 60%
+  );
+}
+/* a card you may play: lifted out of the hand and lit */
+.uno-card-live {
+  z-index: 10;
+  cursor: pointer;
+  translate: 0 -14%;
+  box-shadow:
+    0 0 0 0.28em var(--accent),
+    0 0 1.8em 0.15em color-mix(in oklab, var(--accent) 55%, transparent),
+    0 1.2em 1.4em -0.5em rgb(0 0 0 / 0.7);
+}
+@media (hover: hover) {
+  .uno-card-live:hover {
+    translate: 0 -30%;
+    scale: 1.12;
+  }
+  .uno-card-live:hover .uno-card-sheen {
+    animation: g-sheen 0.7s ease-out;
+  }
+  .uno-hand-slot:hover {
+    z-index: 40;
+  }
+}
+.uno-card-live:active {
+  scale: 0.96;
+}
+.uno-card-dim {
+  filter: brightness(0.58) saturate(0.7);
+}
+.uno-hand-slot {
+  position: relative;
+  transform-origin: 50% 100%;
+}
+/* a playable card leans towards the pointer, like one held in the fingers */
+.uno-hand-slot .uno-card-live {
+  transform: perspective(32em) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+}
+
+@keyframes g-sheen {
+  0% {
+    opacity: 1;
+    translate: -70% 0;
+  }
+  100% {
+    opacity: 1;
+    translate: 70% 0;
+  }
+}
+/* a card turning over to show its other face */
+@keyframes g-cardflip {
+  0% {
+    transform: perspective(40em) rotateY(-180deg) scale(0.85);
+    filter: brightness(0.4);
+  }
+  55% {
+    transform: perspective(40em) rotateY(-80deg) scale(1.08);
+    filter: brightness(0.6);
+  }
+  100% {
+    transform: none;
+  }
+}
+/* a swapped hand arriving, card by card */
+@keyframes g-swap-in {
+  0% {
+    transform: translateY(-160%) rotate(-25deg) scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(6%) rotate(3deg) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* A hand changing owners: a bundle of cards travels from one seat to another
+ * (--fx/--fy to --tx/--ty, as table percentages) while its inner half swings
+ * out along an arc (--ax/--ay), so two swapped hands pass each other. */
+@keyframes g-swap-move {
+  from {
+    left: var(--fx);
+    top: var(--fy);
+  }
+  to {
+    left: var(--tx);
+    top: var(--ty);
+  }
+}
+@keyframes g-swap-arc {
+  0% {
+    transform: scale(0.5) rotate(0);
+    opacity: 0;
+  }
+  12% {
+    transform: scale(1.1) rotate(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(var(--ax, 0), var(--ay, 0)) scale(1.7) rotate(200deg);
+    opacity: 1;
+  }
+  88% {
+    transform: scale(1.1) rotate(360deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.5) rotate(360deg);
+    opacity: 0;
+  }
+}
+@keyframes g-swap-label {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  12% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  20%,
+  80% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.1);
+    opacity: 0;
+  }
+}
+.a-cardflip {
+  animation: g-cardflip 0.55s var(--ease) backwards;
+}
+.a-swap-in {
+  animation: g-swap-in 0.55s var(--ease) backwards;
+}
+.a-swap-move {
+  animation: g-swap-move 1.5s cubic-bezier(0.6, 0, 0.3, 1) both;
+}
+.a-swap-arc {
+  animation: g-swap-arc 1.5s ease-in-out both;
+}
+.a-swap-label {
+  animation: g-swap-label 2s ease-out both;
+}
+
+/* Nothing at the table sits in a box: the actions are pills on their own, and
+ * the line that says what is being asked is a small label above them. */
+.uno-prompt > p {
+  max-width: 100%;
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, var(--paper) 86%, transparent);
+  padding: 0.2rem 0.75rem;
+  backdrop-filter: blur(8px);
+}
+.uno-btn {
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.75);
+}
+
+/* the turn clock, as a ring around the player whose turn it is */
+.uno-ring {
+  stroke: var(--accent);
+  stroke-dashoffset: var(--from, 0);
+  animation:
+    g-ring-run var(--left, 40s) linear forwards,
+    g-ring-urgent 0.7s ease-in-out calc(var(--left, 40s) - 10s) infinite;
+}
+@keyframes g-ring-run {
+  to {
+    stroke-dashoffset: 100;
+  }
+}
+@keyframes g-ring-urgent {
+  0%,
+  100% {
+    stroke: var(--err);
+  }
+  50% {
+    stroke: #fff;
+  }
+}
+/* one card left: the hand keeps glowing until it is played (or caught) */
+@keyframes g-one-left {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0.15rem var(--hash));
+  }
+  50% {
+    filter: drop-shadow(0 0 0.7rem var(--hash));
+  }
+}
+.uno-one {
+  animation: g-one-left 1s ease-in-out infinite;
+}
+/* a small effect stamped on the player it hits (skip, +2), not over the table */
+@keyframes g-stamp {
+  0% {
+    transform: scale(2.6) rotate(-18deg);
+    opacity: 0;
+  }
+  18% {
+    transform: scale(0.9) rotate(4deg);
+    opacity: 1;
+  }
+  28%,
+  75% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+.a-stamp {
+  animation: g-stamp 1.15s ease-out both;
+}
+@keyframes g-half-turn {
+  0% {
+    transform: rotate(0);
+  }
+  60%,
+  100% {
+    transform: rotate(-180deg);
+  }
+}
+.a-half-turn {
+  animation: g-half-turn 0.9s var(--ease) both;
+}
+/* the big moments: in, a short hold, out */
+@keyframes g-fx-quick {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-8deg);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1.2) rotate(2deg);
+  }
+  24%,
+  72% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+.a-fx-quick {
+  animation: g-fx-quick 1.35s ease-out both;
+}
+/* a wild's new colour washes out from the pile */
+@keyframes g-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.1);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+.a-ripple {
+  animation: g-ripple 0.9s ease-out both;
+}
+@keyframes g-emote {
+  0% {
+    transform: translateY(40%) scale(0.2);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(0) scale(1.25);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(-6%) scale(1) rotate(-6deg);
+  }
+  45% {
+    transform: translateY(-14%) rotate(6deg);
+  }
+  75% {
+    transform: translateY(-26%) rotate(-4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-60%) scale(0.9);
+    opacity: 0;
+  }
+}
+.a-emote {
+  animation: g-emote 2.4s ease-out both;
+}
+/* the card that won the game, held up for a moment */
+@keyframes g-winzoom {
+  0% {
+    transform: scale(1);
+  }
+  35%,
+  70% {
+    transform: scale(1.9) rotate(-4deg);
+    filter: drop-shadow(0 0 1.2rem var(--accent));
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.a-winzoom {
+  animation: g-winzoom 1.5s var(--ease) both;
+}
+
+/* a podium step coming up out of the floor */
+@keyframes g-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.a-rise {
+  transform-origin: 50% 100%;
+  animation: g-rise 0.55s var(--ease-spring) both;
 }

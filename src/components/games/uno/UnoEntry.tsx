@@ -57,11 +57,11 @@ export default function UnoEntry() {
   const inClassic = classic || !!session || invited;
 
   return (
-    <GameShell name='uno' wide>
+    <GameShell name='uno' fit>
       {inClassic ? (
         <UnoGame game='uno' shell={false} />
       ) : mounted ? (
-        <div className='a-slide-up'>
+        <div className='a-slide-up mx-auto w-full max-w-xl pt-2'>
           <h1 className='mb-1 text-lg font-semibold tracking-tight'>
             Which Uno?
           </h1>

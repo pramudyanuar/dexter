@@ -236,6 +236,7 @@ export default function RoomNotice({
   busy,
   code,
   onLeave,
+  quiet,
 }: {
   room: RoomView | null;
   you: number;
@@ -245,6 +246,11 @@ export default function RoomNotice({
   busy?: boolean;
   code?: string;
   onLeave?: () => void;
+  /**
+   * Keep the pop-ups out of the way: each one shows briefly, small, and none
+   * at all once the game is over (the result says it already).
+   */
+  quiet?: boolean;
 }) {
   const t = useText();
   const lang = useLang();
@@ -356,16 +362,27 @@ export default function RoomNotice({
       />
     ) : null;
 
-  if (!lines.length && !clock && !admin) return null;
+  const shown = quiet && room.status === 'over' ? [] : lines;
+  if (!shown.length && !clock && !admin) return null;
   return (
     <>
-      {lines.length > 0 && (
+      {shown.length > 0 && (
         <div
-          className='pointer-events-none fixed top-16 left-1/2 z-[70] flex w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2'
+          className={`pointer-events-none fixed left-1/2 z-[70] flex -translate-x-1/2 flex-col gap-2 ${
+            quiet
+              ? 'top-3 w-[min(20rem,calc(100vw-11rem))] text-xs [&>div]:px-3 [&>div]:py-1.5 [&>div]:text-xs'
+              : 'top-16 w-[min(28rem,calc(100vw-2rem))]'
+          }`}
           aria-live='polite'
         >
-          {lines.map((l) => (
-            <Toast key={l.key} tone={l.tone} autoClose={l.autoClose}>
+          {shown.map((l) => (
+            <Toast
+              key={l.key}
+              tone={l.tone}
+              autoClose={
+                quiet ? Math.min(l.autoClose ?? 5000, 4000) : l.autoClose
+              }
+            >
               {l.text}
             </Toast>
           ))}

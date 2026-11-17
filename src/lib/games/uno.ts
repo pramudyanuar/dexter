@@ -103,6 +103,26 @@ export interface UnoEvent {
   drew?: { seat: number; count: number };
 }
 
+/** The reactions a player can throw at the table. */
+export const EMOTES = ['😂', '😡', '😭', '👏', '😱', '🔥'] as const;
+/** The last reaction sent; `n` counts them, so the same one twice is still new. */
+export interface Emote {
+  seat: number;
+  e: string;
+  n: number;
+}
+export const isEmote = (move: unknown): move is { type: 'emote'; e: string } =>
+  !!move &&
+  typeof move === 'object' &&
+  (move as { type?: unknown }).type === 'emote';
+/** Records a reaction. It is not a play: nothing else about the game changes. */
+export function react(s: { emote?: Emote | null }, seat: number, e: unknown) {
+  if (!EMOTES.includes(e as (typeof EMOTES)[number])) {
+    throw new RoomError('Unknown reaction', 400);
+  }
+  s.emote = { seat, e: e as string, n: (s.emote?.n ?? 0) + 1 };
+}
+
 export interface UnoState {
   players: number;
   hands: Card[][];
@@ -138,6 +158,7 @@ export interface UnoState {
   /** Whether each seat has called "UNO" while down to one card. Missing in older states. */
   calledUno?: boolean[];
   last: UnoEvent | null;
+  emote?: Emote | null;
 }
 
 const isNumber = (card: Card) => card.c !== 'W' && /^[0-9]$/.test(card.v);
@@ -489,7 +510,15 @@ export const unoGame: GameDef<UnoState> = {
     return { ...next, turn: opener < players ? opener : 0 };
   },
 
+  passive: isEmote,
+
   move(state, seat, raw, rng = Math.random) {
+    // a reaction is open to everyone, also to those already done
+    if (isEmote(raw)) {
+      const s = structuredClone(state);
+      react(s, seat, raw.e);
+      return s;
+    }
     if (isOut(state, seat))
       throw new RoomError('Kartumu sudah habis, tunggu yang lain selesai', 409);
     const move = raw as Move | null;
@@ -663,6 +692,11 @@ export const unoGame: GameDef<UnoState> = {
                 : [],
             ),
       last: state.last,
+      emote: state.emote ?? null,
+      // whoever is done playing may watch the hands still in the game
+      ...(seat !== null && (isOut(state, seat) || finished(state))
+        ? { peek: state.hands.map((h, i) => (i === seat ? null : h)) }
+        : {}),
     };
   },
 
@@ -701,4 +735,18 @@ export interface UnoView {
   /** Seats you may catch for not calling UNO */
   catchable: number[];
   last: UnoEvent | null;
+  /** The last reaction someone sent */
+  emote?: Emote | null;
+  /**
+   * Only for a player who is done (out of cards, or knocked out): the cards
+   * each other seat still holds, so they can watch the rest of the game.
+   */
+  peek?: (Card[] | null)[];
+  /**
+   * Flip: the other side of every hand (your own included), which is what the
+   * rest of the table is looking at while the game runs on the side in play.
+   */
+  backs?: Card[][];
+  /** Flip: the other side of the draw pile's top card, which lies face up */
+  drawBack?: Card | null;
 }

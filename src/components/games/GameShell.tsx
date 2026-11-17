@@ -2,6 +2,7 @@ import Link from 'next/link';
 import * as React from 'react';
 
 import DocumentTitle from '@/components/games/DocumentTitle';
+import FitBox from '@/components/games/FitBox';
 import RememberGame from '@/components/games/RememberGame';
 import Splash from '@/components/games/Splash';
 
@@ -15,6 +16,7 @@ export default function GameShell({
   menu,
   fluid,
   xwide,
+  fit,
 }: {
   /** The game's route name (e.g. `uno`); omit on the menu page. */
   name?: string;
@@ -27,6 +29,11 @@ export default function GameShell({
   fluid?: boolean;
   /** A wide column, centred (for boards that need room but have no side panels). */
   xwide?: boolean;
+  /**
+   * The game lays itself out in exactly the space there is. Every other game
+   * is kept on one screen too, by scaling it down when it would not fit.
+   */
+  fit?: boolean;
 }) {
   // pages pass the menu id (e.g. `chess`) or the route (`snake`)
   const game = name
@@ -34,7 +41,11 @@ export default function GameShell({
     : undefined;
 
   return (
-    <div className='games-ui flex min-h-dvh flex-col text-[15px] text-ink'>
+    <div
+      className={`games-ui flex flex-col text-[15px] text-ink ${
+        menu ? 'min-h-dvh' : 'h-dvh overflow-hidden overscroll-none'
+      }`}
+    >
       {name && (
         <Link
           href='/games'
@@ -50,10 +61,14 @@ export default function GameShell({
       {game && <Splash id={game.id} title={game.title} />}
 
       <main
-        className={`mx-auto flex w-full flex-1 flex-col px-4 pb-6 ${
-          menu ? 'pt-6' : 'pt-16'
+        className={`mx-auto flex w-full flex-1 flex-col ${
+          fit
+            ? 'min-h-0 overflow-x-hidden overflow-y-auto px-2 pt-14 pb-2 sm:px-4'
+            : menu
+              ? 'px-4 pt-6 pb-6'
+              : 'min-h-0 px-4 pt-14 pb-3'
         } ${
-          fluid
+          fit || fluid
             ? 'max-w-none'
             : xwide
               ? 'max-w-5xl'
@@ -64,7 +79,7 @@ export default function GameShell({
                   : 'max-w-md'
         }`}
       >
-        {children}
+        {fit || menu ? children : <FitBox>{children}</FitBox>}
       </main>
     </div>
   );

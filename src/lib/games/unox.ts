@@ -3,6 +3,9 @@ import {
   Color,
   COLORS,
   DARK_COLORS,
+  Emote,
+  isEmote,
+  react,
   shuffle,
   UnoEvent,
   UnoView,
@@ -54,6 +57,7 @@ export interface XState {
   penalty: number;
   calledUno: boolean[];
   last: UnoEvent | null;
+  emote?: Emote | null;
 }
 
 export interface UnoXView extends UnoView {
@@ -122,6 +126,9 @@ export function noMercyDeck(): XCard[] {
 
 const faceOf = (s: XState, card: XCard) =>
   s.side === 'dark' ? card.d : card.l;
+/** The side nobody is playing on: it faces the rest of the table. */
+const backOf = (s: XState, card: XCard) =>
+  s.side === 'dark' ? card.l : card.d;
 const topFace = (s: XState) => faceOf(s, s.discard[s.discard.length - 1]);
 const colorsOf = (s: XState) => (s.side === 'dark' ? DARK_COLORS : COLORS);
 const isNumber = (c: Card) => c.c !== 'W' && /^[0-9]$/.test(c.v);
@@ -513,7 +520,14 @@ export function makeGame(variant: Variant, id: GameId): GameDef<XState> {
       return { ...next, turn: opener < players ? opener : 0 };
     },
 
+    passive: isEmote,
+
     move(state, seat, raw, rng = Math.random) {
+      if (isEmote(raw)) {
+        const s = structuredClone(state);
+        react(s, seat, raw.e);
+        return s;
+      }
       if (isOut(state, seat))
         throw new RoomError('You are out, wait for the others to finish', 409);
       const move = raw as Move | null;
@@ -629,6 +643,24 @@ export function makeGame(variant: Variant, id: GameId): GameDef<XState> {
                   : [],
               ),
         last: state.last,
+        emote: state.emote ?? null,
+        // whoever is done playing may watch the hands still in the game
+        ...(seat !== null && (isOut(state, seat) || over)
+          ? {
+              peek: state.hands.map((h, i) =>
+                i === seat ? null : h.map((c) => faceOf(state, c)),
+              ),
+            }
+          : {}),
+        // Flip cards have two faces: the one not in play is held towards the table
+        ...(state.variant === 'flip'
+          ? {
+              backs: state.hands.map((h) => h.map((c) => backOf(state, c))),
+              drawBack: state.draw.length
+                ? backOf(state, state.draw[state.draw.length - 1])
+                : null,
+            }
+          : {}),
       };
     },
 
