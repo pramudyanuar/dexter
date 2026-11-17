@@ -210,8 +210,13 @@ export function useRoom<V>(game: GameId) {
       adopt(data.room);
     });
 
+  const effectiveSession: RoomSession | null =
+    session ??
+    (spectateCode ? { code: spectateCode, token: '', you: -1 } : null);
+
   return {
-    session,
+    session: effectiveSession,
+    spectating,
     room,
     receivedAt,
     name,
