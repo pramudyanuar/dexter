@@ -9,6 +9,15 @@ import useGameEntry from '@/components/games/useGameEntry';
 
 export const NAME_MAX = 16;
 
+interface PublicRoom {
+  code: string;
+  game: string;
+  hostName: string;
+  players: number;
+  capacity: number;
+  createdAt: number;
+}
+
 const field =
   'w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 placeholder:text-[var(--mute)] focus:border-[var(--mute)] focus:ring-0 focus:outline-none';
 
@@ -28,16 +37,49 @@ export default function RoomLobby({
   /** The player's display name, remembered across games */
   name: string;
   onName: (name: string) => void;
-  onCreate: () => void;
+  onCreate: (isPublic?: boolean) => void;
   onJoin: (code: string) => void;
 }) {
   const game = useGameEntry();
+  const [isPublic, setIsPublic] = React.useState(true);
+  const [publicRooms, setPublicRooms] = React.useState<PublicRoom[]>([]);
   const [code, setCode] = React.useState(() =>
     normalizeCode(
       new URLSearchParams(window.location.search).get('room') ?? '',
     ),
   );
   const invited = code.length === 5;
+
+  const gameId = game?.id;
+  React.useEffect(() => {
+    if (!gameId) return;
+    let stopped = false;
+    const load = async () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      try {
+        const res = await fetch(
+          `/api/rooms?game=${encodeURIComponent(gameId)}`,
+          { cache: 'no-store' },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { rooms?: PublicRoom[] };
+        if (!stopped && Array.isArray(data.rooms)) {
+          setPublicRooms(data.rooms);
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    };
+    const first = setTimeout(load, 0);
+    const timer = setInterval(load, 5000);
+    document.addEventListener('visibilitychange', load);
+    return () => {
+      stopped = true;
+      clearTimeout(first);
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', load);
+    };
+  }, [gameId]);
 
   return (
     <div className='mx-auto w-full max-w-md'>
@@ -87,7 +129,7 @@ export default function RoomLobby({
         <div className='mt-5'>
           <button
             type='button'
-            onClick={onCreate}
+            onClick={() => onCreate(isPublic)}
             disabled={busy}
             className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-50 ${
               invited
@@ -97,9 +139,14 @@ export default function RoomLobby({
           >
             Buat room baru
           </button>
-          <p className='mt-1.5 text-center text-xs text-[var(--mute)]'>
-            Kamu jadi pembuat, lalu bagikan kodenya ke teman.
-          </p>
+          <label className='mt-2.5 flex items-center justify-center gap-2 text-xs text-[var(--mute)]'>
+            <input
+              type='checkbox'
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+            />
+            Room publik (bisa langsung di-join orang lain)
+          </label>
         </div>
 
         <div className='mt-5 flex items-center gap-3 text-xs text-[var(--mute)]'>
@@ -147,6 +194,45 @@ export default function RoomLobby({
         >
           {error}
         </p>
+      )}
+
+      {publicRooms.length > 0 && (
+        <div className='mt-6 rounded-xl border border-line bg-surface/40 p-3.5'>
+          <div className='mb-2.5 flex items-center justify-between text-xs text-[var(--mute)]'>
+            <span>Room terbuka ({publicRooms.length})</span>
+            <span>Klik untuk langsung gabung</span>
+          </div>
+          <ul className='flex flex-col gap-2'>
+            {publicRooms.map((r) => (
+              <li
+                key={r.code}
+                className='flex items-center justify-between gap-3 rounded-lg border border-line bg-paper px-3 py-2'
+              >
+                <div className='min-w-0 flex-1'>
+                  <div className='flex items-center gap-2'>
+                    <span className='font-mono text-xs font-semibold text-accent'>
+                      #{r.code}
+                    </span>
+                    <span className='truncate text-xs font-medium text-ink'>
+                      {r.hostName}
+                    </span>
+                  </div>
+                  <span className='text-[11px] text-[var(--mute)]'>
+                    {r.players}/{r.capacity} pemain
+                  </span>
+                </div>
+                <button
+                  type='button'
+                  disabled={busy}
+                  onClick={() => onJoin(r.code)}
+                  className='shrink-0 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper transition hover:opacity-90 disabled:opacity-40'
+                >
+                  Gabung
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

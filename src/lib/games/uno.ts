@@ -211,10 +211,20 @@ export function canPlay(s: UnoState, card: Card, _hand?: Card[]): boolean {
 export function start(
   players: number,
   rng: () => number = Math.random,
+  options?: unknown,
 ): UnoState {
+  const opts = (options && typeof options === 'object' ? options : {}) as {
+    handSize?: number;
+  };
+  const handSize =
+    typeof opts.handSize === 'number' &&
+    opts.handSize >= 2 &&
+    opts.handSize <= 15
+      ? Math.round(opts.handSize)
+      : HAND_SIZE;
   const draw = shuffle(deck(), rng);
   const hands: Card[][] = Array.from({ length: players }, () => []);
-  for (let i = 0; i < HAND_SIZE; i++) {
+  for (let i = 0; i < handSize; i++) {
     for (let p = 0; p < players; p++) hands[p].push(draw.pop()!);
   }
 

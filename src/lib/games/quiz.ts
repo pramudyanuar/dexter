@@ -42,10 +42,23 @@ export interface QuizView {
   winners: number[] | null;
 }
 
-function fresh(players: number, rng: () => number = Math.random): QuizState {
+function fresh(
+  players: number,
+  rng: () => number = Math.random,
+  options?: unknown,
+): QuizState {
+  const opts = (options && typeof options === 'object' ? options : {}) as {
+    totalQuestions?: number;
+  };
+  const total =
+    typeof opts.totalQuestions === 'number' &&
+    opts.totalQuestions >= 3 &&
+    opts.totalQuestions <= 30
+      ? Math.round(opts.totalQuestions)
+      : TOTAL;
   return {
     players,
-    questions: shuffle([...QUESTIONS], rng).slice(0, TOTAL),
+    questions: shuffle([...QUESTIONS], rng).slice(0, total),
     idx: 0,
     answers: Array(players).fill(null),
     order: [],

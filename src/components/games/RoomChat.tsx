@@ -244,26 +244,35 @@ function Chat({
               {error}
             </p>
           )}
-          <form onSubmit={send} className='flex gap-2 border-t border-line p-2'>
-            <input
-              ref={inputRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              maxLength={CHAT_MAX_LENGTH}
-              disabled={channel === null}
-              placeholder={channel === null ? t.muted : t.write}
-              aria-label={t.message}
-              autoComplete='off'
-              className='min-w-0 flex-1'
-            />
-            <button
-              type='submit'
-              disabled={!text.trim() || channel === null}
-              className='rounded-lg bg-ink px-3 text-sm font-medium text-paper transition-opacity disabled:opacity-40'
+          {token ? (
+            <form
+              onSubmit={send}
+              className='flex gap-2 border-t border-line p-2'
             >
-              {t.send}
-            </button>
-          </form>
+              <input
+                ref={inputRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                maxLength={CHAT_MAX_LENGTH}
+                disabled={channel === null}
+                placeholder={channel === null ? t.muted : t.write}
+                aria-label={t.message}
+                autoComplete='off'
+                className='min-w-0 flex-1'
+              />
+              <button
+                type='submit'
+                disabled={!text.trim() || channel === null}
+                className='rounded-lg bg-ink px-3 text-sm font-medium text-paper transition-opacity disabled:opacity-40'
+              >
+                {t.send}
+              </button>
+            </form>
+          ) : (
+            <div className='border-t border-line px-3 py-2 text-center text-xs text-[#e4b34a]'>
+              Mode Spectate (Admin)
+            </div>
+          )}
         </section>
       )}
 

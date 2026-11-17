@@ -52,6 +52,8 @@ export interface Room {
   left?: (number | null)[];
   /** Why each removed seat is out */
   why?: (OutWhy | null)[];
+  /** Whether the room appears in the public lobby list (defaults to true) */
+  public?: boolean;
 }
 
 export type OutWhy = 'left' | 'idle' | 'kicked';

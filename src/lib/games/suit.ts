@@ -28,6 +28,7 @@ export interface SuitState {
   round: number;
   /** Winner of the whole match */
   winner: 0 | 1 | null;
+  winsNeeded?: number;
 }
 
 /** What a player sees: their own pick, and only whether the other has picked. */
@@ -41,13 +42,29 @@ export interface SuitView {
   target: number;
 }
 
-const fresh = (): SuitState => ({
-  scores: [0, 0],
-  picks: [null, null],
-  last: null,
-  round: 1,
-  winner: null,
-});
+const fresh = (
+  _players = 2,
+  _rng?: () => number,
+  options?: unknown,
+): SuitState => {
+  const opts = (options && typeof options === 'object' ? options : {}) as {
+    winsNeeded?: number;
+  };
+  const winsNeeded =
+    typeof opts.winsNeeded === 'number' &&
+    opts.winsNeeded >= 1 &&
+    opts.winsNeeded <= 10
+      ? Math.round(opts.winsNeeded)
+      : WINS_NEEDED;
+  return {
+    scores: [0, 0],
+    picks: [null, null],
+    last: null,
+    round: 1,
+    winner: null,
+    winsNeeded,
+  };
+};
 
 export const suitGame: GameDef<SuitState> = {
   id: 'suit',
@@ -56,7 +73,8 @@ export const suitGame: GameDef<SuitState> = {
   autoStart: true,
 
   start: fresh,
-  restart: fresh,
+  restart: (previous, players, rng) =>
+    fresh(players, rng, { winsNeeded: previous.winsNeeded }),
 
   move(state, seat, move) {
     const pick = (move as { pick?: unknown } | null)?.pick;
@@ -73,13 +91,15 @@ export const suitGame: GameDef<SuitState> = {
     const winner = roundWinner(picks[0], picks[1]);
     const scores = [...state.scores] as [number, number];
     if (winner !== null) scores[winner]++;
+    const target = state.winsNeeded ?? WINS_NEEDED;
 
     return {
       scores,
       picks: [null, null],
       last: { picks: [picks[0], picks[1]], winner },
       round: state.round + 1,
-      winner: winner !== null && scores[winner] >= WINS_NEEDED ? winner : null,
+      winner: winner !== null && scores[winner] >= target ? winner : null,
+      winsNeeded: target,
     };
   },
 

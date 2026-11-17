@@ -4,6 +4,7 @@ import Link from 'next/link';
 import * as React from 'react';
 
 import { AdminRoomSummary } from '@/lib/rooms/admin';
+import { DEFAULT_GAME_CONFIG, GameConfig } from '@/lib/rooms/game-config';
 import { ChatMsg, RoomStatus } from '@/lib/rooms/types';
 
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -71,7 +72,29 @@ function AdminDashboard({
   const [pendingBulk, setPendingBulk] = React.useState<
     'cleanup' | 'all' | null
   >(null);
+  const [tab, setTab] = React.useState<'rooms' | 'config'>('rooms');
+  const [config, setConfig] = React.useState<GameConfig>(DEFAULT_GAME_CONFIG);
+  const [savingConfig, setSavingConfig] = React.useState(false);
+  const [configNotice, setConfigNotice] = React.useState('');
   const [now, setNow] = React.useState(() => Date.now());
+  const chatListRef = React.useRef<HTMLDivElement>(null);
+  const stickToBottomRef = React.useRef(true);
+  const lastChatKeyRef = React.useRef('');
+
+  React.useEffect(() => {
+    const el = chatListRef.current;
+    if (!el || !detail) return;
+    const lastId = detail.chat[detail.chat.length - 1]?.id ?? '';
+    const key = `${detail.room.code}:${lastId}`;
+    const roomChanged = !lastChatKeyRef.current.startsWith(
+      `${detail.room.code}:`,
+    );
+    if (roomChanged) stickToBottomRef.current = true;
+    if (key !== lastChatKeyRef.current && stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+    lastChatKeyRef.current = key;
+  }, [detail]);
 
   const loadRooms = React.useCallback(
     async (quiet = false) => {
@@ -217,6 +240,58 @@ function AdminDashboard({
     }
   };
 
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      fetch('/api/admin/config', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.config) setConfig(d.config);
+        })
+        .catch(() => null);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const saveConfig = async () => {
+    setSavingConfig(true);
+    setConfigNotice('');
+    try {
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config }),
+      });
+      if (res.status === 401) return expire();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setConfig(data.config);
+      setConfigNotice('Pengaturan tersimpan! Berlaku untuk room baru.');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Gagal menyimpan pengaturan',
+      );
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const resetConfig = async () => {
+    setSavingConfig(true);
+    setConfigNotice('');
+    try {
+      const res = await fetch('/api/admin/config', { method: 'DELETE' });
+      if (res.status === 401) return expire();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setConfig(data.config);
+      setConfigNotice('Pengaturan dikembalikan ke default.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal mereset pengaturan');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   const filteredRooms = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return rooms.filter((r) => {
@@ -296,364 +371,770 @@ function AdminDashboard({
           </div>
         )}
 
-        {/* Stats */}
-        <div className='grid grid-cols-2 gap-3 sm:grid-cols-5'>
-          {[
-            ['Total Room', summary?.total ?? 0],
-            ['Playing', summary?.playing ?? 0],
-            ['Waiting', summary?.waiting ?? 0],
-            ['Over', summary?.over ?? 0],
-            ['Pemain Aktif', summary?.totalPlayers ?? 0],
-          ].map(([label, val]) => (
-            <div
-              key={String(label)}
-              className='rounded-xl border border-line bg-surface/50 px-4 py-3'
-            >
-              <div className='text-xs text-[var(--mute)]'>{label}</div>
-              <div className='mt-0.5 font-mono text-2xl font-semibold text-ink'>
-                {val}
+        {/* Tab switcher */}
+        <div className='flex gap-2 border-b border-line pb-3'>
+          <button
+            type='button'
+            onClick={() => setTab('rooms')}
+            className={`rounded-full border px-4 py-1 text-xs font-medium transition ${
+              tab === 'rooms'
+                ? 'border-transparent bg-ink text-paper'
+                : 'border-line-strong text-[var(--mute)] hover:text-ink'
+            }`}
+          >
+            Monitor Room
+          </button>
+          <button
+            type='button'
+            onClick={() => setTab('config')}
+            className={`rounded-full border px-4 py-1 text-xs font-medium transition ${
+              tab === 'config'
+                ? 'border-transparent bg-ink text-paper'
+                : 'border-line-strong text-[var(--mute)] hover:text-ink'
+            }`}
+          >
+            Pengaturan Game (CMS)
+          </button>
+        </div>
+
+        {tab === 'config' ? (
+          <div className='flex flex-col gap-5'>
+            {configNotice && (
+              <div className='rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5 text-sm text-accent'>
+                {configNotice}
+              </div>
+            )}
+
+            <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
+              {/* Global Room & Waktu Tunggu */}
+              <div className='flex flex-col gap-3 rounded-xl border border-line bg-surface/50 p-4'>
+                <h2 className='font-semibold text-ink'>
+                  Room & Waktu Tunggu (Semua Game)
+                </h2>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Batas Waktu Giliran (detik, 0 = default game)
+                  <input
+                    type='number'
+                    min={0}
+                    max={300}
+                    value={config.room.turnSeconds}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        room: {
+                          ...c.room,
+                          turnSeconds: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Maksimal Strike AFK (1–10)
+                  <input
+                    type='number'
+                    min={1}
+                    max={10}
+                    value={config.room.maxStrikes}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        room: {
+                          ...c.room,
+                          maxStrikes: Number(e.target.value) || 3,
+                        },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Toleransi Keluar Tab (detik, 3–60)
+                  <input
+                    type='number'
+                    min={3}
+                    max={60}
+                    value={config.room.leaveGraceSeconds}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        room: {
+                          ...c.room,
+                          leaveGraceSeconds: Number(e.target.value) || 10,
+                        },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+              </div>
+
+              {/* Uno No Mercy */}
+              <div className='flex flex-col gap-3 rounded-xl border border-line bg-surface/50 p-4'>
+                <h2 className='font-semibold text-ink'>Uno No Mercy</h2>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Batas Kartu Gugur (Mercy Limit, 5–100)
+                  <input
+                    type='number'
+                    min={5}
+                    max={100}
+                    value={config.unomercy.mercyLimit}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        unomercy: {
+                          ...c.unomercy,
+                          mercyLimit: Number(e.target.value) || 25,
+                        },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Kartu Awal per Pemain (2–15)
+                  <input
+                    type='number'
+                    min={2}
+                    max={15}
+                    value={config.unomercy.handSize}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        unomercy: {
+                          ...c.unomercy,
+                          handSize: Number(e.target.value) || 7,
+                        },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+              </div>
+
+              {/* Werewolf */}
+              <div className='flex flex-col gap-3 rounded-xl border border-line bg-surface/50 p-4'>
+                <h2 className='font-semibold text-ink'>Werewolf</h2>
+                <div className='grid grid-cols-2 gap-2'>
+                  <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                    Diskusi (detik)
+                    <input
+                      type='number'
+                      min={30}
+                      max={300}
+                      value={config.werewolf.discussionSeconds}
+                      onChange={(e) =>
+                        setConfig((c) => ({
+                          ...c,
+                          werewolf: {
+                            ...c.werewolf,
+                            discussionSeconds: Number(e.target.value) || 90,
+                          },
+                        }))
+                      }
+                      className='rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 font-mono text-sm text-ink'
+                    />
+                  </label>
+                  <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                    Voting (detik)
+                    <input
+                      type='number'
+                      min={15}
+                      max={180}
+                      value={config.werewolf.votingSeconds}
+                      onChange={(e) =>
+                        setConfig((c) => ({
+                          ...c,
+                          werewolf: {
+                            ...c.werewolf,
+                            votingSeconds: Number(e.target.value) || 45,
+                          },
+                        }))
+                      }
+                      className='rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 font-mono text-sm text-ink'
+                    />
+                  </label>
+                  <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                    Malam (detik)
+                    <input
+                      type='number'
+                      min={15}
+                      max={180}
+                      value={config.werewolf.nightSeconds}
+                      onChange={(e) =>
+                        setConfig((c) => ({
+                          ...c,
+                          werewolf: {
+                            ...c.werewolf,
+                            nightSeconds: Number(e.target.value) || 45,
+                          },
+                        }))
+                      }
+                      className='rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 font-mono text-sm text-ink'
+                    />
+                  </label>
+                  <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                    Maks Pemain
+                    <input
+                      type='number'
+                      min={5}
+                      max={16}
+                      value={config.werewolf.maxPlayers}
+                      onChange={(e) =>
+                        setConfig((c) => ({
+                          ...c,
+                          werewolf: {
+                            ...c.werewolf,
+                            maxPlayers: Number(e.target.value) || 12,
+                          },
+                        }))
+                      }
+                      className='rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 font-mono text-sm text-ink'
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Uno Flip & Uno Classic */}
+              <div className='flex flex-col gap-3 rounded-xl border border-line bg-surface/50 p-4'>
+                <h2 className='font-semibold text-ink'>
+                  Uno Flip & Uno Classic
+                </h2>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Kartu Awal Uno Flip (2–15)
+                  <input
+                    type='number'
+                    min={2}
+                    max={15}
+                    value={config.unoflip.handSize}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        unoflip: { handSize: Number(e.target.value) || 7 },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Kartu Awal Uno Classic (2–15)
+                  <input
+                    type='number'
+                    min={2}
+                    max={15}
+                    value={config.uno.handSize}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        uno: { handSize: Number(e.target.value) || 7 },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+              </div>
+
+              {/* Domino, Suit, Liar's Dice */}
+              <div className='flex flex-col gap-3 rounded-xl border border-line bg-surface/50 p-4'>
+                <h2 className='font-semibold text-ink'>
+                  Domino, Suit & Liar&apos;s Dice
+                </h2>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Kartu Awal Domino (3–10)
+                  <input
+                    type='number'
+                    min={3}
+                    max={10}
+                    value={config.domino.handSize}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        domino: { handSize: Number(e.target.value) || 7 },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Skor Menang Suit (Best of, 1–10)
+                  <input
+                    type='number'
+                    min={1}
+                    max={10}
+                    value={config.suit.winsNeeded}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        suit: { winsNeeded: Number(e.target.value) || 2 },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Dadu Awal Liar&apos;s Dice (1–10)
+                  <input
+                    type='number'
+                    min={1}
+                    max={10}
+                    value={config.dice.startDice}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        dice: { startDice: Number(e.target.value) || 5 },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+              </div>
+
+              {/* Quiz & Pictionary */}
+              <div className='flex flex-col gap-3 rounded-xl border border-line bg-surface/50 p-4'>
+                <h2 className='font-semibold text-ink'>Quiz & Pictionary</h2>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Jumlah Soal Quiz (3–30)
+                  <input
+                    type='number'
+                    min={3}
+                    max={30}
+                    value={config.quiz.totalQuestions}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        quiz: { totalQuestions: Number(e.target.value) || 10 },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
+                <label className='flex flex-col gap-1 text-xs text-[var(--mute)]'>
+                  Giliran Gambar Pictionary / Pemain (1–5)
+                  <input
+                    type='number'
+                    min={1}
+                    max={5}
+                    value={config.pictionary.turnsEach}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        pictionary: {
+                          turnsEach: Number(e.target.value) || 2,
+                        },
+                      }))
+                    }
+                    className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 font-mono text-sm text-ink'
+                  />
+                </label>
               </div>
             </div>
-          ))}
-        </div>
 
-        {/* Filters */}
-        <div className='flex flex-wrap items-center justify-between gap-3'>
-          <div className='flex flex-wrap gap-1.5'>
-            {(['all', 'playing', 'waiting', 'over'] as const).map((st) => (
+            <div className='flex flex-wrap gap-3'>
               <button
-                key={st}
                 type='button'
-                onClick={() => setStatusFilter(st)}
-                className={`rounded-full border px-3 py-1 text-xs capitalize transition ${
-                  statusFilter === st
-                    ? 'border-transparent bg-ink text-paper'
-                    : 'border-line-strong text-[var(--mute)] hover:text-ink'
-                }`}
+                disabled={savingConfig}
+                onClick={saveConfig}
+                className='rounded-lg bg-ink px-5 py-2 text-sm font-medium text-paper transition hover:opacity-90 disabled:opacity-40'
               >
-                {st === 'all' ? 'Semua' : st}
+                {savingConfig ? 'Menyimpan...' : 'Simpan Pengaturan'}
               </button>
-            ))}
+              <button
+                type='button'
+                disabled={savingConfig}
+                onClick={resetConfig}
+                className='rounded-lg border border-line-strong px-4 py-2 text-sm text-[var(--mute)] hover:text-ink disabled:opacity-40'
+              >
+                Reset Default
+              </button>
+            </div>
           </div>
-
-          <div className='flex flex-wrap items-center gap-2'>
-            <select
-              aria-label='Filter game'
-              value={gameFilter}
-              onChange={(e) => setGameFilter(e.target.value)}
-              className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 text-xs text-ink'
-            >
-              <option value='all'>Semua Game</option>
-              {gameOptions.map((g) => (
-                <option key={g} value={g}>
-                  {g} ({summary?.byGame[g] ?? 0})
-                </option>
-              ))}
-            </select>
-
-            <input
-              type='search'
-              placeholder='Cari kode room / pemain...'
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 text-xs text-ink placeholder:text-[var(--mute)] focus:border-accent focus:outline-none'
-            />
-
-            <button
-              type='button'
-              disabled={busyAction || rooms.length === 0}
-              onClick={() => setPendingBulk('cleanup')}
-              className='rounded-lg border border-line-strong px-3 py-1.5 text-xs text-ink transition hover:border-accent disabled:opacity-40'
-            >
-              Hapus Kosong / Done
-            </button>
-
-            <button
-              type='button'
-              disabled={busyAction || rooms.length === 0}
-              onClick={() => setPendingBulk('all')}
-              className='rounded-lg border border-err/40 px-3 py-1.5 text-xs text-err transition hover:bg-err/10 disabled:opacity-40'
-            >
-              Delete All
-            </button>
-          </div>
-        </div>
-
-        {/* Split view */}
-        <div className='grid min-w-0 gap-5 lg:grid-cols-[360px_1fr]'>
-          {/* Left: Room list */}
-          <div className='flex min-w-0 flex-col gap-2'>
-            {filteredRooms.length === 0 ? (
-              <div className='rounded-xl border border-dashed border-line py-12 text-center text-sm text-[var(--mute)]'>
-                Tidak ada room yang cocok.
-              </div>
-            ) : (
-              filteredRooms.map((r) => (
-                <button
-                  key={r.code}
-                  type='button'
-                  onClick={() => setSelectedCode(r.code)}
-                  className={`flex flex-col gap-1.5 rounded-xl border p-3.5 text-left transition ${
-                    selectedCode === r.code
-                      ? 'border-accent bg-card'
-                      : 'border-line bg-surface/50 hover:border-line-strong'
-                  }`}
+        ) : (
+          <>
+            {/* Stats */}
+            <div className='grid grid-cols-2 gap-3 sm:grid-cols-5'>
+              {[
+                ['Total Room', summary?.total ?? 0],
+                ['Playing', summary?.playing ?? 0],
+                ['Waiting', summary?.waiting ?? 0],
+                ['Over', summary?.over ?? 0],
+                ['Pemain Aktif', summary?.totalPlayers ?? 0],
+              ].map(([label, val]) => (
+                <div
+                  key={String(label)}
+                  className='rounded-xl border border-line bg-surface/50 px-4 py-3'
                 >
-                  <div className='flex items-center justify-between gap-2'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-mono text-sm font-semibold text-ink'>
-                        #{r.code}
-                      </span>
-                      <span className='rounded bg-paper px-1.5 py-0.5 font-mono text-[11px] text-[var(--mute)]'>
-                        {r.game}
-                      </span>
-                    </div>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${statusBadge(r.status)}`}
-                    >
-                      {r.status}
-                    </span>
+                  <div className='text-xs text-[var(--mute)]'>{label}</div>
+                  <div className='mt-0.5 font-mono text-2xl font-semibold text-ink'>
+                    {val}
                   </div>
+                </div>
+              ))}
+            </div>
 
-                  <div className='flex items-center justify-between text-xs text-[var(--mute)]'>
-                    <span>
-                      {r.activeCount}/{r.playerCount} pemain aktif
-                    </span>
-                    <span>{formatAgo(r.lastActiveAt, now)}</span>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-
-          {/* Right: Room inspector */}
-          <div className='min-w-0 rounded-xl border border-line bg-surface/50 p-5'>
-            {!detail ? (
-              <div className='flex h-full min-h-[320px] items-center justify-center text-sm text-[var(--mute)]'>
-                Pilih salah satu room di sebelah kiri untuk melihat detail &
-                kontrol.
+            {/* Filters */}
+            <div className='flex flex-wrap items-center justify-between gap-3'>
+              <div className='flex flex-wrap gap-1.5'>
+                {(['all', 'playing', 'waiting', 'over'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type='button'
+                    onClick={() => setStatusFilter(st)}
+                    className={`rounded-full border px-3 py-1 text-xs capitalize transition ${
+                      statusFilter === st
+                        ? 'border-transparent bg-ink text-paper'
+                        : 'border-line-strong text-[var(--mute)] hover:text-ink'
+                    }`}
+                  >
+                    {st === 'all' ? 'Semua' : st}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <div className='flex flex-col gap-5'>
-                <div className='flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4'>
-                  <div>
-                    <div className='flex items-center gap-2.5'>
-                      <h2 className='font-mono text-xl font-semibold text-ink'>
-                        #{detail.room.code}
-                      </h2>
-                      <span className='rounded border border-line-strong bg-paper px-2 py-0.5 font-mono text-xs'>
-                        {detail.room.game}
-                      </span>
-                      <span
-                        className={`rounded-full border px-2.5 py-0.5 text-xs uppercase ${statusBadge(detail.room.status)}`}
-                      >
-                        {detail.room.status}
-                      </span>
-                    </div>
-                    <p className='mt-1 text-xs text-[var(--mute)]'>
-                      Versi {detail.room.version} · Dibuat{' '}
-                      {formatAgo(detail.room.createdAt, now)} · Aktif{' '}
-                      {formatAgo(detail.room.lastActiveAt, now)}
-                    </p>
-                  </div>
 
-                  <div className='flex flex-wrap gap-2'>
-                    {detail.room.status !== 'over' && (
+              <div className='flex flex-wrap items-center gap-2'>
+                <select
+                  aria-label='Filter game'
+                  value={gameFilter}
+                  onChange={(e) => setGameFilter(e.target.value)}
+                  className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 text-xs text-ink'
+                >
+                  <option value='all'>Semua Game</option>
+                  {gameOptions.map((g) => (
+                    <option key={g} value={g}>
+                      {g} ({summary?.byGame[g] ?? 0})
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type='search'
+                  placeholder='Cari kode room / pemain...'
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className='rounded-lg border border-line-strong bg-paper px-3 py-1.5 text-xs text-ink placeholder:text-[var(--mute)] focus:border-accent focus:outline-none'
+                />
+
+                <button
+                  type='button'
+                  disabled={busyAction || rooms.length === 0}
+                  onClick={() => setPendingBulk('cleanup')}
+                  className='rounded-lg border border-line-strong px-3 py-1.5 text-xs text-ink transition hover:border-accent disabled:opacity-40'
+                >
+                  Hapus Kosong / Done
+                </button>
+
+                <button
+                  type='button'
+                  disabled={busyAction || rooms.length === 0}
+                  onClick={() => setPendingBulk('all')}
+                  className='rounded-lg border border-err/40 px-3 py-1.5 text-xs text-err transition hover:bg-err/10 disabled:opacity-40'
+                >
+                  Delete All
+                </button>
+              </div>
+            </div>
+
+            {/* Split view */}
+            <div className='grid min-w-0 gap-5 lg:grid-cols-[360px_1fr]'>
+              {/* Left: Room list */}
+              <div className='flex min-w-0 flex-col gap-2'>
+                {filteredRooms.length === 0 ? (
+                  <div className='rounded-xl border border-dashed border-line py-12 text-center text-sm text-[var(--mute)]'>
+                    Tidak ada room yang cocok.
+                  </div>
+                ) : (
+                  filteredRooms.map((r) => (
+                    <button
+                      key={r.code}
+                      type='button'
+                      onClick={() => setSelectedCode(r.code)}
+                      className={`flex flex-col gap-1.5 rounded-xl border p-3.5 text-left transition ${
+                        selectedCode === r.code
+                          ? 'border-accent bg-card'
+                          : 'border-line bg-surface/50 hover:border-line-strong'
+                      }`}
+                    >
+                      <div className='flex items-center justify-between gap-2'>
+                        <div className='flex items-center gap-2'>
+                          <span className='font-mono text-sm font-semibold text-ink'>
+                            #{r.code}
+                          </span>
+                          <span className='rounded bg-paper px-1.5 py-0.5 font-mono text-[11px] text-[var(--mute)]'>
+                            {r.game}
+                          </span>
+                        </div>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${statusBadge(r.status)}`}
+                        >
+                          {r.status}
+                        </span>
+                      </div>
+
+                      <div className='flex items-center justify-between text-xs text-[var(--mute)]'>
+                        <span>
+                          {r.activeCount}/{r.playerCount} pemain aktif
+                        </span>
+                        <span>{formatAgo(r.lastActiveAt, now)}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* Right: Room inspector */}
+              <div className='min-w-0 rounded-xl border border-line bg-surface/50 p-5'>
+                {!detail ? (
+                  <div className='flex h-full min-h-[320px] items-center justify-center text-sm text-[var(--mute)]'>
+                    Pilih salah satu room di sebelah kiri untuk melihat detail &
+                    kontrol.
+                  </div>
+                ) : (
+                  <div className='flex flex-col gap-5'>
+                    <div className='flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4'>
+                      <div>
+                        <div className='flex items-center gap-2.5'>
+                          <h2 className='font-mono text-xl font-semibold text-ink'>
+                            #{detail.room.code}
+                          </h2>
+                          <span className='rounded border border-line-strong bg-paper px-2 py-0.5 font-mono text-xs'>
+                            {detail.room.game}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2.5 py-0.5 text-xs uppercase ${statusBadge(detail.room.status)}`}
+                          >
+                            {detail.room.status}
+                          </span>
+                        </div>
+                        <p className='mt-1 text-xs text-[var(--mute)]'>
+                          Versi {detail.room.version} · Dibuat{' '}
+                          {formatAgo(detail.room.createdAt, now)} · Aktif{' '}
+                          {formatAgo(detail.room.lastActiveAt, now)}
+                        </p>
+                      </div>
+
+                      <div className='flex flex-wrap gap-2'>
+                        <Link
+                          href={`/games/${detail.room.game}?spectate=${detail.room.code}`}
+                          target='_blank'
+                          rel='noreferrer'
+                          className='rounded-lg border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20'
+                        >
+                          Spectate →
+                        </Link>
+                        {detail.room.status !== 'over' && (
+                          <button
+                            type='button'
+                            disabled={busyAction}
+                            onClick={() =>
+                              runAction(detail.room.code, {
+                                action: 'forceEnd',
+                              })
+                            }
+                            className='rounded-lg border border-line-strong px-3 py-1.5 text-xs hover:border-accent disabled:opacity-40'
+                          >
+                            Akhiri Paksa
+                          </button>
+                        )}
+                        <button
+                          type='button'
+                          disabled={busyAction}
+                          onClick={() => setPendingDelete(detail.room.code)}
+                          className='rounded-lg border border-err/40 px-3 py-1.5 text-xs text-err hover:bg-err/10 disabled:opacity-40'
+                        >
+                          Hapus Room
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Players */}
+                    <div>
+                      <h3 className='mb-2 text-xs font-medium text-[var(--mute)]'>
+                        Daftar Pemain ({detail.room.players.length})
+                      </h3>
+                      <ul className='flex flex-col gap-2'>
+                        {detail.room.players.map((p) => (
+                          <li
+                            key={p.seat}
+                            className='flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-xs'
+                          >
+                            <div className='flex items-center gap-2'>
+                              <span className='font-mono text-[var(--mute)]'>
+                                S{p.seat + 1}
+                              </span>
+                              <span className='font-medium text-ink'>
+                                {p.name}
+                              </span>
+                              {p.isHost && (
+                                <span className='rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent'>
+                                  Host
+                                </span>
+                              )}
+                              {p.out && (
+                                <span className='rounded bg-err/15 px-1.5 py-0.5 text-[10px] text-err'>
+                                  Out ({p.why ?? 'removed'})
+                                </span>
+                              )}
+                              {p.strikes > 0 && (
+                                <span className='text-[var(--mute)]'>
+                                  · {p.strikes} strike
+                                </span>
+                              )}
+                            </div>
+
+                            <div className='flex items-center gap-1.5'>
+                              {!p.isHost && !p.out && (
+                                <button
+                                  type='button'
+                                  disabled={busyAction}
+                                  onClick={() =>
+                                    runAction(detail.room.code, {
+                                      action: 'setHost',
+                                      seat: p.seat,
+                                    })
+                                  }
+                                  className='rounded border border-line-strong px-2 py-1 hover:border-accent'
+                                >
+                                  Jadikan Host
+                                </button>
+                              )}
+                              {!p.out && (
+                                <button
+                                  type='button'
+                                  disabled={busyAction}
+                                  onClick={() =>
+                                    runAction(detail.room.code, {
+                                      action: 'kick',
+                                      seat: p.seat,
+                                    })
+                                  }
+                                  className='rounded border border-line-strong px-2 py-1 text-[var(--mute)] hover:border-err/50 hover:text-err'
+                                >
+                                  Kick
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Chat & Announce */}
+                    <div className='rounded-xl border border-line bg-paper p-3.5'>
+                      <h3 className='mb-2 text-xs font-medium text-[var(--mute)]'>
+                        Chat Room ({detail.chat.length})
+                      </h3>
+                      <div
+                        ref={chatListRef}
+                        onScroll={() => {
+                          const el = chatListRef.current;
+                          if (!el) return;
+                          stickToBottomRef.current =
+                            el.scrollHeight - el.scrollTop - el.clientHeight <
+                            32;
+                        }}
+                        className='mb-3 max-h-40 space-y-1.5 overflow-y-auto text-xs'
+                      >
+                        {detail.chat.length === 0 ? (
+                          <p className='text-[var(--mute)]'>Belum ada chat.</p>
+                        ) : (
+                          detail.chat.map((c) => {
+                            const isAdmin = c.seat === -1;
+                            const sender = isAdmin
+                              ? 'ADMIN'
+                              : (detail.room.players.find(
+                                  (p) => p.seat === c.seat,
+                                )?.name ?? `S${c.seat + 1}`);
+                            return (
+                              <div
+                                key={c.id}
+                                className={
+                                  isAdmin
+                                    ? 'rounded-lg border border-[#e4b34a]/50 bg-[#e4b34a]/15 px-2.5 py-1.5'
+                                    : ''
+                                }
+                              >
+                                <span
+                                  className={
+                                    isAdmin
+                                      ? 'mr-1.5 rounded bg-[#e4b34a] px-1.5 py-px text-[10px] font-bold text-[#14161c]'
+                                      : 'font-medium text-ink'
+                                  }
+                                >
+                                  {sender}
+                                  {!isAdmin && ':'}
+                                </span>{' '}
+                                <span
+                                  className={`[overflow-wrap:anywhere] break-words ${
+                                    isAdmin
+                                      ? 'font-medium text-ink'
+                                      : 'text-[var(--mute)]'
+                                  }`}
+                                >
+                                  {c.text}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!announceText.trim()) return;
+                          stickToBottomRef.current = true;
+                          runAction(detail.room.code, {
+                            action: 'announce',
+                            text: announceText,
+                          });
+                          setAnnounceText('');
+                        }}
+                        className='flex gap-2'
+                      >
+                        <input
+                          type='text'
+                          value={announceText}
+                          onChange={(e) => setAnnounceText(e.target.value)}
+                          placeholder='Kirim pengumuman admin ke chat room...'
+                          className='min-w-0 flex-1 rounded-lg border border-line-strong bg-surface/50 px-3 py-1.5 text-xs text-ink focus:border-accent focus:outline-none'
+                        />
+                        <button
+                          type='submit'
+                          disabled={busyAction || !announceText.trim()}
+                          className='rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper disabled:opacity-40'
+                        >
+                          Kirim
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* State Inspector */}
+                    <div>
                       <button
                         type='button'
-                        disabled={busyAction}
-                        onClick={() =>
-                          runAction(detail.room.code, { action: 'forceEnd' })
-                        }
-                        className='rounded-lg border border-line-strong px-3 py-1.5 text-xs hover:border-accent disabled:opacity-40'
+                        onClick={() => setShowState((s) => !s)}
+                        className='text-xs text-accent hover:underline'
                       >
-                        Akhiri Paksa
+                        {showState
+                          ? 'Sembunyikan State JSON'
+                          : 'Lihat State & Options JSON'}
                       </button>
-                    )}
-                    <button
-                      type='button'
-                      disabled={busyAction}
-                      onClick={() => setPendingDelete(detail.room.code)}
-                      className='rounded-lg border border-err/40 px-3 py-1.5 text-xs text-err hover:bg-err/10 disabled:opacity-40'
-                    >
-                      Hapus Room
-                    </button>
-                  </div>
-                </div>
-
-                {/* Players */}
-                <div>
-                  <h3 className='mb-2 text-xs font-medium text-[var(--mute)]'>
-                    Daftar Pemain ({detail.room.players.length})
-                  </h3>
-                  <ul className='flex flex-col gap-2'>
-                    {detail.room.players.map((p) => (
-                      <li
-                        key={p.seat}
-                        className='flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-xs'
-                      >
-                        <div className='flex items-center gap-2'>
-                          <span className='font-mono text-[var(--mute)]'>
-                            S{p.seat + 1}
-                          </span>
-                          <span className='font-medium text-ink'>{p.name}</span>
-                          {p.isHost && (
-                            <span className='rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent'>
-                              Host
-                            </span>
+                      {showState && (
+                        <pre className='mt-2 max-h-64 overflow-auto rounded-xl border border-line bg-paper p-3 font-mono text-[11px] text-ink'>
+                          {JSON.stringify(
+                            { options: detail.options, state: detail.state },
+                            null,
+                            2,
                           )}
-                          {p.out && (
-                            <span className='rounded bg-err/15 px-1.5 py-0.5 text-[10px] text-err'>
-                              Out ({p.why ?? 'removed'})
-                            </span>
-                          )}
-                          {p.strikes > 0 && (
-                            <span className='text-[var(--mute)]'>
-                              · {p.strikes} strike
-                            </span>
-                          )}
-                        </div>
-
-                        <div className='flex items-center gap-1.5'>
-                          {!p.isHost && !p.out && (
-                            <button
-                              type='button'
-                              disabled={busyAction}
-                              onClick={() =>
-                                runAction(detail.room.code, {
-                                  action: 'setHost',
-                                  seat: p.seat,
-                                })
-                              }
-                              className='rounded border border-line-strong px-2 py-1 hover:border-accent'
-                            >
-                              Jadikan Host
-                            </button>
-                          )}
-                          {!p.out && (
-                            <button
-                              type='button'
-                              disabled={busyAction}
-                              onClick={() =>
-                                runAction(detail.room.code, {
-                                  action: 'kick',
-                                  seat: p.seat,
-                                })
-                              }
-                              className='rounded border border-line-strong px-2 py-1 text-[var(--mute)] hover:border-err/50 hover:text-err'
-                            >
-                              Kick
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Chat & Announce */}
-                <div className='rounded-xl border border-line bg-paper p-3.5'>
-                  <h3 className='mb-2 text-xs font-medium text-[var(--mute)]'>
-                    Chat Room ({detail.chat.length})
-                  </h3>
-                  <div className='mb-3 max-h-40 space-y-1.5 overflow-y-auto text-xs'>
-                    {detail.chat.length === 0 ? (
-                      <p className='text-[var(--mute)]'>Belum ada chat.</p>
-                    ) : (
-                      detail.chat.map((c) => {
-                        const isAdmin = c.seat === -1;
-                        const sender = isAdmin
-                          ? 'ADMIN'
-                          : (detail.room.players.find((p) => p.seat === c.seat)
-                              ?.name ?? `S${c.seat + 1}`);
-                        return (
-                          <div
-                            key={c.id}
-                            className={
-                              isAdmin
-                                ? 'rounded-lg border border-[#e4b34a]/50 bg-[#e4b34a]/15 px-2.5 py-1.5'
-                                : ''
-                            }
-                          >
-                            <span
-                              className={
-                                isAdmin
-                                  ? 'mr-1.5 rounded bg-[#e4b34a] px-1.5 py-px text-[10px] font-bold text-[#14161c]'
-                                  : 'font-medium text-ink'
-                              }
-                            >
-                              {sender}
-                              {!isAdmin && ':'}
-                            </span>{' '}
-                            <span
-                              className={`[overflow-wrap:anywhere] break-words ${
-                                isAdmin
-                                  ? 'font-medium text-ink'
-                                  : 'text-[var(--mute)]'
-                              }`}
-                            >
-                              {c.text}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!announceText.trim()) return;
-                      runAction(detail.room.code, {
-                        action: 'announce',
-                        text: announceText,
-                      });
-                      setAnnounceText('');
-                    }}
-                    className='flex gap-2'
-                  >
-                    <input
-                      type='text'
-                      value={announceText}
-                      onChange={(e) => setAnnounceText(e.target.value)}
-                      placeholder='Kirim pengumuman admin ke chat room...'
-                      className='min-w-0 flex-1 rounded-lg border border-line-strong bg-surface/50 px-3 py-1.5 text-xs text-ink focus:border-accent focus:outline-none'
-                    />
-                    <button
-                      type='submit'
-                      disabled={busyAction || !announceText.trim()}
-                      className='rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper disabled:opacity-40'
-                    >
-                      Kirim
-                    </button>
-                  </form>
-                </div>
-
-                {/* State Inspector */}
-                <div>
-                  <button
-                    type='button'
-                    onClick={() => setShowState((s) => !s)}
-                    className='text-xs text-accent hover:underline'
-                  >
-                    {showState
-                      ? 'Sembunyikan State JSON'
-                      : 'Lihat State & Options JSON'}
-                  </button>
-                  {showState && (
-                    <pre className='mt-2 max-h-64 overflow-auto rounded-xl border border-line bg-paper p-3 font-mono text-[11px] text-ink'>
-                      {JSON.stringify(
-                        { options: detail.options, state: detail.state },
-                        null,
-                        2,
+                        </pre>
                       )}
-                    </pre>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          </>
+        )}
       </main>
 
       {pendingDelete && (

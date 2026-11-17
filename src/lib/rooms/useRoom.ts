@@ -60,7 +60,19 @@ export function useRoom<V>(game: GameId) {
 
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const [spectateCode, setSpectateCode] = React.useState('');
   const version = React.useRef(0);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      const raw = new URLSearchParams(window.location.search).get('spectate');
+      if (raw) {
+        const clean = normalizeCode(raw);
+        if (clean) setSpectateCode(clean);
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const adopt = (next: RoomView<V>) => {
     version.current = next.version;
@@ -71,6 +83,7 @@ export function useRoom<V>(game: GameId) {
   const leave = React.useCallback(
     (message = '') => {
       setSession(null);
+      setSpectateCode('');
       setRoom(null);
       version.current = 0;
       setError(message);
@@ -78,28 +91,34 @@ export function useRoom<V>(game: GameId) {
     [setSession],
   );
 
-  // every player polls; the server answers tersely when nothing changed
-  const code = session?.code;
+  // every player (or admin spectator) polls; the server answers tersely when nothing changed
+  const code = session?.code ?? (spectateCode || undefined);
   const token = session?.token;
+  const spectating = Boolean(!session && spectateCode);
 
   // tell other tabs this seat is in use, so they do not take it over
   React.useEffect(() => (token ? holdSeat(token) : undefined), [token]);
 
   React.useEffect(() => {
-    if (!code || !token) return;
+    if (!code || (!token && !spectating)) return;
     let stopped = false;
 
     const poll = async () => {
       if (stopped || document.visibilityState !== 'visible') return;
       try {
-        const data = await call(`/api/rooms/${code}?v=${version.current}`, {
+        const qs = spectating
+          ? `v=${version.current}&spectate=1`
+          : `v=${version.current}`;
+        const data = await call(`/api/rooms/${code}?${qs}`, {
           token,
         });
         if (!stopped && data.changed) adopt(data.room);
       } catch (err) {
         if ((err as { status?: number }).status === 404) {
-          forgetSeat(game, code);
+          if (code) forgetSeat(game, code);
           leave('Room sudah kedaluwarsa atau tidak ada lagi.');
+        } else if ((err as { status?: number }).status === 401 && spectating) {
+          leave('Login admin diperlukan untuk spectate.');
         }
         // other errors (a dropped connection): try again on the next tick
       }
@@ -116,7 +135,7 @@ export function useRoom<V>(game: GameId) {
     };
     // adopt only touches refs and state setters
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, token, leave, game]);
+  }, [code, token, spectating, leave, game]);
 
   // Closing the page or tab is the one thing the server cannot see for itself,
   // so the browser is asked to say so on the way out. A reload says it too, but
@@ -160,9 +179,9 @@ export function useRoom<V>(game: GameId) {
     }
   };
 
-  const create = () =>
+  const create = (isPublic = true) =>
     run(async () => {
-      const data = await call('/api/rooms', { body: { game, name } });
+      const data = await call('/api/rooms', { body: { game, name, isPublic } });
       rememberSeat(game, data.code, data);
       setSession({ code: data.code, token: data.token, you: data.you });
       adopt(data.room);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { isAdminAuthed } from '@/lib/rooms/admin-auth';
 import { CODE_PATTERN, newToken, normalizeCode } from '@/lib/rooms/codes';
 import {
   act,
@@ -60,9 +61,15 @@ export async function GET(req: Request, { params }: Context) {
   }
 
   try {
+    const reqUrl = new URL(req.url);
+    const spectate = reqUrl.searchParams.get('spectate') === '1';
+    if (spectate && !isAdminAuthed(req)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     let room = await store.get(code);
     if (!room) return notFound();
-    const token = req.headers.get('x-player-token');
+    const token = spectate ? null : req.headers.get('x-player-token');
 
     // Time passes even when nobody acts. A player who left and did not come
     // back, or one sitting on their turn, is dealt with here, by whichever
@@ -77,15 +84,16 @@ export async function GET(req: Request, { params }: Context) {
         : ((await store.get(code)) ?? room);
     }
 
-    const known = Number(new URL(req.url).searchParams.get('v'));
+    const known = Number(reqUrl.searchParams.get('v'));
     if (known === room.version) {
       return NextResponse.json(
         { changed: false, version: room.version },
         { headers: NO_STORE },
       );
     }
+    const view = toView(room, token);
     return NextResponse.json(
-      { changed: true, room: toView(room, token) },
+      { changed: true, room: spectate ? { ...view, seat: -1 } : view },
       { headers: NO_STORE },
     );
   } catch (err) {

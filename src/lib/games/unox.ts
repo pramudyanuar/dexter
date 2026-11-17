@@ -55,6 +55,8 @@ export interface XState {
   pending: { seat: number; index: number } | null;
   /** No Mercy: stacked draw cards the current player must beat or take */
   penalty: number;
+  /** No Mercy: configurable mercy limit (defaults to MERCY_LIMIT = 25) */
+  mercyLimit?: number;
   calledUno: boolean[];
   last: UnoEvent | null;
   emote?: Emote | null;
@@ -226,11 +228,12 @@ function dropSeat(s: XState, seat: number, rng: () => number) {
   settle(s);
 }
 
-/** No Mercy: anyone at 25 cards or more is out. */
+/** No Mercy: anyone at `mercyLimit` cards or more is out. */
 function mercy(s: XState, rng: () => number) {
   if (s.variant !== 'nomercy') return;
+  const limit = s.mercyLimit ?? MERCY_LIMIT;
   const out = s.hands.flatMap((h, seat) =>
-    h.length >= MERCY_LIMIT && !isOut(s, seat) ? [seat] : [],
+    h.length >= limit && !isOut(s, seat) ? [seat] : [],
   );
   if (!out.length) return;
   for (const seat of out) dropSeat(s, seat, rng);
@@ -240,11 +243,32 @@ function mercy(s: XState, rng: () => number) {
 // -------------------------------------------------------------------- start
 
 export function makeStart(variant: Variant) {
-  return (players: number, rng: () => number = Math.random): XState => {
+  return (
+    players: number,
+    rng: () => number = Math.random,
+    options?: unknown,
+  ): XState => {
+    const opts = (options && typeof options === 'object' ? options : {}) as {
+      handSize?: number;
+      mercyLimit?: number;
+    };
+    const handSize =
+      typeof opts.handSize === 'number' &&
+      opts.handSize >= 2 &&
+      opts.handSize <= 15
+        ? Math.round(opts.handSize)
+        : HAND_SIZE;
+    const mercyLimit =
+      typeof opts.mercyLimit === 'number' &&
+      opts.mercyLimit >= 5 &&
+      opts.mercyLimit <= 100
+        ? Math.round(opts.mercyLimit)
+        : MERCY_LIMIT;
+
     const draw =
       variant === 'flip' ? flipDeck(rng) : shuffle(noMercyDeck(), rng);
     const hands: XCard[][] = Array.from({ length: players }, () => []);
-    for (let i = 0; i < HAND_SIZE; i++) {
+    for (let i = 0; i < handSize; i++) {
       for (let p = 0; p < players; p++) hands[p].push(draw.pop()!);
     }
     // open with a card that is a plain number on the light side
@@ -265,6 +289,7 @@ export function makeStart(variant: Variant) {
       dropped: [],
       pending: null,
       penalty: 0,
+      ...(variant === 'nomercy' ? { mercyLimit } : {}),
       calledUno: Array<boolean>(players).fill(false),
       last: null,
     };

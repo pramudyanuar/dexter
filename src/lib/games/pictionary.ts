@@ -93,12 +93,22 @@ function pickWord(used: string[], rng: () => number) {
 function fresh(
   players: number,
   rng: () => number = Math.random,
+  options?: unknown,
 ): PictionaryState {
+  const opts = (options && typeof options === 'object' ? options : {}) as {
+    turnsEach?: number;
+  };
+  const turnsEach =
+    typeof opts.turnsEach === 'number' &&
+    opts.turnsEach >= 1 &&
+    opts.turnsEach <= 5
+      ? Math.round(opts.turnsEach)
+      : TURNS_EACH;
   const first = shuffle([...WORDS], rng)[0];
   return {
     players,
     round: 0,
-    rounds: players * TURNS_EACH,
+    rounds: players * turnsEach,
     drawer: 0,
     word: first,
     used: [first],

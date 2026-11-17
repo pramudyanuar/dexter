@@ -92,9 +92,21 @@ function fresh(
   players: number,
   starter: number,
   rng: () => number = Math.random,
+  options?: unknown,
 ): DominoState {
+  const opts = (options && typeof options === 'object' ? options : {}) as {
+    handSize?: number;
+  };
+  const handSize =
+    typeof opts.handSize === 'number' &&
+    opts.handSize >= 3 &&
+    opts.handSize <= 10
+      ? Math.round(opts.handSize)
+      : HAND;
   const tiles = shuffle(set(), rng);
-  const hands = Array.from({ length: players }, () => tiles.splice(0, HAND));
+  const hands = Array.from({ length: players }, () =>
+    tiles.splice(0, handSize),
+  );
   return {
     players,
     hands,
@@ -118,7 +130,7 @@ export const dominoGame: GameDef<DominoState> = {
   maxPlayers: 4,
   autoStart: false,
 
-  start: (players, rng) => fresh(players, 0, rng),
+  start: (players, rng, options) => fresh(players, 0, rng, options),
   restart: (previous, players, rng) =>
     fresh(players, (previous.starter + 1) % players, rng),
 

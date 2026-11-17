@@ -458,6 +458,30 @@ function autoplay(room: Room, seat: number, rng?: () => number): unknown {
 }
 
 /** A missed turn: a strike and a forced move, and out after the last strike. */
+function roomTuning(room: Room) {
+  const opts = (
+    room.options && typeof room.options === 'object' ? room.options : {}
+  ) as {
+    turnSeconds?: number;
+    maxStrikes?: number;
+    leaveGraceSeconds?: number;
+  };
+  return {
+    turnSeconds:
+      typeof opts.turnSeconds === 'number' && opts.turnSeconds >= 10
+        ? Math.round(opts.turnSeconds)
+        : 0,
+    maxStrikes:
+      typeof opts.maxStrikes === 'number' && opts.maxStrikes >= 1
+        ? Math.round(opts.maxStrikes)
+        : MAX_STRIKES,
+    leaveGraceMs:
+      typeof opts.leaveGraceSeconds === 'number' && opts.leaveGraceSeconds >= 3
+        ? Math.round(opts.leaveGraceSeconds) * 1000
+        : LEAVE_GRACE_MS,
+  };
+}
+
 function penalize(
   room: Room,
   seat: number,
@@ -467,7 +491,7 @@ function penalize(
   const strikes = [...strikesOf(room)];
   strikes[seat] += 1;
   const marked = { ...room, strikes };
-  if (strikes[seat] >= MAX_STRIKES)
+  if (strikes[seat] >= roomTuning(room).maxStrikes)
     return eliminate(marked, seat, rng, now, 'idle');
 
   const def = GAMES[room.game];
@@ -493,18 +517,21 @@ export function sweep(room: Room, now = Date.now(), rng?: () => number): Room {
 
   let next = runClock(room, now, rng);
   if (next.status !== 'playing') return next;
+  const tuning = roomTuning(next);
   const left = leftOf(room);
   for (let seat = 0; seat < room.tokens.length; seat++) {
     if (next.status !== 'playing') break;
     const at = left[seat];
-    if (at !== null && now - at > LEAVE_GRACE_MS) {
+    if (at !== null && now - at > tuning.leaveGraceMs) {
       next = eliminate(next, seat, rng, now, 'left');
     }
   }
   if (next.status !== 'playing') return next;
 
   const waiting = GAMES[next.game].waiting?.(next.state);
-  if (waiting && now - stampOf(next) > waiting.seconds * 1000) {
+  const waitSec =
+    waiting && tuning.turnSeconds > 0 ? tuning.turnSeconds : waiting?.seconds;
+  if (waiting && waitSec && now - stampOf(next) > waitSec * 1000) {
     for (const seat of waiting.seats) {
       if (next.status !== 'playing') break;
       if (!outOf(next)[seat]) next = penalize(next, seat, rng, now);
@@ -525,6 +552,9 @@ export function toView(
     room.status === 'playing' && room.state !== null
       ? def.waiting?.(room.state)
       : null;
+  const tuning = roomTuning(room);
+  const waitSec =
+    waiting && tuning.turnSeconds > 0 ? tuning.turnSeconds : waiting?.seconds;
   const out = outOf(room);
   return {
     code: room.code,
@@ -544,7 +574,7 @@ export function toView(
     out,
     outWhy: whyOf(room),
     strikes: strikesOf(room),
-    maxStrikes: MAX_STRIKES,
+    maxStrikes: tuning.maxStrikes,
     host: hostOf(room),
     hostNotice: room.hostAt
       ? Math.max(0, Math.ceil((room.hostAt + HOST_NOTICE_MS - now) / 1000))
@@ -556,22 +586,23 @@ export function toView(
               seat: s,
               goneIn: Math.max(
                 0,
-                Math.ceil((LEAVE_GRACE_MS - (now - at)) / 1000),
+                Math.ceil((tuning.leaveGraceMs - (now - at)) / 1000),
               ),
             },
           ]
         : [],
     ),
-    waiting: waiting
-      ? {
-          seats: waiting.seats,
-          seconds: waiting.seconds,
-          remaining: Math.max(
-            0,
-            Math.ceil((stampOf(room) + waiting.seconds * 1000 - now) / 1000),
-          ),
-        }
-      : null,
+    waiting:
+      waiting && waitSec
+        ? {
+            seats: waiting.seats,
+            seconds: waitSec,
+            remaining: Math.max(
+              0,
+              Math.ceil((stampOf(room) + waitSec * 1000 - now) / 1000),
+            ),
+          }
+        : null,
   };
 }
 

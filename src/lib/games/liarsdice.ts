@@ -68,15 +68,27 @@ export const higher = (bid: Bid | null, qty: number, face: number) =>
 const fresh = (
   players: number,
   rng: () => number = Math.random,
-): DiceState => ({
-  players,
-  dice: Array.from({ length: players }, () => roll(START_DICE, rng)),
-  turn: 0,
-  bid: null,
-  round: 1,
-  reveal: null,
-  winner: null,
-});
+  options?: unknown,
+): DiceState => {
+  const opts = (options && typeof options === 'object' ? options : {}) as {
+    startDice?: number;
+  };
+  const startDice =
+    typeof opts.startDice === 'number' &&
+    opts.startDice >= 1 &&
+    opts.startDice <= 10
+      ? Math.round(opts.startDice)
+      : START_DICE;
+  return {
+    players,
+    dice: Array.from({ length: players }, () => roll(startDice, rng)),
+    turn: 0,
+    bid: null,
+    round: 1,
+    reveal: null,
+    winner: null,
+  };
+};
 
 export const diceGame: GameDef<DiceState> = {
   id: 'dice',
