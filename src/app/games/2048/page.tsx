@@ -16,6 +16,7 @@ import useStoredState from '@/lib/useStoredState';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import SubmitScore from '@/components/games/SubmitScore';
 
 interface Game {
   board: Board;
@@ -184,6 +185,10 @@ function Game2048() {
           ? `Sampai ${reached}! Lanjutkan kalau masih mau.`
           : 'Panah atau WASD, atau geser di papan.'}
       </p>
+
+      {game.over && game.score > 0 && (
+        <SubmitScore game='2048' score={game.score} />
+      )}
     </>
   );
 }

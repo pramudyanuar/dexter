@@ -14,6 +14,7 @@ import {
 import useStoredState from '@/lib/useStoredState';
 
 import GameShell from '@/components/games/GameShell';
+import SubmitScore from '@/components/games/SubmitScore';
 
 const CELL = 20;
 const SIZE = GRID * CELL;
@@ -296,6 +297,7 @@ function Snake() {
             {status === 'over' ? (
               <>
                 <p className='a-pop text-err'>Game over. Skor {score}.</p>
+                {score > 0 && <SubmitScore game='snake' score={score} />}
                 <button
                   type='button'
                   onClick={restart}

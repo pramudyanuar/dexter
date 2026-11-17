@@ -15,6 +15,7 @@ import useStoredState from '@/lib/useStoredState';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import SubmitScore from '@/components/games/SubmitScore';
 
 type Best = Partial<Record<Level, number>>;
 const NO_BEST: Best = {};
@@ -238,6 +239,15 @@ function Minesweeper() {
           <span className='text-err'>Kena ranjau.</span>
         )}
       </p>
+
+      {game.status === 'won' && (
+        <SubmitScore
+          game='minesweeper'
+          score={seconds}
+          meta={level}
+          label='Waktu'
+        />
+      )}
 
       <p className='mt-auto pt-4 text-center text-xs text-mute'>
         Klik kiri buka, klik kanan atau tahan lama untuk bendera. Klik angka

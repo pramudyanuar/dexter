@@ -21,6 +21,7 @@ import {
 import useStoredState from '@/lib/useStoredState';
 
 import GameShell from '@/components/games/GameShell';
+import SubmitScore from '@/components/games/SubmitScore';
 
 const CELL = 24;
 const W = COLS * CELL;
@@ -263,6 +264,13 @@ function Tetris() {
                   <p className='a-pop text-err'>
                     Game over. Skor {stats.score}.
                   </p>
+                  {stats.score > 0 && (
+                    <SubmitScore
+                      game='tetris'
+                      score={stats.score}
+                      meta={`${stats.lines} baris · Lv ${stats.level}`}
+                    />
+                  )}
                   <button
                     type='button'
                     onClick={restart}

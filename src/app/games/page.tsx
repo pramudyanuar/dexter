@@ -113,6 +113,12 @@ export default function GamesPage() {
               {chip.label} <span className='opacity-60'>{chip.count}</span>
             </button>
           ))}
+          <Link
+            href='/games/leaderboard'
+            className='rounded-full border border-line-strong px-3.5 py-1.5 text-sm text-accent transition-colors hover:border-accent'
+          >
+            Leaderboard →
+          </Link>
         </div>
       </div>
 
