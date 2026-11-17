@@ -1251,7 +1251,7 @@ function Uno({ game }: { game: UnoKind }) {
     if (card.c === 'W') setChoosing(index);
     else if (swaps(card)) setSwapping(index);
     else if (
-      !view.variant &&
+      !(view.variant === 'nomercy' && card.v === '0') &&
       !view.canPass &&
       stackable(view.hand, index).length > 0
     )

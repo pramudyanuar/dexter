@@ -274,7 +274,13 @@ export function makeStart(variant: Variant) {
 // --------------------------------------------------------------------- moves
 
 type Move =
-  | { type: 'play'; index: number; color?: Color; target?: number }
+  | {
+      type: 'play';
+      index: number;
+      color?: Color;
+      target?: number;
+      also?: number[];
+    }
   | { type: 'draw' }
   | { type: 'pass' }
   | { type: 'uno' }
@@ -309,6 +315,38 @@ function catchUno(s: XState, seat: number, target: unknown, rng: () => number) {
   s.calledUno[t] = false;
   s.last = { seat, kind: 'catch', target: t, drew: { seat: t, count: given } };
   mercy(s, rng);
+}
+
+function stackOf(
+  s: XState,
+  hand: XCard[],
+  index: number,
+  raw: unknown,
+): number[] {
+  if (raw === undefined || (Array.isArray(raw) && raw.length === 0)) return [];
+  if (!Array.isArray(raw)) throw new RoomError('Invalid stack', 400);
+  if (s.pending) {
+    throw new RoomError('Cannot stack after drawing', 400);
+  }
+  const first = faceOf(s, hand[index]);
+  if (!isNumber(first)) {
+    throw new RoomError('Only number cards can be stacked', 400);
+  }
+  if (s.variant === 'nomercy' && (first.v === '0' || first.v === '7')) {
+    throw new RoomError('Action number cards cannot be stacked', 400);
+  }
+  const seen = new Set([index]);
+  for (const i of raw) {
+    if (!Number.isInteger(i) || i < 0 || i >= hand.length || seen.has(i)) {
+      throw new RoomError('No such card', 400);
+    }
+    seen.add(i);
+    const face = faceOf(s, hand[i]);
+    if (!isNumber(face) || face.v !== first.v) {
+      throw new RoomError('Stacked cards must have the same number', 400);
+    }
+  }
+  return raw as number[];
 }
 
 function play(
@@ -354,15 +392,19 @@ function play(
     }
   }
 
-  hand.splice(index, 1);
-  s.discard.push(card);
-  s.color = wild ? (move.color as Color) : (f.c as Color);
+  const also = stackOf(s, hand, index, move.also);
+  const played = [card, ...also.map((i) => hand[i])];
+  for (const i of [index, ...also].sort((a, b) => b - a)) hand.splice(i, 1);
+  s.discard.push(...played);
+  const lastFace = faceOf(s, played[played.length - 1]);
+  s.color = wild ? (move.color as Color) : (lastFace.c as Color);
   s.pending = null;
   s.last = {
     seat,
     kind: 'play',
-    card: f,
+    card: lastFace,
     color: wild ? s.color : undefined,
+    ...(played.length > 1 ? { cards: played.map((c) => faceOf(s, c)) } : {}),
   };
 
   // Discard All: every other card of that colour goes too, under the played one

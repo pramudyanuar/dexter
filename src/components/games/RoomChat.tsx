@@ -185,7 +185,28 @@ function Chat({
               </p>
             )}
             {lines.map((l) => {
+              const isAdmin = l.seat === -1;
               const mine = l.seat === you;
+              if (isAdmin) {
+                return (
+                  <div
+                    key={l.id}
+                    className='my-1 rounded-xl border border-[#e4b34a]/50 bg-[#e4b34a]/15 px-3 py-2 text-left'
+                  >
+                    <div className='mb-0.5 flex items-center gap-1.5 text-[11px]'>
+                      <span className='rounded bg-[#e4b34a] px-1.5 py-px font-bold text-[#14161c]'>
+                        ADMIN
+                      </span>
+                      <span className='text-[var(--mute)]'>
+                        {time(l.at, t.locale)}
+                      </span>
+                    </div>
+                    <p className='text-sm font-medium [overflow-wrap:anywhere] break-words text-ink'>
+                      {l.text}
+                    </p>
+                  </div>
+                );
+              }
               return (
                 <div
                   key={l.id}

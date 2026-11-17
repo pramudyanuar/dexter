@@ -237,7 +237,7 @@ function AdminDashboard({
   );
 
   return (
-    <div className='games-ui flex min-h-dvh flex-col text-[15px] text-ink'>
+    <div className='games-ui flex min-h-dvh flex-col overflow-x-hidden text-[15px] text-ink'>
       <DocumentTitle title='Admin Dashboard' />
 
       <header className='border-b border-line bg-paper/80 backdrop-blur'>
@@ -380,9 +380,9 @@ function AdminDashboard({
         </div>
 
         {/* Split view */}
-        <div className='grid gap-5 lg:grid-cols-[360px_1fr]'>
+        <div className='grid min-w-0 gap-5 lg:grid-cols-[360px_1fr]'>
           {/* Left: Room list */}
-          <div className='flex flex-col gap-2'>
+          <div className='flex min-w-0 flex-col gap-2'>
             {filteredRooms.length === 0 ? (
               <div className='rounded-xl border border-dashed border-line py-12 text-center text-sm text-[var(--mute)]'>
                 Tidak ada room yang cocok.
@@ -427,7 +427,7 @@ function AdminDashboard({
           </div>
 
           {/* Right: Room inspector */}
-          <div className='rounded-xl border border-line bg-surface/50 p-5'>
+          <div className='min-w-0 rounded-xl border border-line bg-surface/50 p-5'>
             {!detail ? (
               <div className='flex h-full min-h-[320px] items-center justify-center text-sm text-[var(--mute)]'>
                 Pilih salah satu room di sebelah kiri untuk melihat detail &
@@ -560,25 +560,43 @@ function AdminDashboard({
                     {detail.chat.length === 0 ? (
                       <p className='text-[var(--mute)]'>Belum ada chat.</p>
                     ) : (
-                      detail.chat.map((c) => (
-                        <div key={c.id}>
-                          <span
+                      detail.chat.map((c) => {
+                        const isAdmin = c.seat === -1;
+                        const sender = isAdmin
+                          ? 'ADMIN'
+                          : (detail.room.players.find((p) => p.seat === c.seat)
+                              ?.name ?? `S${c.seat + 1}`);
+                        return (
+                          <div
+                            key={c.id}
                             className={
-                              c.seat === -1
-                                ? 'font-semibold text-accent'
-                                : 'font-medium text-ink'
+                              isAdmin
+                                ? 'rounded-lg border border-[#e4b34a]/50 bg-[#e4b34a]/15 px-2.5 py-1.5'
+                                : ''
                             }
                           >
-                            {c.seat === -1
-                              ? 'Admin'
-                              : (detail.room.players.find(
-                                  (p) => p.seat === c.seat,
-                                )?.name ?? `S${c.seat + 1}`)}
-                            :
-                          </span>{' '}
-                          <span className='text-[var(--mute)]'>{c.text}</span>
-                        </div>
-                      ))
+                            <span
+                              className={
+                                isAdmin
+                                  ? 'mr-1.5 rounded bg-[#e4b34a] px-1.5 py-px text-[10px] font-bold text-[#14161c]'
+                                  : 'font-medium text-ink'
+                              }
+                            >
+                              {sender}
+                              {!isAdmin && ':'}
+                            </span>{' '}
+                            <span
+                              className={`[overflow-wrap:anywhere] break-words ${
+                                isAdmin
+                                  ? 'font-medium text-ink'
+                                  : 'text-[var(--mute)]'
+                              }`}
+                            >
+                              {c.text}
+                            </span>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
 
