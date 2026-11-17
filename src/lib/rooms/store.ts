@@ -24,6 +24,10 @@ export interface RoomStore {
   /** Call set-up messages between seats, oldest first (short-lived) */
   signalList(code: string): Promise<Signal[]>;
   signalAdd(code: string, signal: Signal): Promise<void>;
+  /** Lists all active room codes. */
+  listCodes(): Promise<string[]>;
+  /** Permanently deletes a room and its associated chat/signal keys. */
+  delete(code: string): Promise<void>;
 }
 
 const key = (code: string) => `room:${code}`;
@@ -134,6 +138,35 @@ class RedisStore implements RoomStore {
     await this.command(['LTRIM', signalKey(code), -SIGNAL_KEEP, -1]);
     await this.command(['EXPIRE', signalKey(code), TTL_SECONDS]);
   }
+
+  async listCodes(): Promise<string[]> {
+    const codes = new Set<string>();
+    let cursor = '0';
+    for (let i = 0; i < 50; i++) {
+      const res = (await this.command([
+        'SCAN',
+        cursor,
+        'MATCH',
+        'room:*',
+        'COUNT',
+        100,
+      ])) as [string, string[]] | null;
+      if (!res) break;
+      const [nextCursor, keys] = res;
+      for (const k of keys ?? []) {
+        if (k.startsWith('room:') && !k.includes(':', 5)) {
+          codes.add(k.slice(5));
+        }
+      }
+      cursor = nextCursor;
+      if (cursor === '0') break;
+    }
+    return Array.from(codes);
+  }
+
+  async delete(code: string): Promise<void> {
+    await this.command(['DEL', key(code), chatKey(code), signalKey(code)]);
+  }
 }
 
 /** Development only: lives in this process, which is why production needs Redis. */
@@ -212,6 +245,25 @@ class MemoryStore implements RoomStore {
       room: structuredClone(room),
       expires: Date.now() + TTL_SECONDS * 1000,
     });
+  }
+
+  async listCodes(): Promise<string[]> {
+    const now = Date.now();
+    const codes: string[] = [];
+    for (const [code, entry] of this.rooms.entries()) {
+      if (entry.expires < now) {
+        this.rooms.delete(code);
+      } else {
+        codes.push(code);
+      }
+    }
+    return codes;
+  }
+
+  async delete(code: string): Promise<void> {
+    this.rooms.delete(code);
+    this.chats.delete(code);
+    this.signals.delete(code);
   }
 }
 

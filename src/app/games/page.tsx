@@ -9,6 +9,7 @@ import useStoredState from '@/lib/useStoredState';
 import GameArt from '@/components/games/GameArt';
 import GameShell from '@/components/games/GameShell';
 import { LAST_GAME_KEY } from '@/components/games/RememberGame';
+import TopNav from '@/components/TopNav';
 
 import { GameEntry, GAMES } from '@/constant/games';
 
@@ -80,6 +81,8 @@ export default function GamesPage() {
 
   return (
     <GameShell menu>
+      <TopNav />
+
       <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
         <div>
           <h1
