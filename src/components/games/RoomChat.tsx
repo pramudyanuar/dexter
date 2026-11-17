@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 
+import { normalizeCode } from '@/lib/rooms/code-format';
 import { CHAT_MAX_LENGTH, ChatMsg, GameId } from '@/lib/rooms/types';
 import type { RoomSession } from '@/lib/rooms/useRoom';
 import useStoredState from '@/lib/useStoredState';
@@ -322,8 +323,27 @@ export default function RoomChat({
     null,
     'tab',
   );
+  const [spectateCode, setSpectateCode] = React.useState('');
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      const raw = new URLSearchParams(window.location.search).get('spectate');
+      if (raw) setSpectateCode(normalizeCode(raw));
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const effective =
+    session ??
+    (spectateCode ? { code: spectateCode, token: '', you: -1 } : null);
+
   // a new room starts a new conversation
-  return session ? (
-    <Chat key={session.code} session={session} names={names} corner={corner} />
+  return effective ? (
+    <Chat
+      key={effective.code}
+      session={effective}
+      names={names}
+      corner={corner}
+    />
   ) : null;
 }
