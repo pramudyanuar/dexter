@@ -115,11 +115,15 @@ const text = {
 
 export const useText = () => text[useLang()];
 
-/** The name shown for a seat: "You" for yourself, else their name or "Player N". */
+/** The name shown for a seat: "Admin" for seat -1, "You" for yourself, else their name or "Player N". */
 export const seatName = (
   lang: Lang,
   seat: number,
   you: number,
   names?: (string | null)[],
 ) =>
-  seat === you ? text[lang].you : names?.[seat] || text[lang].player(seat + 1);
+  seat === -1
+    ? 'Admin'
+    : seat === you
+      ? text[lang].you
+      : names?.[seat] || text[lang].player(seat + 1);
