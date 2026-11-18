@@ -209,391 +209,405 @@ export default function WerewolfTable({
       : 'bg-[radial-gradient(ellipse_at_50%_0%,#b8762f_0%,#5a3a22_45%,#1c130f_100%)]';
 
   return (
-    <div className='mx-auto w-full max-w-3xl'>
+    <div className='flex min-h-0 w-full flex-1 flex-col overflow-y-auto'>
       {view.winner && me && view.winner.seats.includes(you) && (
         <Confetti count={60} />
       )}
 
-      <section
-        data-phase={phase}
-        className={`relative overflow-hidden rounded-[1.75rem] border border-white/15 p-4 text-[#efe9f7] shadow-[inset_0_0_80px_rgb(0_0_0/0.5)] sm:p-6 ${bg}`}
-      >
-        {/* the sky: a moon at night, a sun by day, and fog drifting through */}
-        <div aria-hidden className='pointer-events-none absolute inset-0'>
-          {night ? (
-            <span className='absolute top-2 left-1/2 size-10 -translate-x-1/2 rounded-full bg-[#f4efd2] shadow-[0_0_44px_12px_rgb(244_239_210/0.3)]' />
-          ) : (
-            <span className='absolute top-2 left-1/2 size-10 -translate-x-1/2 rounded-full bg-[#ffd36b] shadow-[0_0_50px_14px_rgb(255_211_107/0.35)]' />
-          )}
-          <span className='a-fog absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(90deg,transparent,rgb(255_255_255/0.07),transparent)]' />
-          <span className='a-fog-slow absolute inset-x-0 bottom-10 h-32 bg-[linear-gradient(90deg,transparent,rgb(255_255_255/0.05),transparent)]' />
-        </div>
-
-        <div className='relative'>
-          {/* ------------------------------------------------ the header */}
-          <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
-            <div>
-              <p className='text-[11px] font-bold tracking-[0.25em] text-[#cfcbd8] uppercase'>
-                {view.day > 0 ? `Day ${view.day}` : 'Before the first night'}
-              </p>
-              <h1
-                className='text-2xl font-black tracking-tight'
-                data-testid='phase'
-              >
-                {PHASE_TITLE[phase]}
-              </h1>
-            </div>
-            <div className='flex items-center gap-3'>
-              {left !== null && (
-                <span
-                  data-testid='timer'
-                  className={`rounded-full border px-3 py-1 text-sm font-bold tabular-nums ${
-                    left <= 10
-                      ? 'a-wiggle border-[#d4584f] text-[#ff9b94]'
-                      : 'border-white/25'
-                  }`}
-                >
-                  ⏱ {mmss(left)}
-                </span>
-              )}
-              {me && (
-                <span className='flex items-center gap-2 rounded-full border border-white/20 bg-black/30 py-1 pr-3 pl-1 text-xs'>
-                  <RoleBadge role={me.role} size='size-7' />
-                  <span>{ROLES[me.role].name}</span>
-                </span>
-              )}
-            </div>
+      {/* the scene fills the screen, so the night sky fills any spare room
+          instead of leaving a black void; tall phases still scroll */}
+      <div className='mx-auto flex w-full max-w-3xl flex-1 flex-col py-2'>
+        <section
+          data-phase={phase}
+          className={`relative flex min-h-[calc(100svh-5rem)] flex-1 flex-col overflow-hidden rounded-[1.75rem] border border-white/15 p-4 text-[#efe9f7] shadow-[inset_0_0_80px_rgb(0_0_0/0.5)] sm:p-6 ${bg}`}
+        >
+          {/* the sky: a moon at night, a sun by day, and fog drifting through */}
+          <div aria-hidden className='pointer-events-none absolute inset-0'>
+            {night ? (
+              <span className='absolute top-2 left-1/2 size-10 -translate-x-1/2 rounded-full bg-[#f4efd2] shadow-[0_0_44px_12px_rgb(244_239_210/0.3)]' />
+            ) : (
+              <span className='absolute top-2 left-1/2 size-10 -translate-x-1/2 rounded-full bg-[#ffd36b] shadow-[0_0_50px_14px_rgb(255_211_107/0.35)]' />
+            )}
+            <span className='a-fog absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(90deg,transparent,rgb(255_255_255/0.07),transparent)]' />
+            <span className='a-fog-slow absolute inset-x-0 bottom-10 h-32 bg-[linear-gradient(90deg,transparent,rgb(255_255_255/0.05),transparent)]' />
           </div>
 
-          {me && !alive && phase !== 'over' && (
-            <p
-              className='mb-3 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-center text-sm text-[#cfcbd8]'
-              role='status'
-            >
-              You have been eliminated. You can watch, and talk with the other
-              fallen, but you cannot influence the game.
-            </p>
-          )}
-
-          {/* --------------------------------------------- the phases */}
-          {phase === 'roles' && me && (
-            <div className='mx-auto max-w-sm space-y-4 py-2 text-center'>
-              <RoleCard role={me.role} className='a-pop' />
-              {wolfAllies.length > 0 && (
-                <p className='text-sm' data-testid='allies'>
-                  {isWolf ? 'Your pack: ' : 'You know: '}
-                  <b>{wolfAllies.map(nameOf).join(', ')}</b>
+          <div className='relative flex flex-1 flex-col'>
+            {/* ------------------------------------------------ the header */}
+            <div className='mb-4 flex flex-shrink-0 flex-wrap items-center justify-between gap-2'>
+              <div>
+                <p className='text-[11px] font-bold tracking-[0.25em] text-[#cfcbd8] uppercase'>
+                  {view.day > 0 ? `Day ${view.day}` : 'Before the first night'}
                 </p>
-              )}
-              <button
-                type='button'
-                onClick={() => void r.move({ type: 'ready' })}
-                disabled={view.ready[you] || r.busy}
-                className={primary}
+                <h1
+                  className='text-2xl font-black tracking-tight'
+                  data-testid='phase'
+                >
+                  {PHASE_TITLE[phase]}
+                </h1>
+              </div>
+              <div className='flex items-center gap-3'>
+                {left !== null && (
+                  <span
+                    data-testid='timer'
+                    className={`rounded-full border px-3 py-1 text-sm font-bold tabular-nums ${
+                      left <= 10
+                        ? 'a-wiggle border-[#d4584f] text-[#ff9b94]'
+                        : 'border-white/25'
+                    }`}
+                  >
+                    ⏱ {mmss(left)}
+                  </span>
+                )}
+                {me && (
+                  <span className='flex items-center gap-2 rounded-full border border-white/20 bg-black/30 py-1 pr-3 pl-1 text-xs'>
+                    <RoleBadge role={me.role} size='size-7' />
+                    <span>{ROLES[me.role].name}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {me && !alive && phase !== 'over' && (
+              <p
+                className='mb-3 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-center text-sm text-[#cfcbd8]'
+                role='status'
               >
-                {view.ready[you] ? 'Waiting for the others…' : "I'm ready"}
-              </button>
-              <p className='text-xs text-[#cfcbd8]'>
-                {view.ready.filter(Boolean).length} of {view.players} ready.
-                Night falls soon.
+                You have been eliminated. You can watch, and talk with the other
+                fallen, but you cannot influence the game.
               </p>
-            </div>
-          )}
+            )}
 
-          {phase === 'night' && (
-            <div className='space-y-4'>
-              {me?.night && alive ? (
-                <NightPanel
-                  view={view}
-                  nameOf={nameOf}
-                  pick={pick}
-                  update={update}
-                  act={act}
-                  busy={r.busy}
-                  you={you}
-                />
-              ) : (
-                <div className='py-8 text-center'>
-                  <p className='text-xl font-bold'>
-                    Night falls on the village…
-                  </p>
-                  <p className='mt-2 text-sm text-[#cfcbd8]'>
-                    {alive
-                      ? 'Close your eyes. Something stirs in the dark.'
-                      : 'The night passes. You can only watch.'}
-                  </p>
-                </div>
-              )}
-              {!(me?.night && alive) && tiles(() => ({}))}
-            </div>
-          )}
-
-          {phase === 'morning' && (
-            <div className='space-y-4 py-2 text-center'>
-              {view.morning.length === 0 ? (
-                <div className='a-pop'>
-                  <p className='text-3xl font-black'>
-                    The village survived the night.
-                  </p>
-                  <p className='mt-2 text-sm text-[#f3dcc0]'>
-                    Nobody was taken.
-                  </p>
-                </div>
-              ) : (
-                <div className='a-pop space-y-3'>
-                  <p className='text-3xl font-black'>
-                    {view.morning.length === 1
-                      ? 'Someone is dead.'
-                      : `${view.morning.length} are dead.`}
-                  </p>
-                  <ul className='flex flex-wrap justify-center gap-3'>
-                    {view.morning.map((d) => (
-                      <li
-                        key={d.seat}
-                        className='rounded-2xl border border-[#d4584f]/60 bg-black/40 px-4 py-3'
-                      >
-                        <p className='text-lg font-black'>{nameOf(d.seat)}</p>
-                        {d.role ? (
-                          <p className='mt-1 flex items-center justify-center gap-2 text-sm'>
-                            <RoleBadge role={d.role} size='size-6' /> was the{' '}
-                            {ROLES[d.role].name}
-                          </p>
-                        ) : (
-                          <p className='text-xs text-[#f3dcc0]'>
-                            Their role stays secret.
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {tiles()}
-            </div>
-          )}
-
-          {phase === 'discussion' && (
-            <div className='space-y-4'>
-              {view.morning.length > 0 && (
-                <p className='text-center text-sm text-[#f3dcc0]'>
-                  Last night:{' '}
-                  {view.morning.map((d) => nameOf(d.seat)).join(', ')}{' '}
-                  {view.morning.length > 1 ? 'were' : 'was'} taken.
-                </p>
-              )}
-              <p className='text-center text-sm'>
-                Talk it through in the chat. Who is acting strangely?
-              </p>
-              {tiles(() => ({}))}
-              <SeerNotes view={view} nameOf={nameOf} />
-              {alive && (
-                <div className='text-center'>
+            {/* the phase body fills the rest of the scene and centres in it */}
+            <div className='flex flex-1 flex-col justify-center'>
+              {/* --------------------------------------------- the phases */}
+              {phase === 'roles' && me && (
+                <div className='mx-auto max-w-sm space-y-4 py-2 text-center'>
+                  <RoleCard role={me.role} className='a-pop' />
+                  {wolfAllies.length > 0 && (
+                    <p className='text-sm' data-testid='allies'>
+                      {isWolf ? 'Your pack: ' : 'You know: '}
+                      <b>{wolfAllies.map(nameOf).join(', ')}</b>
+                    </p>
+                  )}
                   <button
                     type='button'
                     onClick={() => void r.move({ type: 'ready' })}
                     disabled={view.ready[you] || r.busy}
-                    className={btn}
+                    className={primary}
                   >
-                    {view.ready[you]
-                      ? `Waiting… ${view.ready.filter((x, i) => x && roster[i].alive).length}/${roster.filter((p) => p.alive).length} ready`
-                      : 'Ready to vote'}
+                    {view.ready[you] ? 'Waiting for the others…' : "I'm ready"}
                   </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {phase === 'voting' && view.vote && (
-            <div className='space-y-4'>
-              <p className='text-center text-sm'>
-                {view.vote.round === 2
-                  ? 'The vote was tied. Choose between the tied players. '
-                  : ''}
-                Who is a werewolf?{' '}
-                <span data-testid='progress' className='font-bold'>
-                  {view.vote.voted}/{view.vote.total} voted
-                </span>
-                {view.config.anonymousVoting ? ' (votes are secret)' : ''}
-              </p>
-              {tiles((p) => {
-                const votesFor = view.vote!.open
-                  ? Object.values(view.vote!.open).filter((t) => t === p.seat)
-                      .length
-                  : 0;
-                const can =
-                  alive &&
-                  p.alive &&
-                  p.seat !== you &&
-                  view.vote!.candidates.includes(p.seat);
-                return {
-                  onClick: alive
-                    ? () => void r.move({ type: 'vote', target: p.seat })
-                    : undefined,
-                  disabled: !can || r.busy,
-                  selected: view.vote!.mine === p.seat,
-                  count: votesFor,
-                };
-              })}
-              {view.vote.open && (
-                <ul
-                  className='flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-[#cfcbd8]'
-                  aria-label='Votes'
-                >
-                  {Object.entries(view.vote.open).map(([voter, target]) => (
-                    <li key={voter}>
-                      {nameOf(Number(voter))} →{' '}
-                      {target === null ? 'abstains' : nameOf(target)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {alive && (
-                <div className='flex items-center justify-center gap-3'>
-                  <button
-                    type='button'
-                    className={btn}
-                    disabled={r.busy}
-                    onClick={() => void r.move({ type: 'vote', target: null })}
-                  >
-                    {view.vote.mine === null ? '✓ Abstaining' : 'Abstain'}
-                  </button>
-                  <span className='text-xs text-[#cfcbd8]'>
-                    {view.vote.mine === undefined
-                      ? 'You have not voted yet.'
-                      : view.vote.mine === null
-                        ? 'You abstained.'
-                        : `You voted for ${nameOf(view.vote.mine)}.`}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {phase === 'result' && view.lastVote && (
-            <div className='space-y-4 py-2 text-center'>
-              {view.lastVote.eliminated === null ? (
-                <div className='a-pop'>
-                  <p className='text-3xl font-black'>
-                    {view.lastVote.tie
-                      ? 'A tie. Nobody is eliminated.'
-                      : 'Nobody was voted out.'}
+                  <p className='text-xs text-[#cfcbd8]'>
+                    {view.ready.filter(Boolean).length} of {view.players} ready.
+                    Night falls soon.
                   </p>
                 </div>
-              ) : (
-                <div className='a-pop space-y-2'>
-                  <p className='text-3xl font-black'>
-                    {nameOf(view.lastVote.eliminated)} is voted out.
-                  </p>
-                  {view.lastVote.role ? (
-                    <p className='flex items-center justify-center gap-2 text-sm'>
-                      <RoleBadge role={view.lastVote.role} size='size-7' />
-                      They were the {ROLES[view.lastVote.role].name}.
-                    </p>
+              )}
+
+              {phase === 'night' && (
+                <div className='space-y-4'>
+                  {me?.night && alive ? (
+                    <NightPanel
+                      view={view}
+                      nameOf={nameOf}
+                      pick={pick}
+                      update={update}
+                      act={act}
+                      busy={r.busy}
+                      you={you}
+                    />
                   ) : (
-                    <p className='text-sm text-[#f3dcc0]'>
-                      Their role stays secret.
+                    <div className='py-8 text-center'>
+                      <p className='text-xl font-bold'>
+                        Night falls on the village…
+                      </p>
+                      <p className='mt-2 text-sm text-[#cfcbd8]'>
+                        {alive
+                          ? 'Close your eyes. Something stirs in the dark.'
+                          : 'The night passes. You can only watch.'}
+                      </p>
+                    </div>
+                  )}
+                  {!(me?.night && alive) && tiles(() => ({}))}
+                </div>
+              )}
+
+              {phase === 'morning' && (
+                <div className='space-y-4 py-2 text-center'>
+                  {view.morning.length === 0 ? (
+                    <div className='a-pop'>
+                      <p className='text-3xl font-black'>
+                        The village survived the night.
+                      </p>
+                      <p className='mt-2 text-sm text-[#f3dcc0]'>
+                        Nobody was taken.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className='a-pop space-y-3'>
+                      <p className='text-3xl font-black'>
+                        {view.morning.length === 1
+                          ? 'Someone is dead.'
+                          : `${view.morning.length} are dead.`}
+                      </p>
+                      <ul className='flex flex-wrap justify-center gap-3'>
+                        {view.morning.map((d) => (
+                          <li
+                            key={d.seat}
+                            className='rounded-2xl border border-[#d4584f]/60 bg-black/40 px-4 py-3'
+                          >
+                            <p className='text-lg font-black'>
+                              {nameOf(d.seat)}
+                            </p>
+                            {d.role ? (
+                              <p className='mt-1 flex items-center justify-center gap-2 text-sm'>
+                                <RoleBadge role={d.role} size='size-6' /> was
+                                the {ROLES[d.role].name}
+                              </p>
+                            ) : (
+                              <p className='text-xs text-[#f3dcc0]'>
+                                Their role stays secret.
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {tiles()}
+                </div>
+              )}
+
+              {phase === 'discussion' && (
+                <div className='space-y-4'>
+                  {view.morning.length > 0 && (
+                    <p className='text-center text-sm text-[#f3dcc0]'>
+                      Last night:{' '}
+                      {view.morning.map((d) => nameOf(d.seat)).join(', ')}{' '}
+                      {view.morning.length > 1 ? 'were' : 'was'} taken.
                     </p>
+                  )}
+                  <p className='text-center text-sm'>
+                    Talk it through in the chat. Who is acting strangely?
+                  </p>
+                  {tiles(() => ({}))}
+                  <SeerNotes view={view} nameOf={nameOf} />
+                  {alive && (
+                    <div className='text-center'>
+                      <button
+                        type='button'
+                        onClick={() => void r.move({ type: 'ready' })}
+                        disabled={view.ready[you] || r.busy}
+                        className={btn}
+                      >
+                        {view.ready[you]
+                          ? `Waiting… ${view.ready.filter((x, i) => x && roster[i].alive).length}/${roster.filter((p) => p.alive).length} ready`
+                          : 'Ready to vote'}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
-              <Tally
-                view={view}
-                nameOf={nameOf}
-                votes={view.lastVote.tally}
-                voters={view.lastVote.votes}
-              />
-              {tiles()}
-            </div>
-          )}
 
-          {phase === 'hunter' && view.hunter && (
-            <div className='space-y-4 py-2 text-center'>
-              {view.hunter.isMe ? (
-                <>
-                  <p className='text-2xl font-black'>
-                    You are the Hunter. Take your last shot.
+              {phase === 'voting' && view.vote && (
+                <div className='space-y-4'>
+                  <p className='text-center text-sm'>
+                    {view.vote.round === 2
+                      ? 'The vote was tied. Choose between the tied players. '
+                      : ''}
+                    Who is a werewolf?{' '}
+                    <span data-testid='progress' className='font-bold'>
+                      {view.vote.voted}/{view.vote.total} voted
+                    </span>
+                    {view.config.anonymousVoting ? ' (votes are secret)' : ''}
                   </p>
-                  <p className='text-sm text-[#cfcbd8]'>
-                    Pick someone to take down with you, or hold your fire.
-                  </p>
-                  {tiles((p) => ({
-                    onClick: () => update({ target: p.seat }),
-                    disabled:
-                      !view.hunter!.targets.includes(p.seat) || p.seat === you,
-                    selected: pick.target === p.seat,
-                  }))}
-                  <div className='flex justify-center gap-3'>
-                    <button
-                      type='button'
-                      className={primary}
-                      disabled={pick.target === null || r.busy}
-                      onClick={() =>
-                        void r.move({ type: 'hunter', target: pick.target })
-                      }
+                  {tiles((p) => {
+                    const votesFor = view.vote!.open
+                      ? Object.values(view.vote!.open).filter(
+                          (t) => t === p.seat,
+                        ).length
+                      : 0;
+                    const can =
+                      alive &&
+                      p.alive &&
+                      p.seat !== you &&
+                      view.vote!.candidates.includes(p.seat);
+                    return {
+                      onClick: alive
+                        ? () => void r.move({ type: 'vote', target: p.seat })
+                        : undefined,
+                      disabled: !can || r.busy,
+                      selected: view.vote!.mine === p.seat,
+                      count: votesFor,
+                    };
+                  })}
+                  {view.vote.open && (
+                    <ul
+                      className='flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-[#cfcbd8]'
+                      aria-label='Votes'
                     >
-                      Fire
-                    </button>
-                    <button
-                      type='button'
-                      className={btn}
-                      disabled={r.busy}
-                      onClick={() =>
-                        void r.move({ type: 'hunter', target: null })
-                      }
-                    >
-                      Hold fire
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className='text-2xl font-black'>
-                    The Hunter, {nameOf(view.hunter.seat)}, takes a last shot…
-                  </p>
+                      {Object.entries(view.vote.open).map(([voter, target]) => (
+                        <li key={voter}>
+                          {nameOf(Number(voter))} →{' '}
+                          {target === null ? 'abstains' : nameOf(target)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {alive && (
+                    <div className='flex items-center justify-center gap-3'>
+                      <button
+                        type='button'
+                        className={btn}
+                        disabled={r.busy}
+                        onClick={() =>
+                          void r.move({ type: 'vote', target: null })
+                        }
+                      >
+                        {view.vote.mine === null ? '✓ Abstaining' : 'Abstain'}
+                      </button>
+                      <span className='text-xs text-[#cfcbd8]'>
+                        {view.vote.mine === undefined
+                          ? 'You have not voted yet.'
+                          : view.vote.mine === null
+                            ? 'You abstained.'
+                            : `You voted for ${nameOf(view.vote.mine)}.`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {phase === 'result' && view.lastVote && (
+                <div className='space-y-4 py-2 text-center'>
+                  {view.lastVote.eliminated === null ? (
+                    <div className='a-pop'>
+                      <p className='text-3xl font-black'>
+                        {view.lastVote.tie
+                          ? 'A tie. Nobody is eliminated.'
+                          : 'Nobody was voted out.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className='a-pop space-y-2'>
+                      <p className='text-3xl font-black'>
+                        {nameOf(view.lastVote.eliminated)} is voted out.
+                      </p>
+                      {view.lastVote.role ? (
+                        <p className='flex items-center justify-center gap-2 text-sm'>
+                          <RoleBadge role={view.lastVote.role} size='size-7' />
+                          They were the {ROLES[view.lastVote.role].name}.
+                        </p>
+                      ) : (
+                        <p className='text-sm text-[#f3dcc0]'>
+                          Their role stays secret.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <Tally
+                    view={view}
+                    nameOf={nameOf}
+                    votes={view.lastVote.tally}
+                    voters={view.lastVote.votes}
+                  />
                   {tiles()}
-                </>
+                </div>
+              )}
+
+              {phase === 'hunter' && view.hunter && (
+                <div className='space-y-4 py-2 text-center'>
+                  {view.hunter.isMe ? (
+                    <>
+                      <p className='text-2xl font-black'>
+                        You are the Hunter. Take your last shot.
+                      </p>
+                      <p className='text-sm text-[#cfcbd8]'>
+                        Pick someone to take down with you, or hold your fire.
+                      </p>
+                      {tiles((p) => ({
+                        onClick: () => update({ target: p.seat }),
+                        disabled:
+                          !view.hunter!.targets.includes(p.seat) ||
+                          p.seat === you,
+                        selected: pick.target === p.seat,
+                      }))}
+                      <div className='flex justify-center gap-3'>
+                        <button
+                          type='button'
+                          className={primary}
+                          disabled={pick.target === null || r.busy}
+                          onClick={() =>
+                            void r.move({ type: 'hunter', target: pick.target })
+                          }
+                        >
+                          Fire
+                        </button>
+                        <button
+                          type='button'
+                          className={btn}
+                          disabled={r.busy}
+                          onClick={() =>
+                            void r.move({ type: 'hunter', target: null })
+                          }
+                        >
+                          Hold fire
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className='text-2xl font-black'>
+                        The Hunter, {nameOf(view.hunter.seat)}, takes a last
+                        shot…
+                      </p>
+                      {tiles()}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {phase === 'over' && view.winner && (
+                <Over
+                  r={r}
+                  view={view}
+                  nameOf={nameOf}
+                  history={history}
+                  setHistory={setHistory}
+                />
               )}
             </div>
-          )}
+          </div>
+        </section>
 
-          {phase === 'over' && view.winner && (
-            <Over
-              r={r}
-              view={view}
-              nameOf={nameOf}
-              history={history}
-              setHistory={setHistory}
-            />
+        {phase !== 'over' &&
+          (view.history.length > 0 || view.voteHistory.length > 0) && (
+            <details className='mt-3 rounded-2xl border border-line bg-surface/40 px-4 py-2 text-sm'>
+              <summary className='cursor-pointer select-none'>
+                Who has fallen
+              </summary>
+              <ul className='mt-2 space-y-1 text-xs text-[var(--mute)]'>
+                {view.history.map((h, i) => (
+                  <li key={i}>
+                    Day {h.day}: {nameOf(h.seat!)}{' '}
+                    {h.kind === 'vote'
+                      ? 'was voted out'
+                      : h.kind === 'hunter'
+                        ? 'was shot by the Hunter'
+                        : 'died in the night'}
+                    {h.role ? ` (${ROLES[h.role].name})` : ''}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
-        </div>
-      </section>
-
-      {phase !== 'over' &&
-        (view.history.length > 0 || view.voteHistory.length > 0) && (
-          <details className='mt-3 rounded-2xl border border-line bg-surface/40 px-4 py-2 text-sm'>
-            <summary className='cursor-pointer select-none'>
-              Who has fallen
-            </summary>
-            <ul className='mt-2 space-y-1 text-xs text-[var(--mute)]'>
-              {view.history.map((h, i) => (
-                <li key={i}>
-                  Day {h.day}: {nameOf(h.seat!)}{' '}
-                  {h.kind === 'vote'
-                    ? 'was voted out'
-                    : h.kind === 'hunter'
-                      ? 'was shot by the Hunter'
-                      : 'died in the night'}
-                  {h.role ? ` (${ROLES[h.role].name})` : ''}
-                </li>
-              ))}
-            </ul>
-          </details>
+        {r.error && (
+          <p className='mt-2 text-center text-sm text-err' role='alert'>
+            {r.error}
+          </p>
         )}
-      {r.error && (
-        <p className='mt-2 text-center text-sm text-err' role='alert'>
-          {r.error}
-        </p>
-      )}
+      </div>
     </div>
   );
 }

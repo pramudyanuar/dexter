@@ -63,7 +63,7 @@ function Werewolf() {
   }
 
   return (
-    <div className={DOCK}>
+    <div className={`${DOCK} flex min-h-0 flex-1 flex-col`}>
       <RoomNotice
         room={r.room}
         you={r.session.you}
