@@ -2,6 +2,7 @@ import {
   delayFor,
   GRID,
   initialSnake,
+  MAX_SNAKE_SCORE,
   placeFood,
   SnakeState,
   step,
@@ -19,7 +20,7 @@ describe('snake', () => {
     const next = step(s);
     expect(next.snake).toHaveLength(3);
     expect(next.snake[0]).toEqual({ x: s.snake[0].x + 1, y: s.snake[0].y });
-    expect(next.dead).toBe(false);
+    expect(next.result).toBeNull();
   });
 
   it('ignores a reversal into its own neck', () => {
@@ -33,7 +34,7 @@ describe('snake', () => {
     s = turn(s, 'up');
     s = turn(s, 'left'); // would be a reversal once "up" is applied
     s = step(s);
-    expect(s.dead).toBe(false);
+    expect(s.result).toBeNull();
   });
 
   it('grows and scores when eating, and food never lands on the snake', () => {
@@ -44,7 +45,7 @@ describe('snake', () => {
     expect(next.snake).toHaveLength(4);
     expect(next.score).toBe(1);
     expect(
-      next.snake.some((p) => p.x === next.food.x && p.y === next.food.y),
+      next.snake.some((p) => p.x === next.food?.x && p.y === next.food?.y),
     ).toBe(false);
   });
 
@@ -57,7 +58,7 @@ describe('snake', () => {
       ],
       food: { x: 0, y: 0 },
     });
-    expect(step(s).dead).toBe(true);
+    expect(step(s).result).toBe('lost');
   });
 
   it('dies when it runs into itself, but may follow its own tail', () => {
@@ -74,7 +75,7 @@ describe('snake', () => {
       next: 'left',
       food: { x: 0, y: 0 },
     });
-    expect(step(loop).dead).toBe(true);
+    expect(step(loop).result).toBe('lost');
 
     const chase = withSnake({
       snake: [
@@ -87,7 +88,7 @@ describe('snake', () => {
       next: 'left',
       food: { x: 0, y: 0 },
     });
-    expect(step(chase).dead).toBe(false);
+    expect(step(chase).result).toBeNull();
   });
 
   it('places food only on free cells', () => {
@@ -97,8 +98,34 @@ describe('snake', () => {
     ];
     for (const r of [0, 0.5, 0.999]) {
       const f = placeFood(snake, () => r);
-      expect(snake.some((p) => p.x === f.x && p.y === f.y)).toBe(false);
+      expect(f).not.toBeNull();
+      expect(snake.some((p) => p.x === f?.x && p.y === f?.y)).toBe(false);
     }
+  });
+
+  it('wins on the last empty cell and leaves a stable terminal state', () => {
+    const path = Array.from({ length: GRID }, (_, y) =>
+      Array.from({ length: GRID }, (_, x) => ({
+        x: y % 2 === 0 ? x : GRID - 1 - x,
+        y,
+      })),
+    ).flat();
+    const food = path.pop()!;
+    const state = withSnake({
+      snake: path.reverse(),
+      dir: 'left',
+      next: 'left',
+      food,
+      score: MAX_SNAKE_SCORE - 1,
+    });
+    const won = step(state);
+    expect(won).toMatchObject({
+      food: null,
+      result: 'won',
+      score: MAX_SNAKE_SCORE,
+    });
+    expect(won.snake).toHaveLength(GRID * GRID);
+    expect(step(won)).toBe(won);
   });
 
   it('speeds up with the score, with a floor', () => {

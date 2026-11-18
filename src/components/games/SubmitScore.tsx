@@ -23,8 +23,11 @@ export default function SubmitScore({
     null,
   );
   const [error, setError] = React.useState('');
+  const attempt = React.useRef<{ game: string; score: number; id?: string }>(
+    null,
+  );
 
-  const alreadySent = submittedScore === score && rank !== null;
+  const alreadySent = submittedScore === score;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,10 +36,23 @@ export default function SubmitScore({
     setSaving(true);
     setError('');
     try {
+      if (attempt.current?.score !== score || attempt.current.game !== game) {
+        attempt.current = {
+          game,
+          score,
+          id: globalThis.crypto?.randomUUID?.(),
+        };
+      }
       const res = await fetch('/api/leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game, name: clean, score, meta }),
+        body: JSON.stringify({
+          game,
+          name: clean,
+          score,
+          meta,
+          submissionId: attempt.current.id,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -52,7 +68,11 @@ export default function SubmitScore({
   if (alreadySent) {
     return (
       <div className='mt-2 flex flex-wrap items-center justify-center gap-2 text-xs text-accent'>
-        <span>Tersimpan di peringkat #{rank}!</span>
+        <span role='status'>
+          {rank === null
+            ? 'Skor di luar 20 besar.'
+            : `Tersimpan di peringkat #${rank}!`}
+        </span>
         <Link
           href={`/games/leaderboard?game=${encodeURIComponent(game)}`}
           className='underline underline-offset-2'

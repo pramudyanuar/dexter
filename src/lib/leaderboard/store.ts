@@ -3,6 +3,7 @@ import {
   sortEntries,
   VALID_GAME_IDS,
 } from '@/lib/leaderboard/types';
+import { getRedisConfig, redisCommand, RedisConfig } from '@/lib/upstash';
 
 export interface LeaderboardStore {
   list(game: string): Promise<LeaderboardEntry[]>;
@@ -16,43 +17,56 @@ export interface LeaderboardStore {
 
 const keyFor = (game: string) => `lb:${game}`;
 
-class RedisLeaderboardStore implements LeaderboardStore {
-  constructor(
-    private url: string,
-    private token: string,
-  ) {}
+const REPLACE_ENTRIES = `
+local current = redis.call('GET', KEYS[1]) or ''
+if current ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[2])
+return 1
+`;
 
-  private async command(args: (string | number)[]) {
-    const res = await fetch(this.url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}` },
-      body: JSON.stringify(args),
-      cache: 'no-store',
-    });
-    const json = await res.json().catch(() => null);
-    if (!res.ok || json?.error) {
-      throw new Error(json?.error ?? `Redis HTTP ${res.status}`);
-    }
-    return json?.result;
+function parseEntries(raw: string | null, game: string): LeaderboardEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as LeaderboardEntry[];
+    return Array.isArray(parsed) ? sortEntries(parsed, game) : [];
+  } catch {
+    return [];
   }
+}
+
+function submitTo(
+  current: LeaderboardEntry[],
+  game: string,
+  entry: LeaderboardEntry,
+) {
+  const entries = current.some(({ id }) => id === entry.id)
+    ? current
+    : sortEntries([...current, entry], game);
+  const idx = entries.findIndex(({ id }) => id === entry.id);
+  return { entries, rank: idx === -1 ? null : idx + 1 };
+}
+
+class RedisLeaderboardStore implements LeaderboardStore {
+  constructor(private config: RedisConfig) {}
 
   async list(game: string): Promise<LeaderboardEntry[]> {
-    const raw = await this.command(['GET', keyFor(game)]);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw) as LeaderboardEntry[];
-      return Array.isArray(parsed) ? sortEntries(parsed, game) : [];
-    } catch {
-      return [];
-    }
+    const raw = await redisCommand<string | null>(this.config, [
+      'GET',
+      keyFor(game),
+    ]);
+    return parseEntries(raw, game);
   }
 
   async listAll(): Promise<Record<string, LeaderboardEntry[]>> {
     const games = Array.from(VALID_GAME_IDS);
-    const lists = await Promise.all(games.map((g) => this.list(g)));
+    const values = await redisCommand<(string | null)[]>(this.config, [
+      'MGET',
+      ...games.map(keyFor),
+    ]);
     const out: Record<string, LeaderboardEntry[]> = {};
     games.forEach((g, i) => {
-      if (lists[i].length > 0) out[g] = lists[i];
+      const entries = parseEntries(values[i], g);
+      if (entries.length > 0) out[g] = entries;
     });
     return out;
   }
@@ -61,15 +75,27 @@ class RedisLeaderboardStore implements LeaderboardStore {
     game: string,
     entry: LeaderboardEntry,
   ): Promise<{ entries: LeaderboardEntry[]; rank: number | null }> {
-    const current = await this.list(game);
-    const next = sortEntries([...current, entry], game);
-    await this.command(['SET', keyFor(game), JSON.stringify(next)]);
-    const idx = next.findIndex((e) => e.id === entry.id);
-    return { entries: next, rank: idx === -1 ? null : idx + 1 };
+    const key = keyFor(game);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const raw = await redisCommand<string | null>(this.config, ['GET', key]);
+      const current = parseEntries(raw, game);
+      const next = submitTo(current, game, entry);
+      if (next.entries === current) return next;
+      const saved = await redisCommand<number>(this.config, [
+        'EVAL',
+        REPLACE_ENTRIES,
+        1,
+        key,
+        raw ?? '',
+        JSON.stringify(next.entries),
+      ]);
+      if (saved === 1) return next;
+    }
+    throw new Error('Concurrent leaderboard updates exceeded retry limit');
   }
 
   async clear(game: string): Promise<void> {
-    await this.command(['DEL', keyFor(game)]);
+    await redisCommand<number>(this.config, ['DEL', keyFor(game)]);
   }
 }
 
@@ -101,11 +127,9 @@ class MemoryLeaderboardStore implements LeaderboardStore {
     game: string,
     entry: LeaderboardEntry,
   ): Promise<{ entries: LeaderboardEntry[]; rank: number | null }> {
-    const current = await this.list(game);
-    const next = sortEntries([...current, entry], game);
-    this.map.set(game, next);
-    const idx = next.findIndex((e) => e.id === entry.id);
-    return { entries: next, rank: idx === -1 ? null : idx + 1 };
+    const next = submitTo(this.map.get(game) ?? [], game, entry);
+    this.map.set(game, next.entries);
+    return next;
   }
 
   async clear(game: string): Promise<void> {
@@ -114,10 +138,8 @@ class MemoryLeaderboardStore implements LeaderboardStore {
 }
 
 export function getLeaderboardStore(): LeaderboardStore | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
-  const token =
-    process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-  if (url && token) return new RedisLeaderboardStore(url, token);
+  const config = getRedisConfig();
+  if (config) return new RedisLeaderboardStore(config);
   return process.env.NODE_ENV === 'production'
     ? null
     : new MemoryLeaderboardStore();
