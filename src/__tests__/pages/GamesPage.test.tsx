@@ -4,7 +4,10 @@ import GamesPage from '@/app/games/page';
 import { GAMES } from '@/constant/games';
 
 const push = jest.fn();
-jest.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+jest.mock('next/navigation', () => ({
+  usePathname: () => '/games',
+  useRouter: () => ({ push }),
+}));
 
 describe('Games menu', () => {
   beforeEach(() => {
