@@ -85,7 +85,7 @@ export default function RoomLobby({
   }, [gameId]);
 
   return (
-    <div className='mx-auto w-full max-w-md'>
+    <div className='mx-auto max-h-[calc(100dvh-4.75rem)] w-full max-w-md overflow-y-auto pb-4'>
       <section className='group overflow-hidden rounded-xl border border-line bg-surface/50'>
         {game && (
           <div className='aspect-[8/3] border-b border-line bg-[#0e1015]'>
