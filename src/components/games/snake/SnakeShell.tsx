@@ -5,6 +5,7 @@ import GameShell from '@/components/games/GameShell';
 const modes = [
   { id: 'classic', label: 'Classic', href: '/games/snake' },
   { id: 'daily', label: 'Harian', href: '/games/snake/daily' },
+  { id: 'duel', label: 'Duel', href: '/games/snake/duel' },
 ] as const;
 
 export default function SnakeShell({
@@ -21,7 +22,7 @@ export default function SnakeShell({
           <h1 className='text-xl font-semibold'>Snake</h1>
           <nav
             aria-label='Mode Snake'
-            className='grid grid-cols-2 rounded-lg border border-line bg-card p-1 text-sm'
+            className='grid grid-cols-3 rounded-lg border border-line bg-card p-1 text-sm'
           >
             {modes.map(({ id, label, href }) => (
               <Link
