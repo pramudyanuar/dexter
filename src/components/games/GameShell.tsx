@@ -17,6 +17,7 @@ export default function GameShell({
   fluid,
   xwide,
   fit,
+  fullscreen,
 }: {
   /** The game's route name (e.g. `uno`); omit on the menu page. */
   name?: string;
@@ -34,6 +35,8 @@ export default function GameShell({
    * is kept on one screen too, by scaling it down when it would not fit.
    */
   fit?: boolean;
+  /** Edge to edge with no back button: the game supplies its own chrome. */
+  fullscreen?: boolean;
 }) {
   // pages pass the menu id (e.g. `chess`) or the route (`snake`)
   const game = name
@@ -43,12 +46,13 @@ export default function GameShell({
   return (
     <div
       className={`games-ui flex flex-col text-[15px] text-ink ${
-        menu ? 'min-h-dvh' : 'h-dvh overflow-hidden overscroll-none'
+        fullscreen ? 'h-dvh overflow-hidden overscroll-none' : 'min-h-dvh'
       }`}
     >
-      {name && (
+      {name && !fullscreen && (
         <Link
           href='/games'
+          title='Kembali ke daftar game'
           aria-label='Kembali ke daftar game'
           className='fixed top-3 left-3 z-40 flex size-9 items-center justify-center rounded-full border border-line bg-paper/80 text-mute backdrop-blur transition-colors hover:border-[#3a3a3a] hover:text-ink'
         >
@@ -62,13 +66,15 @@ export default function GameShell({
 
       <main
         className={`mx-auto flex w-full flex-1 flex-col ${
-          fit
-            ? 'min-h-0 overflow-x-hidden overflow-y-auto px-2 pt-14 pb-2 sm:px-4'
-            : menu
-              ? 'px-4 pt-6 pb-6'
-              : 'min-h-0 px-4 pt-14 pb-3'
+          fullscreen
+            ? 'min-h-0 overflow-hidden'
+            : fit
+              ? 'px-2 pt-14 pb-6 sm:px-4'
+              : menu
+                ? 'px-4 pt-6 pb-8'
+                : 'px-3 pt-14 pb-6 sm:px-4'
         } ${
-          fit || fluid
+          fit || fluid || fullscreen
             ? 'max-w-none'
             : xwide
               ? 'max-w-5xl'
@@ -79,7 +85,7 @@ export default function GameShell({
                   : 'max-w-md'
         }`}
       >
-        {fit || menu ? children : <FitBox>{children}</FitBox>}
+        {fit || menu || fullscreen ? children : <FitBox>{children}</FitBox>}
       </main>
     </div>
   );

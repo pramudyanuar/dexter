@@ -5,8 +5,9 @@ import { GAMES } from '@/constant/games';
 
 const push = jest.fn();
 jest.mock('next/navigation', () => ({
-  usePathname: () => '/games',
   useRouter: () => ({ push }),
+  usePathname: () => '/games',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 describe('Games menu', () => {

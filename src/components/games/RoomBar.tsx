@@ -88,7 +88,7 @@ export default function RoomBar({
         onClick={onLeave}
         className={`${small} hover:border-err hover:text-err`}
       >
-        {en ? 'Leave' : 'Keluar'}
+        {en ? 'Leave room' : 'Keluar room'}
       </button>
     </div>
   );

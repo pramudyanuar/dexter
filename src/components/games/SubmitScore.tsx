@@ -10,6 +10,7 @@ export default function SubmitScore({
   score,
   meta,
   label = 'Skor',
+  english,
   save,
   leaderboardHref,
 }: {
@@ -17,9 +18,12 @@ export default function SubmitScore({
   score: number;
   meta?: string;
   label?: string;
+  /** Show the widget's own text in English. */
+  english?: boolean;
   save?: (name: string) => Promise<number | null>;
   leaderboardHref?: string;
 }) {
+  const tt = (id: string, en: string) => (english ? en : id);
   const [name, setName] = useStoredState<string>('dexter:player-name', '');
   const [saving, setSaving] = React.useState(false);
   const [rank, setRank] = React.useState<number | null>(null);
@@ -43,7 +47,11 @@ export default function SubmitScore({
       setRank(await (save ? save(clean) : saveClassic(clean)));
       setSubmittedScore(score);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal menyimpan skor');
+      setError(
+        err instanceof Error
+          ? err.message
+          : tt('Gagal menyimpan skor', 'Could not save the score'),
+      );
     } finally {
       setSaving(false);
     }
@@ -74,8 +82,8 @@ export default function SubmitScore({
       <div className='mt-2 flex flex-wrap items-center justify-center gap-2 text-xs text-accent'>
         <span role='status'>
           {rank === null
-            ? 'Skor di luar 20 besar.'
-            : `Tersimpan di peringkat #${rank}!`}
+            ? tt('Skor di luar 20 besar.', 'Score is outside the top 20.')
+            : `${tt('Tersimpan di peringkat', 'Saved at rank')} #${rank}!`}
         </span>
         <Link
           href={
@@ -84,7 +92,7 @@ export default function SubmitScore({
           }
           className='underline underline-offset-2'
         >
-          Lihat Leaderboard →
+          {tt('Lihat Leaderboard', 'View Leaderboard')} →
         </Link>
       </div>
     );
@@ -98,7 +106,7 @@ export default function SubmitScore({
       <input
         type='text'
         maxLength={24}
-        placeholder='Namamu...'
+        placeholder={tt('Namamu...', 'Your name...')}
         value={name}
         onChange={(e) => setName(e.target.value)}
         className='w-32 rounded-lg border border-line-strong bg-paper px-2.5 py-1 text-xs text-ink placeholder:text-[var(--mute)] focus:border-accent focus:outline-none'
@@ -108,7 +116,11 @@ export default function SubmitScore({
         disabled={saving || !name.trim()}
         className='rounded-lg bg-ink px-3 py-1 text-xs font-medium text-paper transition hover:opacity-90 disabled:opacity-40'
       >
-        {saving ? 'Menyimpan...' : `Simpan ${label} (${score})`}
+        {saving
+          ? tt('Menyimpan...', 'Saving...')
+          : english
+            ? `${label} (${score})`
+            : `Simpan ${label} (${score})`}
       </button>
       {error && (
         <span className='w-full text-center text-xs text-err'>{error}</span>

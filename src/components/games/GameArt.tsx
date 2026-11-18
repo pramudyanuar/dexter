@@ -1332,6 +1332,83 @@ const UnoMercy = () => (
   />
 );
 
+function Fm() {
+  const dots: [number, number, string][] = [
+    [34, 50, GOLD],
+    [54, 28, GREEN],
+    [54, 43, GREEN],
+    [54, 57, GREEN],
+    [54, 72, GREEN],
+    [80, 34, BLUE],
+    [80, 50, BLUE],
+    [80, 66, BLUE],
+    [110, 32, RED],
+    [116, 50, RED],
+    [110, 68, RED],
+  ];
+  return (
+    <Frame>
+      <rect
+        x='18'
+        y='12'
+        width='124'
+        height='76'
+        rx='5'
+        fill='#12241b'
+        stroke={GREEN}
+        strokeWidth='1.5'
+      />
+      <line
+        x1='80'
+        y1='12'
+        x2='80'
+        y2='88'
+        stroke={GREEN}
+        strokeOpacity='0.4'
+      />
+      <circle
+        cx='80'
+        cy='50'
+        r='13'
+        fill='none'
+        stroke={GREEN}
+        strokeOpacity='0.4'
+      />
+      <rect
+        x='18'
+        y='32'
+        width='14'
+        height='36'
+        fill='none'
+        stroke={GREEN}
+        strokeOpacity='0.4'
+      />
+      <rect
+        x='128'
+        y='32'
+        width='14'
+        height='36'
+        fill='none'
+        stroke={GREEN}
+        strokeOpacity='0.4'
+      />
+      <g className={move('group-hover:translate-x-1')}>
+        {dots.map(([x, y, fill], i) => (
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r='3.6'
+            fill={fill}
+            stroke='#0e1015'
+            strokeWidth='1'
+          />
+        ))}
+      </g>
+    </Frame>
+  );
+}
+
 const ART: Record<string, () => React.JSX.Element> = {
   wordle: Wordle,
   snake: Snake,
@@ -1357,6 +1434,7 @@ const ART: Record<string, () => React.JSX.Element> = {
   domino: Domino,
   quiz: Quiz,
   pictionary: Pictionary,
+  fm: Fm,
 };
 
 /** The menu drawing for a game id; the parent needs the `group` class for hover motion. */

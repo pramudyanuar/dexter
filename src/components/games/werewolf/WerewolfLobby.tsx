@@ -79,7 +79,7 @@ export default function WerewolfLobby({ r }: { r: Api }) {
     set({ roles: { ...cfg.roles, [role]: on } });
 
   return (
-    <div className='mx-auto w-full max-w-3xl'>
+    <div className='mx-auto w-full max-w-3xl pb-6'>
       <header className='mb-6 text-center'>
         <h1 className='text-5xl font-black tracking-[0.18em] text-[#d4584f]'>
           WEREWOLF

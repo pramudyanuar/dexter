@@ -43,6 +43,8 @@ export interface PictionaryState {
   rounds: number;
   drawer: number;
   word: string;
+  /** Two word options offered to the drawer before drawing starts */
+  choices?: [string, string];
   /** Words already used this game */
   used: string[];
   strokes: Stroke[];
@@ -62,6 +64,8 @@ export interface PictionaryView {
   drawer: number;
   /** The word for the drawer, otherwise a hint like "_ _ _ _" */
   word: string | null;
+  /** Two word choices shown only to the drawer before drawing starts */
+  choices: [string, string] | null;
   hint: string;
   strokes: Stroke[];
   guesses: GuessEntry[];
@@ -84,10 +88,15 @@ const hintFor = (word: string) =>
     .map((ch) => (/[a-z0-9]/i.test(ch) ? '_' : ch === ' ' ? '/' : ch))
     .join(' ');
 
-function pickWord(used: string[], rng: () => number) {
+function pickTwoWords(used: string[], rng: () => number): [string, string] {
   const pool = WORDS.filter((w) => !used.includes(w));
-  const list = pool.length ? pool : WORDS;
-  return list[Math.floor(rng() * list.length)];
+  const list = pool.length >= 2 ? pool : WORDS;
+  const first = list[Math.floor(rng() * list.length)];
+  const rest = list.filter((w) => w !== first);
+  const second = (rest.length ? rest : WORDS)[
+    Math.floor(rng() * (rest.length ? rest.length : WORDS.length))
+  ];
+  return [first, second];
 }
 
 function fresh(
@@ -104,13 +113,16 @@ function fresh(
     opts.turnsEach <= 5
       ? Math.round(opts.turnsEach)
       : TURNS_EACH;
-  const first = shuffle([...WORDS], rng)[0];
+  const shuffled = shuffle([...WORDS], rng);
+  const choices: [string, string] = [shuffled[0], shuffled[1] ?? shuffled[0]];
+  const first = choices[0];
   return {
     players,
     round: 0,
     rounds: players * turnsEach,
     drawer: 0,
     word: first,
+    choices,
     used: [first],
     strokes: [],
     guesses: [],
@@ -140,13 +152,15 @@ function advance(s: PictionaryState, rng: () => number): PictionaryState {
       winners: left.filter((i) => s.scores[i] === top),
     };
   }
-  const word = pickWord(s.used, rng);
+  const choices = pickTwoWords(s.used, rng);
+  const word = choices[0];
   return {
     ...s,
     round,
     // players still in the game take turns drawing
     drawer: activeSeats(s)[round % activeSeats(s).length],
     word,
+    choices,
     used: [...s.used, word],
     strokes: [],
     guesses: [],
@@ -176,6 +190,20 @@ export const pictionaryGame: GameDef<PictionaryState> = {
       if (m?.round !== state.round)
         throw new RoomError('Ronde sudah berganti', 409);
       return advance(state, rng);
+    }
+
+    if (type === 'pick_word') {
+      if (seat !== state.drawer)
+        throw new RoomError('Hanya penggambar yang bisa memilih kata', 403);
+      if (state.strokes.length > 0)
+        throw new RoomError('Sudah mulai menggambar', 409);
+      const word = typeof m?.word === 'string' ? m.word : '';
+      if (!state.choices || !state.choices.includes(word))
+        throw new RoomError('Pilihan kata tidak valid');
+      const used = state.used.includes(word)
+        ? state.used
+        : [...state.used, word];
+      return { ...state, word, used, choices: undefined };
     }
 
     if (type === 'stroke' || type === 'clear') {
@@ -228,7 +256,7 @@ export const pictionaryGame: GameDef<PictionaryState> = {
         strokes.reduce((n, s) => n + s.pts.length, 0) > MAX_POINTS
       )
         throw new RoomError('Gambar terlalu rumit, hapus dulu', 409);
-      return { ...state, strokes };
+      return { ...state, strokes, choices: undefined };
     }
 
     if (type === 'guess') {
@@ -307,6 +335,10 @@ export const pictionaryGame: GameDef<PictionaryState> = {
       rounds: state.rounds,
       drawer: state.drawer,
       word: isDrawer && !over ? state.word : null,
+      choices:
+        isDrawer && !over && state.strokes.length === 0
+          ? (state.choices ?? null)
+          : null,
       hint: over ? '' : hintFor(state.word),
       strokes: state.strokes,
       guesses: state.guesses,
