@@ -1,4 +1,7 @@
 export const GRID = 20;
+const START_LENGTH = 3;
+export const MAX_SNAKE_SCORE = GRID * GRID - START_LENGTH;
+export const MIN_SNAKE_DELAY = 60;
 
 export type Dir = 'up' | 'down' | 'left' | 'right';
 export interface Point {
@@ -13,38 +16,43 @@ export interface SnakeState {
   dir: Dir;
   /** Direction queued for the next step */
   next: Dir;
-  food: Point;
+  food: Point | null;
   score: number;
-  dead: boolean;
+  result: 'lost' | 'won' | null;
 }
 
-const DELTA: Record<Dir, Point> = {
+export const DELTA: Record<Dir, Point> = {
   up: { x: 0, y: -1 },
   down: { x: 0, y: 1 },
   left: { x: -1, y: 0 },
   right: { x: 1, y: 0 },
 };
 
-const OPPOSITE: Record<Dir, Dir> = {
+export const OPPOSITE: Record<Dir, Dir> = {
   up: 'down',
   down: 'up',
   left: 'right',
   right: 'left',
 };
 
-const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
+export function isDirection(value: unknown): value is Dir {
+  return typeof value === 'string' && Object.hasOwn(DELTA, value);
+}
+
+export const samePoint = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
 
 export function placeFood(
-  snake: Point[],
+  snake: readonly Point[],
   rng: () => number = Math.random,
-): Point {
+): Point | null {
+  const occupied = new Set(snake.map(({ x, y }) => y * GRID + x));
   const free: Point[] = [];
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {
-      if (!snake.some((s) => s.x === x && s.y === y)) free.push({ x, y });
+      if (!occupied.has(y * GRID + x)) free.push({ x, y });
     }
   }
-  return free[Math.floor(rng() * free.length)];
+  return free.length > 0 ? free[Math.floor(rng() * free.length)] : null;
 }
 
 export function initialSnake(rng: () => number = Math.random): SnakeState {
@@ -60,7 +68,7 @@ export function initialSnake(rng: () => number = Math.random): SnakeState {
     next: 'right',
     food: placeFood(snake, rng),
     score: 0,
-    dead: false,
+    result: null,
   };
 }
 
@@ -73,30 +81,32 @@ export function step(
   state: SnakeState,
   rng: () => number = Math.random,
 ): SnakeState {
-  if (state.dead) return state;
+  if (state.result) return state;
 
   const d = DELTA[state.next];
   const head = { x: state.snake[0].x + d.x, y: state.snake[0].y + d.y };
-  const ate = same(head, state.food);
+  const ate = state.food !== null && samePoint(head, state.food);
 
   // the tail moves away this step unless the snake grows
   const body = ate ? state.snake : state.snake.slice(0, -1);
   const hitWall = head.x < 0 || head.y < 0 || head.x >= GRID || head.y >= GRID;
-  if (hitWall || body.some((s) => same(s, head))) {
-    return { ...state, dir: state.next, dead: true };
+  if (hitWall || body.some((s) => samePoint(s, head))) {
+    return { ...state, dir: state.next, result: 'lost' };
   }
 
   const snake = [head, ...body];
+  const food = ate ? placeFood(snake, rng) : state.food;
   return {
     ...state,
     snake,
     dir: state.next,
-    food: ate ? placeFood(snake, rng) : state.food,
+    food,
     score: state.score + (ate ? 1 : 0),
+    result: food ? null : 'won',
   };
 }
 
 /** Milliseconds between steps: starts calm, speeds up as the score grows. */
 export function delayFor(score: number) {
-  return Math.max(60, 140 - score * 4);
+  return Math.max(MIN_SNAKE_DELAY, 140 - score * 4);
 }

@@ -11,6 +11,8 @@ export default function SubmitScore({
   meta,
   label = 'Skor',
   english,
+  save,
+  leaderboardHref,
 }: {
   game: string;
   score: number;
@@ -18,6 +20,8 @@ export default function SubmitScore({
   label?: string;
   /** Show the widget's own text in English. */
   english?: boolean;
+  save?: (name: string) => Promise<number | null>;
+  leaderboardHref?: string;
 }) {
   const tt = (id: string, en: string) => (english ? en : id);
   const [name, setName] = useStoredState<string>('dexter:player-name', '');
@@ -27,8 +31,11 @@ export default function SubmitScore({
     null,
   );
   const [error, setError] = React.useState('');
+  const attempt = React.useRef<{ game: string; score: number; id?: string }>(
+    null,
+  );
 
-  const alreadySent = submittedScore === score && rank !== null;
+  const alreadySent = submittedScore === score;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,14 +44,7 @@ export default function SubmitScore({
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/leaderboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game, name: clean, score, meta }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      setRank(data.rank ?? null);
+      setRank(await (save ? save(clean) : saveClassic(clean)));
       setSubmittedScore(score);
     } catch (err) {
       setError(
@@ -57,14 +57,39 @@ export default function SubmitScore({
     }
   };
 
+  async function saveClassic(name: string): Promise<number | null> {
+    if (attempt.current?.score !== score || attempt.current.game !== game) {
+      attempt.current = { game, score, id: globalThis.crypto?.randomUUID?.() };
+    }
+    const res = await fetch('/api/leaderboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game,
+        name,
+        score,
+        meta,
+        submissionId: attempt.current.id,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data.rank ?? null;
+  }
+
   if (alreadySent) {
     return (
       <div className='mt-2 flex flex-wrap items-center justify-center gap-2 text-xs text-accent'>
-        <span>
-          {tt('Tersimpan di peringkat', 'Saved at rank')} #{rank}!
+        <span role='status'>
+          {rank === null
+            ? tt('Skor di luar 20 besar.', 'Score is outside the top 20.')
+            : `${tt('Tersimpan di peringkat', 'Saved at rank')} #${rank}!`}
         </span>
         <Link
-          href={`/games/leaderboard?game=${encodeURIComponent(game)}`}
+          href={
+            leaderboardHref ??
+            `/games/leaderboard?game=${encodeURIComponent(game)}`
+          }
           className='underline underline-offset-2'
         >
           {tt('Lihat Leaderboard', 'View Leaderboard')} →

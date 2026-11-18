@@ -3,3 +3,5 @@ allowBuilds:
   '@tailwindcss/oxide': true
   sharp: true
   unrs-resolver: true
+overrides:
+  '@vercel/cli-config>zod': 4.6.7
