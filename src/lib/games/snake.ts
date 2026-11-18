@@ -35,6 +35,10 @@ export const OPPOSITE: Record<Dir, Dir> = {
   right: 'left',
 };
 
+export function isDirection(value: unknown): value is Dir {
+  return typeof value === 'string' && Object.hasOwn(DELTA, value);
+}
+
 export const samePoint = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
 
 export function placeFood(

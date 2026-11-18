@@ -10,11 +10,15 @@ export default function SubmitScore({
   score,
   meta,
   label = 'Skor',
+  save,
+  leaderboardHref,
 }: {
   game: string;
   score: number;
   meta?: string;
   label?: string;
+  save?: (name: string) => Promise<number | null>;
+  leaderboardHref?: string;
 }) {
   const [name, setName] = useStoredState<string>('dexter:player-name', '');
   const [saving, setSaving] = React.useState(false);
@@ -36,27 +40,7 @@ export default function SubmitScore({
     setSaving(true);
     setError('');
     try {
-      if (attempt.current?.score !== score || attempt.current.game !== game) {
-        attempt.current = {
-          game,
-          score,
-          id: globalThis.crypto?.randomUUID?.(),
-        };
-      }
-      const res = await fetch('/api/leaderboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          game,
-          name: clean,
-          score,
-          meta,
-          submissionId: attempt.current.id,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      setRank(data.rank ?? null);
+      setRank(await (save ? save(clean) : saveClassic(clean)));
       setSubmittedScore(score);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal menyimpan skor');
@@ -64,6 +48,26 @@ export default function SubmitScore({
       setSaving(false);
     }
   };
+
+  async function saveClassic(name: string): Promise<number | null> {
+    if (attempt.current?.score !== score || attempt.current.game !== game) {
+      attempt.current = { game, score, id: globalThis.crypto?.randomUUID?.() };
+    }
+    const res = await fetch('/api/leaderboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game,
+        name,
+        score,
+        meta,
+        submissionId: attempt.current.id,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data.rank ?? null;
+  }
 
   if (alreadySent) {
     return (
@@ -74,7 +78,10 @@ export default function SubmitScore({
             : `Tersimpan di peringkat #${rank}!`}
         </span>
         <Link
-          href={`/games/leaderboard?game=${encodeURIComponent(game)}`}
+          href={
+            leaderboardHref ??
+            `/games/leaderboard?game=${encodeURIComponent(game)}`
+          }
           className='underline underline-offset-2'
         >
           Lihat Leaderboard →
