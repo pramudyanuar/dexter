@@ -3,7 +3,7 @@
 import * as React from 'react';
 
 import type { WerewolfView } from '@/lib/games/werewolf';
-import { RoleId, ROLES } from '@/lib/games/werewolf-config';
+import { RoleId, roleList, ROLES } from '@/lib/games/werewolf-config';
 import type { RoomView } from '@/lib/rooms/types';
 import type { useRoom } from '@/lib/rooms/useRoom';
 
@@ -171,6 +171,12 @@ export default function WerewolfTable({
   const update = (p: Partial<typeof pickState>) =>
     setPick({ ...pick, ...p, key });
   const [history, setHistory] = React.useState(false);
+  const [showRoles, setShowRoles] = React.useState(false);
+  // the distinct roles dealt into this game, for the in-game "who is who" help
+  const rolesInPlay = React.useMemo(
+    () => Array.from(new Set(roleList(view.players, view.config))),
+    [view.players, view.config],
+  );
 
   const act = (extra: Record<string, unknown>) =>
     void r.move({ type: 'night', ...extra });
@@ -247,6 +253,14 @@ export default function WerewolfTable({
                 </h1>
               </div>
               <div className='flex items-center gap-3'>
+                <button
+                  type='button'
+                  onClick={() => setShowRoles(true)}
+                  className='rounded-full border border-white/25 px-3 py-1 text-sm font-semibold transition-colors hover:border-white/60'
+                  aria-haspopup='dialog'
+                >
+                  Roles
+                </button>
                 {left !== null && (
                   <span
                     data-testid='timer'
@@ -267,6 +281,67 @@ export default function WerewolfTable({
                 )}
               </div>
             </div>
+
+            {/* in-game help: what each role in this game does */}
+            {showRoles && (
+              <div
+                role='dialog'
+                aria-label='Roles in this game'
+                className='absolute inset-0 z-50 flex flex-col rounded-[1.75rem] bg-[#0b0a14]/95 p-4 backdrop-blur-sm sm:p-6'
+              >
+                <div className='mb-3 flex items-center justify-between'>
+                  <h2 className='text-lg font-black'>Roles in this game</h2>
+                  <button
+                    type='button'
+                    onClick={() => setShowRoles(false)}
+                    className='rounded-full border border-white/25 px-3 py-1 text-sm font-semibold transition-colors hover:border-white/60'
+                  >
+                    Close
+                  </button>
+                </div>
+                <ul className='min-h-0 flex-1 space-y-2 overflow-y-auto pr-1'>
+                  {rolesInPlay.map((role) => (
+                    <li
+                      key={role}
+                      className={`flex items-start gap-3 rounded-xl border p-3 ${
+                        me && role === me.role
+                          ? 'border-white/40 bg-white/5'
+                          : 'border-white/10'
+                      }`}
+                    >
+                      <RoleBadge role={role} size='size-9' />
+                      <div className='min-w-0'>
+                        <p className='flex items-center gap-2 font-bold'>
+                          {ROLES[role].name}
+                          <span
+                            className='text-xs font-semibold'
+                            style={{ color: teamColor(ROLES[role].team) }}
+                          >
+                            {ROLES[role].team === 'wolf'
+                              ? 'Werewolf team'
+                              : ROLES[role].team === 'neutral'
+                                ? 'Neutral'
+                                : 'Village'}
+                          </span>
+                          {me && role === me.role && (
+                            <span className='text-xs text-[#cfcbd8]'>
+                              · you
+                            </span>
+                          )}
+                        </p>
+                        <p className='text-sm text-[#cfcbd8]'>
+                          {ROLES[role].blurb}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className='mt-3 text-center text-xs text-[#9b96a8]'>
+                  These are the roles dealt into this game. Who holds which
+                  stays secret.
+                </p>
+              </div>
+            )}
 
             {me && !alive && phase !== 'over' && (
               <p
