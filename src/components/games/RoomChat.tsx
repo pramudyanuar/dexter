@@ -23,18 +23,20 @@ function Chat({
   session,
   names,
   corner,
+  inline,
 }: {
   session: RoomSession;
   names?: (string | null)[];
   corner?: 'top' | 'bottom';
+  inline?: boolean;
 }) {
   const { code, token, you } = session;
   const t = useText();
   const lang = useLang();
   const wide = useWide();
   const [openByHand, setOpen] = React.useState(false);
-  // on a wide screen the chat is a panel that is always there
-  const open = wide || openByHand;
+  // on a wide screen or inline mode the chat is a panel that is always there
+  const open = inline || wide || openByHand;
   const [lines, setLines] = React.useState<ChatMsg[]>([]);
   const [seen, setSeen] = React.useState(0);
   const [text, setText] = React.useState('');
@@ -146,25 +148,29 @@ function Chat({
   return (
     <div
       className={
-        wide
-          ? 'fixed top-4 right-4 bottom-4 z-30 flex w-80 flex-col'
-          : `fixed right-4 z-40 flex flex-col items-end gap-2 ${
-              corner === 'top' ? 'top-3 flex-col-reverse' : 'bottom-4'
-            }`
+        inline
+          ? 'flex h-full w-full flex-col'
+          : wide
+            ? 'fixed top-4 right-4 bottom-4 z-30 flex w-80 flex-col'
+            : `fixed right-4 z-40 flex flex-col items-end gap-2 ${
+                corner === 'top' ? 'top-3 flex-col-reverse' : 'bottom-4'
+              }`
       }
     >
       {open && (
         <section
           aria-label={t.chatRoom}
-          className={`a-slide-up flex flex-col overflow-hidden rounded-xl border border-line-strong bg-card shadow-2xl ${
-            wide
+          className={`a-slide-up flex flex-col overflow-hidden rounded-xl border border-line-strong bg-card ${
+            inline
               ? 'h-full w-full'
-              : 'h-[min(24rem,60dvh)] w-80 max-w-[calc(100vw-2rem)]'
+              : wide
+                ? 'h-full w-full shadow-2xl'
+                : 'h-[min(24rem,60dvh)] w-80 max-w-[calc(100vw-2rem)] shadow-2xl'
           }`}
           onKeyDown={(e) => {
             // keep typing here from triggering game shortcuts
             e.stopPropagation();
-            if (e.key === 'Escape' && !wide) toggle();
+            if (e.key === 'Escape' && !wide && !inline) toggle();
           }}
         >
           <div className='flex items-center justify-between border-b border-line px-3 py-2 text-sm'>
@@ -277,7 +283,7 @@ function Chat({
         </section>
       )}
 
-      {!wide && (
+      {!wide && !inline && (
         <button
           type='button'
           onClick={toggle}
@@ -311,12 +317,15 @@ export default function RoomChat({
   game,
   names,
   corner = 'bottom',
+  inline = false,
 }: {
   game: GameId;
   /** Players' names; when left out the chat asks the room for them */
   names?: (string | null)[];
   /** Where the chat button sits on a narrow screen (top keeps it off a hand of cards) */
   corner?: 'top' | 'bottom';
+  /** Render inline inside a game's own layout instead of fixed floating/docked */
+  inline?: boolean;
 }) {
   const [session] = useStoredState<RoomSession | null>(
     `room-session-${game}`,
@@ -344,6 +353,7 @@ export default function RoomChat({
       session={effective}
       names={names}
       corner={corner}
+      inline={inline}
     />
   ) : null;
 }

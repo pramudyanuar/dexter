@@ -18,8 +18,8 @@ import GameShell from '@/components/games/GameShell';
 import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
 
-const W = 800;
-const H = 600;
+const W = 960;
+const H = 540;
 const ROUND_SECONDS = 80;
 const CHUNK = 400; // numbers per request, matches the server limit
 
@@ -176,7 +176,7 @@ function Canvas({
       onPointerMove={move}
       onPointerUp={up}
       onPointerCancel={up}
-      className={`aspect-[4/3] w-full touch-none rounded-lg border-2 border-line bg-white shadow-md ${
+      className={`mx-auto aspect-video max-h-full w-full touch-none rounded-lg border-2 border-line bg-white shadow-md ${
         canDraw ? 'cursor-crosshair' : ''
       }`}
     />
@@ -278,200 +278,293 @@ function PlayArea({
   }
 
   return (
-    <>
-      <ul
-        className='mb-3 flex flex-wrap justify-center gap-2'
-        aria-label='Skor'
-      >
-        {v.scores.map((score, seat) => (
-          <li
-            key={seat}
-            data-seat={seat}
-            className={`rounded-md border px-2.5 py-1 text-center text-xs ${
-              seat === v.drawer
-                ? 'a-glow border-accent bg-accent/10'
-                : 'border-line text-mute'
-            }`}
-          >
-            <p>
-              {seat === v.drawer && '✏️ '}
-              {seatLabel(seat, you, r.room?.names)}
-              {v.solved.includes(seat) && (
-                <span className='a-pop ml-1 inline-block text-accent'>✓</span>
-              )}
-            </p>
-            <p key={score} className='a-pop text-base text-ink'>
-              {score}
-            </p>
-          </li>
-        ))}
-      </ul>
-
-      <div key={`info-${v.round}`} className='a-slide-up mb-2 text-center'>
-        <p className='text-xs text-mute'>
-          ronde {v.round + 1} dari {v.rounds}
-          {v.last && (
-            <>
-              {' '}
-              · kata tadi: <span className='text-ink'>{v.last.word}</span>
-            </>
-          )}
-        </p>
-        {isDrawer ? (
-          <p className='mt-1 text-sm'>
-            Gambar:{' '}
-            <b
-              className='text-xl tracking-wide text-accent uppercase'
-              data-testid='word'
-            >
-              {v.word}
-            </b>
-          </p>
-        ) : (
-          <p className='mt-1 text-sm'>
-            {seatLabel(v.drawer, you, r.room?.names)} menggambar:{' '}
-            <b className='font-mono text-xl tracking-widest' data-testid='hint'>
-              {v.hint}
-            </b>
-          </p>
-        )}
-      </div>
-
-      {/* each of these starts over with the round; siblings need their own keys */}
-      <RoundClock
-        key={`clock-${v.round}`}
-        isDrawer={isDrawer}
-        onNext={() => r.move({ type: 'next', round: v.round })}
-      />
-
-      <Canvas
-        key={`canvas-${v.round}`}
-        strokes={v.strokes}
-        canDraw={isDrawer}
-        color={color}
-        width={width}
-        onSend={send}
-        clearToken={clearToken}
-      />
-
-      {isDrawer ? (
-        <div className='a-slide-up mt-3 flex flex-wrap items-center justify-center gap-3'>
-          <div className='flex gap-1.5' role='group' aria-label='Warna'>
-            {COLORS.map((c, i) => (
-              <button
-                key={c}
-                type='button'
-                aria-label={`Warna ${i + 1}`}
-                aria-pressed={color === i}
-                onClick={() => setColor(i)}
-                className={`size-7 rounded-full border-2 border-line transition-transform ${
-                  color === i ? 'scale-125 ring-2 ring-ink' : 'hover:scale-110'
-                }`}
-                style={{ background: c }}
-              />
-            ))}
-          </div>
-          <div
-            className='flex items-center gap-1.5'
-            role='group'
-            aria-label='Tebal garis'
-          >
-            {WIDTHS.map((w, i) => (
-              <button
-                key={w}
-                type='button'
-                aria-label={`Tebal ${i + 1}`}
-                aria-pressed={width === i}
-                onClick={() => setWidth(i)}
-                className={`flex size-8 items-center justify-center rounded-md border ${
-                  width === i ? 'border-accent bg-accent/10' : 'border-line'
+    <div className='mx-auto grid h-[calc(100dvh-10.5rem)] min-h-[420px] w-full max-w-[1600px] gap-2.5 overflow-hidden px-1 sm:px-3 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)]'>
+      {/* Left sidebar: Players list (Gartic.io style) */}
+      <aside className='flex max-h-28 flex-col overflow-hidden rounded-xl border border-line bg-card/80 p-2 md:h-full md:max-h-none'>
+        <div className='mb-1.5 flex shrink-0 items-center justify-between px-1 text-[11px] font-bold tracking-wider text-mute uppercase'>
+          <span>Pemain</span>
+          <span>{v.scores.length}</span>
+        </div>
+        <ul
+          className='grid flex-1 grid-cols-2 gap-1.5 overflow-y-auto md:grid-cols-1 md:content-start'
+          aria-label='Skor'
+        >
+          {v.scores.map((score, seat) => {
+            const label = seatLabel(seat, you, r.room?.names);
+            const active = seat === v.drawer;
+            const solved = v.solved.includes(seat);
+            return (
+              <li
+                key={seat}
+                data-seat={seat}
+                className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-xs transition-colors ${
+                  active
+                    ? 'a-glow border-accent bg-accent/10'
+                    : solved
+                      ? 'border-accent/40 bg-accent/5'
+                      : 'border-line bg-paper/40'
                 }`}
               >
                 <span
-                  className='rounded-full bg-ink'
-                  style={{ width: 4 + i * 4, height: 4 + i * 4 }}
-                />
-              </button>
-            ))}
-          </div>
-          <button
-            type='button'
-            onClick={() => {
-              setClearToken((n) => n + 1);
-              r.move({ type: 'clear' });
-            }}
-            className='text-xs text-info hover:underline'
-          >
-            hapus
-          </button>
-          <button
-            type='button'
-            onClick={() => r.move({ type: 'next', round: v.round })}
-            className='text-xs text-mute hover:text-err'
-          >
-            lewati kata
-          </button>
-        </div>
-      ) : (
-        <form
-          className='mt-3 flex items-center justify-center gap-2'
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!text.trim() || solvedMe) return;
-            r.move({ type: 'guess', text });
-            setText('');
-          }}
-        >
-          {solvedMe ? (
-            <span className='a-pop text-sm text-accent'>
-              Tebakanmu benar! Tunggu yang lain…
-            </span>
-          ) : (
-            <>
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder='Tebakanmu…'
-                aria-label='Tebakan'
-                maxLength={40}
-                autoComplete='off'
-                autoCorrect='off'
-                spellCheck={false}
-                className='w-52 rounded-sm border border-line bg-transparent px-2 py-1 placeholder:text-mute focus:border-accent focus:ring-0 focus:outline-none'
-              />
-              <button
-                type='submit'
-                disabled={!text.trim()}
-                className='text-info hover:underline disabled:opacity-40'
-              >
-                tebak
-              </button>
-            </>
-          )}
-        </form>
-      )}
+                  className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    active ? 'bg-accent text-paper' : 'bg-line text-ink'
+                  }`}
+                >
+                  {label.slice(0, 1).toUpperCase()}
+                </span>
+                <div className='min-w-0 flex-1'>
+                  <p className='truncate font-medium text-ink'>{label}</p>
+                  <p key={score} className='a-pop text-[11px] text-mute'>
+                    {score} pts
+                  </p>
+                </div>
+                {active && (
+                  <span title='Sedang menggambar' className='shrink-0 text-sm'>
+                    ✏️
+                  </span>
+                )}
+                {!active && solved && (
+                  <span
+                    title='Berhasil menebak'
+                    className='a-pop shrink-0 text-sm font-bold text-accent'
+                  >
+                    ✓
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </aside>
 
-      <ul
-        className='mt-3 space-y-0.5 text-xs'
-        aria-label='Tebakan'
-        data-testid='guesses'
-      >
-        {v.guesses.slice(-8).map((g, i) => (
-          <li key={`${i}-${g.seat}-${g.text}`} className='a-slide-in'>
-            {g.correct ? (
-              <span className='font-medium text-accent'>
-                {seatLabel(g.seat, you, r.room?.names)} menebak dengan benar
-              </span>
-            ) : (
-              <span className='text-mute'>
-                {seatLabel(g.seat, you, r.room?.names)}:{' '}
-                <span className='text-ink'>{g.text}</span>
-              </span>
+      {/* Right main column: Header + Canvas + Split Answers/Chat */}
+      <div className='flex h-full min-h-0 min-w-0 flex-col gap-2.5'>
+        <div
+          key={`info-${v.round}`}
+          className='a-slide-up flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-card/80 px-3.5 py-2'
+        >
+          <p className='text-xs text-mute'>
+            Ronde <span className='font-semibold text-ink'>{v.round + 1}</span>{' '}
+            dari {v.rounds}
+            {v.last && (
+              <>
+                {' '}
+                · kata tadi: <span className='text-ink'>{v.last.word}</span>
+              </>
             )}
-          </li>
-        ))}
-      </ul>
-    </>
+          </p>
+          {isDrawer ? (
+            <div className='flex flex-wrap items-center gap-2'>
+              {v.choices && v.choices.length === 2 ? (
+                <div className='flex flex-wrap items-center gap-1.5'>
+                  <span className='text-xs text-mute'>Pilih kata:</span>
+                  {v.choices.map((opt) => (
+                    <button
+                      key={opt}
+                      type='button'
+                      onClick={() => r.move({ type: 'pick_word', word: opt })}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
+                        v.word === opt
+                          ? 'border-accent bg-accent text-paper'
+                          : 'border-line bg-paper/60 text-ink hover:border-accent/60'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                  <b className='sr-only' data-testid='word'>
+                    {v.word}
+                  </b>
+                </div>
+              ) : (
+                <p className='text-sm'>
+                  Gambar:{' '}
+                  <b
+                    className='text-lg tracking-wide text-accent uppercase'
+                    data-testid='word'
+                  >
+                    {v.word}
+                  </b>
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className='text-sm'>
+              {seatLabel(v.drawer, you, r.room?.names)} menggambar:{' '}
+              <b
+                className='font-mono text-lg tracking-widest text-ink'
+                data-testid='hint'
+              >
+                {v.hint}
+              </b>
+            </p>
+          )}
+        </div>
+
+        {/* Canvas + integrated timer bar + drawer tools */}
+        <div className='flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-card/80 p-2'>
+          <div className='flex min-h-0 flex-1 items-center justify-center'>
+            <Canvas
+              key={`canvas-${v.round}`}
+              strokes={v.strokes}
+              canDraw={isDrawer}
+              color={color}
+              width={width}
+              onSend={send}
+              clearToken={clearToken}
+            />
+          </div>
+          <div className='mt-2 shrink-0'>
+            <RoundClock
+              key={`clock-${v.round}`}
+              isDrawer={isDrawer}
+              onNext={() => r.move({ type: 'next', round: v.round })}
+            />
+          </div>
+
+          {isDrawer && (
+            <div className='a-slide-up mt-2 flex shrink-0 flex-wrap items-center justify-center gap-2.5 border-t border-line pt-2'>
+              <div
+                className='flex flex-wrap gap-1.5'
+                role='group'
+                aria-label='Warna'
+              >
+                {COLORS.map((c, i) => (
+                  <button
+                    key={c}
+                    type='button'
+                    aria-label={`Warna ${i + 1}`}
+                    aria-pressed={color === i}
+                    onClick={() => setColor(i)}
+                    className={`size-7 rounded-full border-2 border-line transition-transform ${
+                      color === i
+                        ? 'scale-115 ring-2 ring-ink'
+                        : 'hover:scale-110'
+                    }`}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+              <div
+                className='flex items-center gap-1.5'
+                role='group'
+                aria-label='Tebal garis'
+              >
+                {WIDTHS.map((w, i) => (
+                  <button
+                    key={w}
+                    type='button'
+                    aria-label={`Tebal ${i + 1}`}
+                    aria-pressed={width === i}
+                    onClick={() => setWidth(i)}
+                    className={`flex size-8 items-center justify-center rounded-md border ${
+                      width === i ? 'border-accent bg-accent/10' : 'border-line'
+                    }`}
+                  >
+                    <span
+                      className='rounded-full bg-ink'
+                      style={{ width: 4 + i * 4, height: 4 + i * 4 }}
+                    />
+                  </button>
+                ))}
+              </div>
+              <button
+                type='button'
+                onClick={() => {
+                  setClearToken((n) => n + 1);
+                  r.move({ type: 'clear' });
+                }}
+                className='text-xs text-info hover:underline'
+              >
+                hapus
+              </button>
+              <button
+                type='button'
+                onClick={() => r.move({ type: 'next', round: v.round })}
+                className='text-xs text-mute hover:text-err'
+              >
+                lewati kata
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom split: ANSWERS (left) + CHAT (right) */}
+        <div className='grid h-44 shrink-0 gap-2.5 sm:h-48 sm:grid-cols-2'>
+          <section className='flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-card'>
+            <div className='flex items-center justify-between border-b border-line px-3 py-2 text-xs font-bold tracking-wider text-ink uppercase'>
+              <span>Tebakan</span>
+              <span className='text-[11px] font-normal text-mute'>Answers</span>
+            </div>
+            <ul
+              className='flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs'
+              aria-label='Tebakan'
+              data-testid='guesses'
+            >
+              {v.guesses.slice(-16).map((g, i) => (
+                <li key={`${i}-${g.seat}-${g.text}`} className='a-slide-in'>
+                  {g.correct ? (
+                    <span className='font-semibold text-accent'>
+                      ✓ {seatLabel(g.seat, you, r.room?.names)} menebak dengan
+                      benar!
+                    </span>
+                  ) : (
+                    <span className='text-mute'>
+                      {seatLabel(g.seat, you, r.room?.names)}:{' '}
+                      <span className='text-ink'>{g.text}</span>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className='border-t border-line p-2'>
+              {isDrawer ? (
+                <p className='py-1 text-center text-xs text-mute'>
+                  Kamu sedang menggambar
+                </p>
+              ) : solvedMe ? (
+                <p className='a-pop py-1 text-center text-xs font-medium text-accent'>
+                  Tebakanmu benar! Tunggu yang lain…
+                </p>
+              ) : (
+                <form
+                  className='flex items-center gap-2'
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!text.trim() || solvedMe) return;
+                    r.move({ type: 'guess', text });
+                    setText('');
+                  }}
+                >
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder='Tebakanmu…'
+                    aria-label='Tebakan'
+                    maxLength={40}
+                    autoComplete='off'
+                    autoCorrect='off'
+                    spellCheck={false}
+                    className='min-w-0 flex-1 rounded-lg border border-line bg-paper/60 px-2.5 py-1.5 text-xs placeholder:text-mute focus:border-accent focus:outline-none'
+                  />
+                  <button
+                    type='submit'
+                    disabled={!text.trim()}
+                    className='rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-paper disabled:opacity-40'
+                  >
+                    Tebak
+                  </button>
+                </form>
+              )}
+            </div>
+          </section>
+
+          <div className='h-full min-h-0'>
+            <RoomChat game='pictionary' names={r.room?.names} inline />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -483,15 +576,7 @@ function Pictionary() {
       r={r}
       blurb='# Pictionary untuk 2 sampai 6 pemain. Bergantian menggambar kata rahasia, yang lain menebak secepatnya. Yang lebih cepat dapat poin lebih banyak.'
     >
-      {({ room, you }) => (
-        <>
-          <PlayArea v={room.state} you={you} r={r} />
-          <p className='mt-auto pt-4 text-center text-xs text-mute'>
-            Gambar muncul di layar penebak dengan jeda sekitar satu detik. Room
-            hilang sendiri setelah 2 jam.
-          </p>
-        </>
-      )}
+      {({ room, you }) => <PlayArea v={room.state} you={you} r={r} />}
     </RoomGate>
   );
 }
@@ -500,13 +585,8 @@ export default function PictionaryPage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='pictionary' wide>
-      {mounted ? (
-        <>
-          <Pictionary />
-          <RoomChat game='pictionary' />
-        </>
-      ) : null}
+    <GameShell name='pictionary' fluid>
+      {mounted ? <Pictionary /> : null}
     </GameShell>
   );
 }

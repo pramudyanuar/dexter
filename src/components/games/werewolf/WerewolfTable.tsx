@@ -215,7 +215,7 @@ export default function WerewolfTable({
       : 'bg-[radial-gradient(ellipse_at_50%_0%,#b8762f_0%,#5a3a22_45%,#1c130f_100%)]';
 
   return (
-    <div className='flex min-h-0 w-full flex-1 flex-col overflow-y-auto'>
+    <div className='flex w-full flex-1 flex-col'>
       {view.winner && me && view.winner.seats.includes(you) && (
         <Confetti count={60} />
       )}

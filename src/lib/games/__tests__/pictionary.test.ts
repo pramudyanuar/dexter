@@ -13,14 +13,26 @@ describe('pictionary', () => {
     expect(new Set(WORDS).size).toBe(WORDS.length);
   });
 
-  it('shows the word only to the drawer', () => {
-    const s = start();
+  it('shows the word and two choices only to the drawer and allows switching before drawing', () => {
+    let s = start();
     const drawer = pictionaryGame.view(s, s.drawer) as PictionaryView;
     const guesser = pictionaryGame.view(s, 1) as PictionaryView;
     expect(drawer.word).toBe(s.word);
+    expect(drawer.choices).toHaveLength(2);
     expect(guesser.word).toBeNull();
+    expect(guesser.choices).toBeNull();
     expect(JSON.stringify(guesser)).not.toContain(`"${s.word}"`);
     expect(guesser.hint.replace(/[ _/-]/g, '')).toBe('');
+
+    const alt = drawer.choices!.find((w) => w !== s.word)!;
+    s = pictionaryGame.move(s, s.drawer, {
+      type: 'pick_word',
+      word: alt,
+    }) as PictionaryState;
+    expect(s.word).toBe(alt);
+    expect(
+      (pictionaryGame.view(s, s.drawer) as PictionaryView).choices,
+    ).toBeNull();
   });
 
   it('lets only the drawer draw, and merges points into the same stroke', () => {

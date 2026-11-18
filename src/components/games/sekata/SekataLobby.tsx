@@ -168,7 +168,7 @@ export default function SekataLobby({ r }: { r: Api }) {
     void r.setOptions({ ...cfg, mode, ...modeDefaults(mode) });
 
   return (
-    <div className='mx-auto max-h-[calc(100dvh-4.75rem)] w-full max-w-3xl overflow-y-auto pb-4'>
+    <div className='mx-auto w-full max-w-3xl pb-6'>
       <header className='mb-6 text-center'>
         <h1 className='text-5xl font-black tracking-[0.18em] text-[#f08fb0]'>
           SEKATA
