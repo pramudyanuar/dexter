@@ -7,6 +7,8 @@ import { normalizeCode } from '@/lib/rooms/code-format';
 import GameArt from '@/components/games/GameArt';
 import useGameEntry from '@/components/games/useGameEntry';
 
+import { GAME_HINTS } from '@/constant/game-hints';
+
 export const NAME_MAX = 16;
 
 interface PublicRoom {
@@ -41,6 +43,7 @@ export default function RoomLobby({
   onJoin: (code: string) => void;
 }) {
   const game = useGameEntry();
+  const hints = (game && GAME_HINTS[game.id]) ?? [];
   const [isPublic, setIsPublic] = React.useState(true);
   const [publicRooms, setPublicRooms] = React.useState<PublicRoom[]>([]);
   const [code, setCode] = React.useState(() =>
@@ -103,6 +106,29 @@ export default function RoomLobby({
           <p className='mt-1.5 text-sm leading-relaxed text-[var(--mute)]'>
             {blurb.replace(/^#\s*/, '')}
           </p>
+          {hints.length > 0 && (
+            <details className='group mt-3 rounded-lg border border-line bg-surface/50'>
+              <summary className='flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium select-none'>
+                Cara main
+                <span
+                  aria-hidden
+                  className='text-[var(--mute)] transition-transform group-open:rotate-90'
+                >
+                  ›
+                </span>
+              </summary>
+              <ul className='space-y-1.5 px-3 pb-3 text-sm text-[var(--mute)]'>
+                {hints.map((h, i) => (
+                  <li key={i} className='flex gap-2'>
+                    <span aria-hidden className='text-[var(--mute)]'>
+                      •
+                    </span>
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       </section>
 
