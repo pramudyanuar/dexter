@@ -10,6 +10,7 @@ export type GameId =
   | 'chess'
   | 'dice'
   | 'domino'
+  | 'mahjong-hk'
   | 'quiz'
   | 'pictionary'
   | 'sekata'

@@ -78,6 +78,8 @@ export interface GameDef<S = unknown> {
    */
   view(state: S, seat: number | null, ctx?: GameCtx): unknown;
   isOver(state: S): boolean;
+  /** The game's own turn duration is binding, including on moves received between polls. */
+  fixedTurnClock?: boolean;
 
   /**
    * Who the game is waiting on right now (seats that must act) and how long

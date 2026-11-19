@@ -1420,6 +1420,7 @@ const ART: Record<string, () => React.JSX.Element> = {
   uno: Uno,
   sekata: Sekata,
   mahjong: Mahjong,
+  'mahjong-hk': Mahjong,
   dart: Dart,
   remo: Remo,
   werewolf: Werewolf,

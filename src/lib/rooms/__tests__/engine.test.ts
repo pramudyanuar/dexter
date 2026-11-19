@@ -55,6 +55,7 @@ describe('the registry', () => {
       'dice',
       'domino',
       'gomoku',
+      'mahjong-hk',
       'monkeys',
       'pictionary',
       'quiz',
