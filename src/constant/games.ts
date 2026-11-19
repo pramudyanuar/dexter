@@ -120,11 +120,22 @@ const ALL_GAMES: readonly GameEntry[] = [
   {
     id: 'mahjong',
     players: '1',
-    title: 'Mahjong',
+    title: 'Mahjong Solitaire',
     href: '/games/mahjong',
     description:
       'Match identical Mahjong tiles, clear the board, and challenge your puzzle-solving skills.',
     controls: 'click two free tiles that match',
+  },
+  {
+    id: 'mahjong-hk',
+    players: '4',
+    title: 'Mahjong Hong Kong',
+    online: true,
+    href: '/games/mahjong-hk',
+    description:
+      'Meja empat pemain dengan pembagian ubin otomatis dan aturan Hong Kong tiga faan.',
+    controls:
+      'pilih ubin untuk dibuang, atau klaim buangan untuk melengkapi tanganmu',
   },
   {
     id: 'dart',

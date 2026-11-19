@@ -32,6 +32,7 @@ export default function RoomLobby({
   onName,
   onCreate,
   onJoin,
+  guide,
 }: {
   blurb: string;
   busy: boolean;
@@ -41,6 +42,7 @@ export default function RoomLobby({
   onName: (name: string) => void;
   onCreate: (isPublic?: boolean) => void;
   onJoin: (code: string) => void;
+  guide?: React.ReactNode;
 }) {
   const game = useGameEntry();
   const hints = (game && GAME_HINTS[game.id]) ?? [];
@@ -115,7 +117,8 @@ export default function RoomLobby({
             <p className='mt-1.5 text-sm leading-relaxed text-[var(--mute)]'>
               {blurb.replace(/^#\s*/, '')}
             </p>
-            {hints.length > 0 && (
+            {guide && <div className='mt-3'>{guide}</div>}
+            {!guide && hints.length > 0 && (
               <details className='group mt-3 rounded-lg border border-line bg-surface/50'>
                 <summary className='flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium select-none'>
                   Cara main

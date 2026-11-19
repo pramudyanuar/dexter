@@ -130,7 +130,13 @@ const outline =
  * joined, and for the host a start button (or, for fixed-size games, a note
  * that it begins by itself).
  */
-export function WaitingRoom({ r }: { r: WaitingApi }) {
+export function WaitingRoom({
+  r,
+  guide,
+}: {
+  r: WaitingApi;
+  guide?: React.ReactNode;
+}) {
   const { copied, copy } = useCopy();
   if (!r.session || !r.room) return null;
   const { code, you } = r.session;
@@ -142,7 +148,8 @@ export function WaitingRoom({ r }: { r: WaitingApi }) {
 
   return (
     <div className='mx-auto w-full max-w-md'>
-      <div className='mb-4 flex justify-end'>
+      <div className='mb-4 flex items-center justify-end gap-3'>
+        {guide}
         <button
           type='button'
           onClick={r.leave}
@@ -318,11 +325,13 @@ export default function RoomGate<V>({
   r,
   blurb,
   barRight,
+  guide,
   children,
 }: {
   r: Room<V>;
   blurb: string;
   barRight?: React.ReactNode;
+  guide?: React.ReactNode;
   children: (ctx: {
     room: RoomView<V> & { state: V };
     you: number;
@@ -339,6 +348,7 @@ export default function RoomGate<V>({
         onName={r.setName}
         onCreate={r.create}
         onJoin={r.join}
+        guide={guide}
       />
     );
   }
@@ -349,7 +359,8 @@ export default function RoomGate<V>({
   // taken out of the room (left for too long): nothing more to do here
   if (room && room.seat === null) return <Removed r={r} />;
 
-  if (room && room.status === 'waiting') return <WaitingRoom r={r} />;
+  if (room && room.status === 'waiting')
+    return <WaitingRoom r={r} guide={guide} />;
 
   if (!room || room.state === null) {
     return (
@@ -367,7 +378,7 @@ export default function RoomGate<V>({
         code={r.session.code}
         share={false}
         onLeave={r.leave}
-        right={barRight}
+        right={barRight ?? guide}
       />
       {/* games for more players list everyone with their names already */}
       {room.capacity === 2 && (

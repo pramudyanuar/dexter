@@ -319,6 +319,12 @@ function Mahjong() {
             Match identical tiles, clear the board, and challenge your
             puzzle-solving skills.
           </p>
+          <Link
+            href='/games/mahjong-hk'
+            className='mt-3 inline-flex rounded-lg border border-line-strong px-4 py-2 text-sm text-ink hover:border-[#d9b45a]'
+          >
+            Play Hong Kong Mahjong with friends →
+          </Link>
         </header>
 
         <h2 className='mb-2 text-sm font-semibold'>Layout</h2>

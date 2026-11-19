@@ -5,6 +5,7 @@ import { connect4Game } from '@/lib/games/connect4-online';
 import { dartGame } from '@/lib/games/dart';
 import { dominoGame } from '@/lib/games/domino';
 import { gomokuGame } from '@/lib/games/gomoku';
+import { hkMahjongGame } from '@/lib/games/hk-mahjong/game';
 import { diceGame } from '@/lib/games/liarsdice';
 import { monkeysGame } from '@/lib/games/monkeys';
 import { pictionaryGame } from '@/lib/games/pictionary';
@@ -35,6 +36,7 @@ export const GAMES: Record<GameId, GameDef> = {
   chess: chessGame as GameDef,
   dice: diceGame as GameDef,
   domino: dominoGame as GameDef,
+  'mahjong-hk': hkMahjongGame as GameDef,
   quiz: quizGame as GameDef,
   pictionary: pictionaryGame as GameDef,
 };

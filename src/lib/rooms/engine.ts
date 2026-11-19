@@ -295,7 +295,10 @@ export function act(
 
   const def = GAMES[room.game];
   // anything that came due while nobody was looking happens first
-  const timed = runClock(room, now, rng);
+  const timed = def.fixedTurnClock
+    ? sweep(room, now, rng)
+    : runClock(room, now, rng);
+  if (def.fixedTurnClock && timed !== room) return timed;
   if (timed.status !== 'playing') return timed;
   const state = def.move(timed.state, seat, move, rng, {
     host: hostOf(room),
@@ -468,7 +471,9 @@ function roomTuning(room: Room) {
   };
   return {
     turnSeconds:
-      typeof opts.turnSeconds === 'number' && opts.turnSeconds >= 10
+      !GAMES[room.game].fixedTurnClock &&
+      typeof opts.turnSeconds === 'number' &&
+      opts.turnSeconds >= 10
         ? Math.round(opts.turnSeconds)
         : 0,
     maxStrikes:
@@ -531,7 +536,11 @@ export function sweep(room: Room, now = Date.now(), rng?: () => number): Room {
   const waiting = GAMES[next.game].waiting?.(next.state);
   const waitSec =
     waiting && tuning.turnSeconds > 0 ? tuning.turnSeconds : waiting?.seconds;
-  if (waiting && waitSec && now - stampOf(next) > waitSec * 1000) {
+  const deadline = stampOf(next) + (waitSec ?? 0) * 1000;
+  const due = GAMES[next.game].fixedTurnClock
+    ? now >= deadline
+    : now > deadline;
+  if (waiting && waitSec && due) {
     for (const seat of waiting.seats) {
       if (next.status !== 'playing') break;
       if (!outOf(next)[seat]) next = penalize(next, seat, rng, now);
