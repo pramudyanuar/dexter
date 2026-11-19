@@ -278,7 +278,7 @@ function PlayArea({
   }
 
   return (
-    <div className='mx-auto grid h-[calc(100dvh-10.5rem)] min-h-[420px] w-full max-w-[1600px] gap-2.5 overflow-hidden px-1 sm:px-3 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)]'>
+    <div className='mx-auto grid h-[calc(100dvh-10.5rem)] min-h-[420px] w-full max-w-[1600px] grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden px-1 sm:px-3 md:grid-cols-[240px_minmax(0,1fr)] md:grid-rows-1 lg:grid-cols-[260px_minmax(0,1fr)]'>
       {/* Left sidebar: Players list (Gartic.io style) */}
       <aside className='flex max-h-28 flex-col overflow-hidden rounded-xl border border-line bg-card/80 p-2 md:h-full md:max-h-none'>
         <div className='mb-1.5 flex shrink-0 items-center justify-between px-1 text-[11px] font-bold tracking-wider text-mute uppercase'>

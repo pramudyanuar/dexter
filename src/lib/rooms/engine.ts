@@ -269,9 +269,29 @@ export function setOptions(
   const def = GAMES[room.game];
   if (!def.sanitizeOptions)
     throw new RoomError('Game ini tidak punya pengaturan', 400);
+  const prev =
+    room.options && typeof room.options === 'object'
+      ? (room.options as Record<string, unknown>)
+      : {};
+  const sanitized = def.sanitizeOptions(raw);
+  const nextOpts =
+    sanitized && typeof sanitized === 'object'
+      ? { ...(sanitized as Record<string, unknown>) }
+      : sanitized;
+  if (nextOpts && typeof nextOpts === 'object') {
+    for (const key of [
+      'maxStrikes',
+      'leaveGraceSeconds',
+      'turnSeconds',
+    ] as const) {
+      if (prev[key] !== undefined && !(key in nextOpts)) {
+        (nextOpts as Record<string, unknown>)[key] = prev[key];
+      }
+    }
+  }
   return {
     ...room,
-    options: def.sanitizeOptions(raw),
+    options: nextOpts,
     stamp: now,
     version: room.version + 1,
   };

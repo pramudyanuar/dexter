@@ -1409,14 +1409,163 @@ function Fm() {
   );
 }
 
+function Karambol() {
+  return (
+    <Frame>
+      <rect
+        x='34'
+        y='10'
+        width='92'
+        height='80'
+        rx='8'
+        fill='#2a2018'
+        stroke='#5a4230'
+        strokeWidth='2'
+      />
+      <rect x='41' y='17' width='78' height='66' rx='4' fill='#c8a97e' />
+      <circle cx='46' cy='22' r='4.5' fill='#0e1015' />
+      <circle cx='114' cy='22' r='4.5' fill='#0e1015' />
+      <circle cx='46' cy='78' r='4.5' fill='#0e1015' />
+      <circle cx='114' cy='78' r='4.5' fill='#0e1015' />
+      <circle
+        cx='80'
+        cy='48'
+        r='13'
+        fill='none'
+        stroke='#7a4e32'
+        strokeWidth='1'
+        opacity='0.6'
+      />
+      <circle cx='80' cy='48' r='4' fill={RED} />
+      <circle cx='71' cy='44' r='3.6' fill={INK} />
+      <circle cx='89' cy='44' r='3.6' fill='#1c1e24' />
+      <circle cx='74' cy='55' r='3.6' fill='#1c1e24' />
+      <circle cx='86' cy='55' r='3.6' fill={INK} />
+      <g className={move('group-hover:-translate-y-2')}>
+        <circle
+          cx='80'
+          cy='73'
+          r='5'
+          fill={GOLD}
+          stroke='#5a4230'
+          strokeWidth='1.2'
+        />
+      </g>
+    </Frame>
+  );
+}
+
+function Doom() {
+  return (
+    <Frame>
+      <rect width='160' height='56' fill='#280c0f' />
+      <rect y='56' width='160' height='44' fill='#1a1417' />
+      {/* Mars horizon glow */}
+      <circle cx='80' cy='46' r='22' fill={RED} opacity='0.22' />
+      {/* Imp silhouette */}
+      <g className={move('group-hover:scale-110')}>
+        <circle cx='80' cy='40' r='11' fill='#8f242e' />
+        <polygon points='70,34 65,24 75,30' fill='#d99b66' />
+        <polygon points='90,34 95,24 85,30' fill='#d99b66' />
+        <circle cx='76' cy='39' r='1.8' fill={GOLD} />
+        <circle cx='84' cy='39' r='1.8' fill={GOLD} />
+      </g>
+      {/* Shotgun barrel at bottom */}
+      <rect x='72' y='62' width='7' height='34' rx='1' fill='#454b57' />
+      <rect x='81' y='62' width='7' height='34' rx='1' fill='#353a44' />
+      <rect x='71' y='88' width='18' height='12' rx='2' fill='#5c3d28' />
+    </Frame>
+  );
+}
+
+function Doom2() {
+  return (
+    <Frame>
+      <rect width='160' height='56' fill='#2a1109' />
+      <rect y='56' width='160' height='44' fill='#181412' />
+      <polygon points='30,56 50,24 72,56' fill='#3d1d12' />
+      <polygon points='92,56 116,18 140,56' fill='#4a2315' />
+      <g className={move('group-hover:-translate-y-1')}>
+        <rect x='69' y='56' width='9' height='40' rx='1' fill='#4c5361' />
+        <rect x='82' y='56' width='9' height='40' rx='1' fill='#3a404c' />
+        <rect x='67' y='86' width='26' height='14' rx='2' fill='#634028' />
+      </g>
+    </Frame>
+  );
+}
+
+function Wolf3d() {
+  return (
+    <Frame>
+      <rect width='160' height='52' fill='#1c212b' />
+      <rect y='52' width='160' height='48' fill='#2b2e36' />
+      {/* Stone castle walls */}
+      <rect
+        x='14'
+        y='18'
+        width='34'
+        height='64'
+        fill='#3f495c'
+        stroke='#262d3a'
+      />
+      <rect
+        x='112'
+        y='18'
+        width='34'
+        height='64'
+        fill='#3f495c'
+        stroke='#262d3a'
+      />
+      {/* Gold treasure & classic pistol */}
+      <g className={move('group-hover:scale-105')}>
+        <polygon points='72,56 88,56 92,66 68,66' fill={GOLD} />
+        <rect x='76' y='72' width='8' height='24' rx='1' fill='#525a69' />
+      </g>
+    </Frame>
+  );
+}
+
+function Gelud() {
+  return (
+    <Frame>
+      <rect width='160' height='68' fill='#151624' />
+      <rect y='68' width='160' height='32' fill='#242535' />
+      {/* Health bars */}
+      <rect x='14' y='10' width='52' height='5' rx='2' fill={BLUE} />
+      <rect x='94' y='10' width='52' height='5' rx='2' fill={RED} />
+      {/* P1 (Blue) */}
+      <g className={move('group-hover:translate-x-2')}>
+        <rect x='40' y='44' width='14' height='24' rx='2' fill={BLUE} />
+        <circle cx='47' cy='36' r='7' fill='#f1c7a4' />
+        <rect x='40' y='31' width='14' height='3' fill={GOLD} />
+        <rect x='52' y='48' width='16' height='5' rx='2' fill='#f1c7a4' />
+      </g>
+      {/* Impact spark */}
+      <circle cx='80' cy='50' r='5' fill={GOLD} opacity='0.85' />
+      {/* P2 (Red) */}
+      <g className={move('group-hover:-translate-x-2')}>
+        <rect x='106' y='44' width='14' height='24' rx='2' fill={RED} />
+        <circle cx='113' cy='36' r='7' fill='#f1c7a4' />
+        <rect x='106' y='31' width='14' height='3' fill={INK} />
+        <rect x='92' y='48' width='16' height='5' rx='2' fill='#f1c7a4' />
+      </g>
+    </Frame>
+  );
+}
+
 const ART: Record<string, () => React.JSX.Element> = {
   wordle: Wordle,
   snake: Snake,
   '2048': Game2048,
   minesweeper: Minesweeper,
   tetris: Tetris,
+  doom: Doom,
+  doom2: Doom2,
+  wolf3d: Wolf3d,
+  gelud: Gelud,
   connect4: Connect4,
   suit: Suit,
+  karambol: Karambol,
   uno: Uno,
   sekata: Sekata,
   mahjong: Mahjong,

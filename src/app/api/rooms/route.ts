@@ -74,29 +74,18 @@ export async function POST(req: Request) {
     const cfg = await getGameConfig();
     const baseOpts = GAMES[game].defaultOptions;
     const gameOpts =
-      game === 'unomercy'
-        ? cfg.unomercy
-        : game === 'unoflip'
-          ? cfg.unoflip
-          : game === 'uno'
-            ? cfg.uno
-            : game === 'domino'
-              ? cfg.domino
-              : game === 'suit'
-                ? cfg.suit
-                : game === 'dice'
-                  ? cfg.dice
-                  : game === 'quiz'
-                    ? cfg.quiz
-                    : game === 'pictionary'
-                      ? cfg.pictionary
-                      : game === 'werewolf'
-                        ? cfg.werewolf
-                        : undefined;
+      game in cfg ? cfg[game as Exclude<keyof typeof cfg, 'room'>] : undefined;
+    const roomOpts = {
+      maxStrikes: cfg.room.maxStrikes,
+      leaveGraceSeconds: cfg.room.leaveGraceSeconds,
+      ...(cfg.room.turnSeconds > 0
+        ? { turnSeconds: cfg.room.turnSeconds }
+        : {}),
+    };
     const mergedOpts = {
       ...(baseOpts && typeof baseOpts === 'object' ? baseOpts : {}),
       ...(gameOpts ?? {}),
-      ...cfg.room,
+      ...roomOpts,
     };
 
     // a collision is very unlikely, but a few retries cost nothing

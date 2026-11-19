@@ -4,8 +4,10 @@ import { chessGame } from '@/lib/games/chess';
 import { connect4Game } from '@/lib/games/connect4-online';
 import { dartGame } from '@/lib/games/dart';
 import { dominoGame } from '@/lib/games/domino';
+import { geludGame } from '@/lib/games/gelud';
 import { gomokuGame } from '@/lib/games/gomoku';
 import { hkMahjongGame } from '@/lib/games/hk-mahjong/game';
+import { karambolGame } from '@/lib/games/karambol';
 import { diceGame } from '@/lib/games/liarsdice';
 import { monkeysGame } from '@/lib/games/monkeys';
 import { pictionaryGame } from '@/lib/games/pictionary';
@@ -39,6 +41,8 @@ export const GAMES: Record<GameId, GameDef> = {
   'mahjong-hk': hkMahjongGame as GameDef,
   quiz: quizGame as GameDef,
   pictionary: pictionaryGame as GameDef,
+  karambol: karambolGame as GameDef,
+  gelud: geludGame as GameDef,
 };
 
 export const isGameId = (value: unknown): value is GameId =>

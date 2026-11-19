@@ -45,7 +45,7 @@ export default function GameShell({
 
   return (
     <div
-      className={`games-ui flex flex-col text-[15px] text-ink ${
+      className={`games-ui flex flex-col overflow-x-clip text-[15px] text-ink ${
         fullscreen ? 'h-dvh overflow-hidden overscroll-none' : 'min-h-dvh'
       }`}
     >

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import PlayerNameControl from '@/components/games/PlayerNamePrompt';
+
 const NAV_ITEMS = [
   { href: '/games', label: 'Games' },
   { href: '/tools', label: 'Tools' },
@@ -11,9 +13,13 @@ const NAV_ITEMS = [
 
 export default function TopNav() {
   const pathname = usePathname();
+  const isGames = pathname === '/games' || pathname.startsWith('/games/');
 
   return (
-    <nav aria-label='Navigasi utama' className='mb-5 flex items-center'>
+    <nav
+      aria-label='Navigasi utama'
+      className='mb-5 flex flex-wrap items-center justify-between gap-2'
+    >
       <div className='inline-flex items-center gap-1 rounded-full border border-line bg-surface/60 p-1'>
         {NAV_ITEMS.map((item) => {
           const active =
@@ -34,6 +40,10 @@ export default function TopNav() {
           );
         })}
       </div>
+
+      {isGames && (
+        <PlayerNameControl promptOnFirstVisit={pathname === '/games'} />
+      )}
     </nav>
   );
 }

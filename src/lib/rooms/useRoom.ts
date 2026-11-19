@@ -8,6 +8,7 @@ import {
   rememberSeat,
 } from '@/lib/rooms/seat-memory';
 import type { GameId, RoomView } from '@/lib/rooms/types';
+import usePlayerName from '@/lib/usePlayerName';
 import useStoredState from '@/lib/useStoredState';
 
 export interface RoomSession {
@@ -53,7 +54,7 @@ export function useRoom<V>(game: GameId) {
     'tab',
   );
   // one name for every game, so it only has to be typed once
-  const [name, setName] = useStoredState<string>('player-name', '');
+  const [name, setName] = usePlayerName();
   const [room, setRoom] = React.useState<RoomView<V> | null>(null);
   // when the room view arrived, so countdowns can run from there
   const [receivedAt, setReceivedAt] = React.useState(0);

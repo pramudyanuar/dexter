@@ -56,6 +56,43 @@ const ALL_GAMES: readonly GameEntry[] = [
     controls: 'panah geser/putar/turun, spasi jatuhkan, P jeda',
   },
   {
+    id: 'doom',
+    players: '1',
+    title: 'DOOM',
+    href: '/games/doom',
+    description:
+      'DOOM asli tahun 1993 (Shareware) berjalan langsung di browser lewat DOSBox WebAssembly.',
+    controls: 'Panah gerak, Ctrl tembak, Spasi buka pintu, Esc menu',
+  },
+  {
+    id: 'doom2',
+    players: '1',
+    title: 'DOOM II',
+    href: '/games/doom2',
+    description:
+      'DOOM II: Hell on Earth (1994) dengan Super Shotgun dan monster ikonik lewat DOSBox WebAssembly.',
+    controls: 'Panah gerak, Ctrl tembak, Spasi buka pintu, Esc menu',
+  },
+  {
+    id: 'wolf3d',
+    players: '1',
+    title: 'Wolfenstein 3D',
+    href: '/games/wolf3d',
+    description:
+      'FPS klasik 1992 pelopor game 3D dari id Software, berjalan langsung di browser.',
+    controls: 'Panah gerak, Ctrl tembak, Spasi buka pintu, Esc menu',
+  },
+  {
+    id: 'gelud',
+    players: '1–2',
+    title: 'Gelud',
+    online: true,
+    href: '/games/gelud',
+    description:
+      'Game fighting arcade 2D: bisa mabar online lewat kode room, 1P vs AI, atau 2P di 1 keyboard.',
+    controls: 'WASD/Panah gerak, F/Spasi pukul, G tendang, H jurus',
+  },
+  {
     id: 'connect4',
     players: '2',
     title: 'Connect 4',
@@ -74,6 +111,16 @@ const ALL_GAMES: readonly GameEntry[] = [
     description:
       'Batu, gunting, kertas online untuk dua pemain. Menang dua ronde dulu.',
     controls: 'buat room lalu bagikan kodenya',
+  },
+  {
+    id: 'karambol',
+    players: '2–4',
+    title: 'Karambol',
+    online: true,
+    href: '/games/karambol',
+    description:
+      'Karambol online 2–4 pemain: 1v1, 3 pemain poin, atau 4 pemain (2v2 tim seberang).',
+    controls: 'geser striker di garis, tarik & lepas untuk menembak',
   },
   {
     id: 'uno',

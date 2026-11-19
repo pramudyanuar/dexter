@@ -17,7 +17,9 @@ export type GameId =
   | 'dart'
   | 'remo'
   | 'werewolf'
-  | 'monkeys';
+  | 'monkeys'
+  | 'karambol'
+  | 'gelud';
 export type RoomStatus = 'waiting' | 'playing' | 'over';
 
 /**

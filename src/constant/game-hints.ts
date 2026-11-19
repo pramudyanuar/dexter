@@ -15,6 +15,17 @@ export const GAME_HINTS: Record<string, string[]> = {
     'Pilih diam-diam; pilihan baru terbuka setelah kedua pemain memilih.',
     'Yang menang dua ronde lebih dulu, menang.',
   ],
+  karambol: [
+    'Bisa 2 pemain (1v1 Putih vs Hitam), 3 pemain (rebutan poin), atau 4 pemain (2v2 tim seberang).',
+    'Geser posisi striker di garismu, lalu tarik mundur dan lepas untuk menembak.',
+    'Bidak yang masuk memberi giliran tambahan. Jika memasukkan Ratu (merah), wajib cover dengan memasukkan 1 bidak.',
+    'Striker masuk lubang = foul (1 bidak yang sudah masuk dikembalikan ke tengah / -1 poin).',
+  ],
+  gelud: [
+    'Duel fighting Best of 3 ronde: habiskan HP lawan atau unggul HP saat waktu habis.',
+    'A/D (atau Panah) gerak, W/↑ lompat, S/↓ tahan untuk blokir (mengurangi damage 75%).',
+    'F/Spasi pukul cepat, G tendang, H jurus super saat bar kuning ≥ 50%.',
+  ],
   uno: [
     'Buang kartu yang warna atau angka/simbolnya sama dengan kartu teratas.',
     'Tidak ada yang cocok? Tarik satu kartu; boleh langsung dimainkan kalau pas, kalau tidak giliran lewat.',

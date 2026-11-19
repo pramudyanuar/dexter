@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import * as React from 'react';
 
-import useStoredState from '@/lib/useStoredState';
+import usePlayerName from '@/lib/usePlayerName';
 
 export default function SubmitScore({
   game,
@@ -24,7 +24,7 @@ export default function SubmitScore({
   leaderboardHref?: string;
 }) {
   const tt = (id: string, en: string) => (english ? en : id);
-  const [name, setName] = useStoredState<string>('dexter:player-name', '');
+  const [name, setName] = usePlayerName();
   const [saving, setSaving] = React.useState(false);
   const [rank, setRank] = React.useState<number | null>(null);
   const [submittedScore, setSubmittedScore] = React.useState<number | null>(
