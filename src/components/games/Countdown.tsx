@@ -2,6 +2,18 @@
 
 import * as React from 'react';
 
+/** Milliseconds left until a deadline expressed in the browser's clock. */
+export function useRemainingMs(deadline: number | null) {
+  const [now, setNow] = React.useState(Date.now);
+  const active = deadline !== null;
+  React.useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(timer);
+  }, [active]);
+  return deadline === null ? 0 : Math.max(0, deadline - now);
+}
+
 /**
  * A shrinking bar with the seconds left. Remount it (change `key`) to restart.
  * `onExpire` runs once when time is up.

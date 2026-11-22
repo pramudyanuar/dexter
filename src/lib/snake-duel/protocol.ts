@@ -1,10 +1,10 @@
+import type { Dir } from '@/lib/games/snake';
 import type { ArenaView, Pair, Seat } from '@/lib/games/snake-duel';
 
 export const RECONNECT_MS = 10_000;
 export const MATCHMAKING_MS = 45_000;
 export const DUEL_ROOMS_URL = '/api/snake/duel/rooms';
 export const DUEL_MATCH_URL = '/api/snake/duel/matchmaking';
-export const DUEL_SOCKET_URL = '/api/snake/duel/socket';
 export const TOKEN_PATTERN = /^[a-f0-9]{32}$/;
 
 export interface DuelSession {
@@ -37,7 +37,11 @@ export interface DuelView {
   } | null;
 }
 
-export type DuelEvent =
-  | { type: 'state'; room: DuelView }
-  | { type: 'notice'; message: string }
-  | { type: 'left' };
+export interface DuelMove {
+  roundId: string;
+  seq: number;
+  dir: Dir;
+}
+
+export type DuelPoll =
+  { changed: true; room: DuelView } | { changed: false; version: number };

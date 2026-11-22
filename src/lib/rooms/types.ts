@@ -22,6 +22,13 @@ export type GameId =
   | 'gelud';
 export type RoomStatus = 'waiting' | 'playing' | 'over';
 
+export interface PublicRoom {
+  code: string;
+  hostName: string;
+  players: number;
+  capacity: number;
+}
+
 /**
  * What is stored. `tokens` are the players' secrets and never leave the
  * server, and neither does `state` as it is: players only ever get `RoomView`.

@@ -1,11 +1,17 @@
-import { ipAddress } from '@vercel/functions';
+import { z } from 'zod';
 
-import { DUEL_UNAVAILABLE, DuelError, DuelStore } from '@/lib/snake-duel/store';
+import { cleanName } from '@/lib/rooms/player-name';
+import { RoomError } from '@/lib/rooms/types';
+import { DUEL_UNAVAILABLE, DuelStore } from '@/lib/snake-duel/store';
 
 export const NO_STORE = { 'Cache-Control': 'no-store' };
+export const duelName = z
+  .string()
+  .transform((name) => cleanName(name) ?? '')
+  .pipe(z.string().min(1));
 
 export function duelFailure(error: unknown) {
-  const known = error instanceof DuelError;
+  const known = error instanceof RoomError;
   return Response.json(
     { error: known ? error.message : DUEL_UNAVAILABLE },
     { status: known ? error.status : 503, headers: NO_STORE },
@@ -13,7 +19,9 @@ export function duelFailure(error: unknown) {
 }
 
 export async function checkAdmission(store: DuelStore, request: Request) {
-  if (!(await store.allowAdmission(ipAddress(request) ?? 'local'))) {
-    throw new DuelError('Terlalu banyak percobaan. Tunggu sebentar.', 429);
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'local';
+  if (!(await store.allowAdmission(ip))) {
+    throw new RoomError('Terlalu banyak percobaan. Tunggu sebentar.', 429);
   }
 }

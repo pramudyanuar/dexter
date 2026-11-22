@@ -106,12 +106,12 @@ This starter is using [conventional commits](https://www.conventionalcommits.org
 
 ## Snake on Vercel
 
-The Snake page at `/games/snake` includes Classic, Harian, and a shared 1v1 Duel arena. Classic and Harian play in the browser. Public scores and Duel rooms use Upstash Redis.
+The Snake page at `/games/snake` includes Classic, Harian, and a shared 1v1 Duel arena. Classic and Harian play in the browser. Public scores and deployed Duel rooms use Upstash Redis.
 
 - Use Node 24 and the project's pnpm 12 pin. Set `ENABLE_EXPERIMENTAL_COREPACK=1` in Vercel so builds use the pinned package manager.
-- Enable Fluid Compute and connect a free Upstash Redis database to Preview. The Duel functions use Singapore (`sin1`), so select the Singapore primary region or update the function regions in `vercel.json` to match your database.
-- Set `SNAKE_DUEL_ENABLED=1` for environments that should offer Duel. `SNAKE_DUEL_MONTHLY_ROUNDS` defaults to 20, with up to two concurrent rounds. Vercel Preview uses a separate Duel namespace by default. Use separate Redis credentials for isolated Preview leaderboard data.
-- Test the WebSocket route in Vercel Preview or with `vercel dev`. Check room codes, public listing, matchmaking, and reconnect from two clients before enabling Duel in Production.
+- Connect an Upstash Redis database to Preview. The Duel functions use Singapore (`sin1`), so select the Singapore primary region or update the function regions in `vercel.json` to match your database.
+- Duel is enabled when Redis is configured. Set `SNAKE_DUEL_ENABLED=0` to disable it on a deployment. `SNAKE_DUEL_MONTHLY_ROUNDS` defaults to 20, with up to two concurrent rounds. Vercel Preview uses a separate Duel namespace by default. Use separate Redis credentials for isolated Preview leaderboard data.
+- Run `pnpm dev` and use two browser tabs to check room codes, public listing, matchmaking, and reconnect. Local Duel rooms use memory by default and switch to Redis when the credentials are configured.
 
 ## Projects using ts-nextjs-tailwind-starter
 

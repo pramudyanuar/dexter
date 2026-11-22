@@ -1,5 +1,6 @@
 import type { ChatPolicy } from '@/lib/rooms/game';
 import { GAMES } from '@/lib/rooms/games';
+import { cleanName } from '@/lib/rooms/player-name';
 import type { GameId } from '@/lib/rooms/types';
 import {
   HOST_NOTICE_MS,
@@ -11,25 +12,7 @@ import {
   RoomView,
 } from '@/lib/rooms/types';
 
-export const NAME_MAX = 16;
-
-/**
- * A display name as typed by a player: trimmed, single-spaced, without control
- * characters and at most NAME_MAX characters. Null when nothing is left.
- */
-export function cleanName(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  const name = Array.from(
-    raw
-      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim(),
-  )
-    .slice(0, NAME_MAX)
-    .join('')
-    .trim();
-  return name || null;
-}
+export { cleanName, NAME_MAX } from '@/lib/rooms/player-name';
 
 const namesOf = (room: Room) =>
   room.names ?? Array<string | null>(room.tokens.length).fill(null);

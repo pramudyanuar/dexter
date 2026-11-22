@@ -1,5 +1,3 @@
-import { randomBytes } from 'node:crypto';
-
 import { CODE_ALPHABET, CODE_LENGTH } from '@/lib/rooms/code-format';
 
 export {
@@ -9,10 +7,15 @@ export {
 } from '@/lib/rooms/code-format';
 
 export function newCode(): string {
-  const bytes = randomBytes(CODE_LENGTH);
+  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join(
     '',
   );
 }
 
-export const newToken = () => randomBytes(16).toString('hex');
+export function newToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
+}

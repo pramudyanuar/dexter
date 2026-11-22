@@ -10,6 +10,7 @@ import {
   Role,
 } from '@/lib/games/monkeys-config';
 
+import { useRemainingMs } from '@/components/games/Countdown';
 import MonkeyArt from '@/components/games/monkeys/MonkeyArt';
 import type { Voice } from '@/components/games/monkeys/useVoice';
 
@@ -19,15 +20,8 @@ export function useClock(
   receivedAt: number,
   paused: boolean,
 ) {
-  const [now, setNow] = React.useState(() => Date.now());
-  React.useEffect(() => {
-    if (paused) return;
-    const t = setInterval(() => setNow(Date.now()), 200);
-    return () => clearInterval(t);
-  }, [paused]);
-  return paused
-    ? remaining
-    : Math.max(0, remaining - Math.max(0, now - receivedAt));
+  const left = useRemainingMs(paused ? null : receivedAt + remaining);
+  return paused ? remaining : Math.min(remaining, left);
 }
 
 export const clockText = (ms: number) => {

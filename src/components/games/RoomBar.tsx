@@ -31,12 +31,14 @@ export default function RoomBar({
   share,
   right,
   onLeave,
+  leaveDisabled,
 }: {
   code: string;
   /** Also offer to copy the invite link (while players are still joining) */
   share: boolean;
   right?: React.ReactNode;
   onLeave: () => void;
+  leaveDisabled?: boolean;
 }) {
   const { copied, copy } = useCopy();
   const en = useLang() === 'en';
@@ -86,6 +88,7 @@ export default function RoomBar({
       <button
         type='button'
         onClick={onLeave}
+        disabled={leaveDisabled}
         className={`${small} hover:border-err hover:text-err`}
       >
         {en ? 'Leave room' : 'Keluar room'}

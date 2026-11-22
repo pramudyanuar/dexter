@@ -5,6 +5,10 @@
  * the game itself.
  */
 export const GAME_HINTS: Record<string, string[]> = {
+  snake: [
+    'Makan apel untuk memanjangkan ular, hindari dinding dan tubuh ular lain.',
+    'Bertahan paling lama atau paksa lawan menabrak untuk menang.',
+  ],
   connect4: [
     'Jatuhkan bidakmu ke salah satu kolom, bergantian dengan lawan.',
     'Menang kalau berhasil membuat empat berjajar: mendatar, menurun, atau diagonal.',
