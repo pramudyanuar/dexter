@@ -1,8 +1,14 @@
 import { ipAddress } from '@vercel/functions';
+import { z } from 'zod';
 
+import { cleanName } from '@/lib/rooms/player-name';
 import { DUEL_UNAVAILABLE, DuelError, DuelStore } from '@/lib/snake-duel/store';
 
 export const NO_STORE = { 'Cache-Control': 'no-store' };
+export const duelName = z
+  .string()
+  .transform((name) => cleanName(name) ?? '')
+  .pipe(z.string().min(1));
 
 export function duelFailure(error: unknown) {
   const known = error instanceof DuelError;

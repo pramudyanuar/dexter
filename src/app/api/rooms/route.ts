@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { newCode, newToken } from '@/lib/rooms/codes';
-import { newRoom, toView } from '@/lib/rooms/engine';
+import { capacityOf, newRoom, toView } from '@/lib/rooms/engine';
 import { getGameConfig } from '@/lib/rooms/game-config';
 import { GAMES, isGameId } from '@/lib/rooms/games';
 import { createLimiter } from '@/lib/rooms/rate-limit';
@@ -27,23 +27,24 @@ export async function GET(req: Request) {
   const codes = await store.listCodes();
   const loaded = await Promise.all(codes.map((c) => store.get(c)));
   const openRooms = loaded
-    .filter((r): r is NonNullable<typeof r> => {
-      if (!r || r.status !== 'waiting' || r.public === false) return false;
-      if (game && r.game !== game) return false;
-      const seated = r.tokens.filter(Boolean).length;
-      return seated > 0 && seated < r.tokens.length;
-    })
-    .map((r) => {
+    .flatMap((r) => {
+      if (!r || r.status !== 'waiting' || r.public === false) return [];
+      if (game && r.game !== game) return [];
+      const players = r.tokens.filter(Boolean).length;
+      const capacity = capacityOf(r);
+      if (players === 0 || players >= capacity) return [];
       const hostSeat = r.host ?? 0;
       const hostName = r.names?.[hostSeat]?.trim() || `Pemain ${hostSeat + 1}`;
-      return {
-        code: r.code,
-        game: r.game,
-        hostName,
-        players: r.tokens.filter(Boolean).length,
-        capacity: r.tokens.length,
-        createdAt: r.createdAt,
-      };
+      return [
+        {
+          code: r.code,
+          game: r.game,
+          hostName,
+          players,
+          capacity,
+          createdAt: r.createdAt,
+        },
+      ];
     })
     .sort((a, b) => b.createdAt - a.createdAt);
 

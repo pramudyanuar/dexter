@@ -327,8 +327,7 @@ function move(
       state.revision + 1,
     );
   }
-  // State is stored as JSON. Mutate only the isolated candidate for this move.
-  const s: TableState = JSON.parse(JSON.stringify(state));
+  const s = structuredClone(state);
   const p = s.players[seat];
   if (s.offer) {
     s.offer.replies[seat] = action;
@@ -415,7 +414,7 @@ export const hkMahjongGame: GameDef<TableState> = {
       : null,
   tick: (state, now) => {
     if (!state.offer || state.offer.until > now) return null;
-    const s: TableState = JSON.parse(JSON.stringify(state));
+    const s = structuredClone(state);
     resolveOffer(s);
     s.revision++;
     return s;

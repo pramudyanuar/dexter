@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 
+import { NAME_MAX as PLAYER_NAME_MAX } from '@/lib/rooms/player-name';
 import useStoredState from '@/lib/useStoredState';
 
 export const PLAYER_NAME_KEY = 'player-name';
 const LEGACY_PLAYER_NAME_KEY = 'dexter:player-name';
-export const PLAYER_NAME_MAX = 16;
+export { PLAYER_NAME_MAX };
 
 /**
  * Shared player display name persisted in localStorage across all games,

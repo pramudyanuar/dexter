@@ -2,7 +2,7 @@
 import type { UnoView } from '@/lib/games/uno';
 
 import { GET, POST } from '@/app/api/rooms/[code]/route';
-import { POST as create } from '@/app/api/rooms/route';
+import { GET as list, POST as create } from '@/app/api/rooms/route';
 
 const OLD = { ...process.env };
 let ipCounter = 0;
@@ -122,6 +122,27 @@ describe('creating', () => {
     expect((await res.json()).error).toMatch(/Upstash/);
     expect((await poll('ABCDE')).status).toBe(503);
   });
+});
+
+it('lists the configured capacity and hides a room once those seats fill', async () => {
+  const { code, token } = await (await make('werewolf')).json();
+  const options = await post(code, {
+    action: 'options',
+    token,
+    options: { maxPlayers: 5 },
+  });
+  expect(options.status).toBe(200);
+
+  const openRooms = async () =>
+    (await list(new Request('http://x/api/rooms?game=werewolf'))).json();
+  expect((await openRooms()).rooms).toEqual([
+    expect.objectContaining({ code, players: 1, capacity: 5 }),
+  ]);
+  for (let player = 1; player < 5; player++) {
+    const joined = await post(code, { action: 'join' });
+    expect(joined.status).toBe(200);
+  }
+  expect((await openRooms()).rooms).toEqual([]);
 });
 
 describe('polling', () => {

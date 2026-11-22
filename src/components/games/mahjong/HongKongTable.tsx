@@ -12,7 +12,9 @@ import {
   WIND_NAMES,
 } from '@/lib/games/hk-mahjong/score';
 
+import { useRemainingMs } from '@/components/games/Countdown';
 import TileFace from '@/components/games/mahjong/TileFace';
+import { seatLabel } from '@/components/games/RoomGate';
 
 const WIND_GLYPHS = ['東', '南', '西', '北'];
 function Wall({
@@ -49,16 +51,8 @@ function Wall({
   });
 }
 function ClaimClock({ until }: { until: number }) {
-  const [now, setNow] = React.useState(() => Date.now());
-  React.useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(timer);
-  }, []);
-  return (
-    <small>
-      {Math.max(0, Math.ceil((until - now) / 1000))} dtk untuk klaim
-    </small>
-  );
+  const remaining = useRemainingMs(until);
+  return <small>{Math.ceil(remaining / 1000)} dtk untuk klaim</small>;
 }
 function Tile({ tile }: { tile: number }) {
   return (
@@ -98,8 +92,9 @@ export default function HongKongTable({
   } | null>(null);
   const selected = pick?.revision === v.revision ? pick.index : null;
   const play = (move: Play) => onPlay({ ...move, revision: v.revision });
-  const label = (i: number) =>
-    i === you ? 'Kamu' : names[i] || `Pemain ${i + 1}`;
+  const label = (seat: number) => seatLabel(seat, you, names);
+  const spectating = you < 0;
+  const facing = spectating ? 0 : you;
   const wind = (i: number) => (i - v.dealer + 4) % 4;
   const mayDiscard = v.actions.some((a) => a.type === 'discard');
   const actions = v.actions.filter(
@@ -127,7 +122,7 @@ export default function HongKongTable({
         : `Giliran ${label(v.turn)}`;
 
   function playerArea(offset: number) {
-    const seat = (you + offset) % 4;
+    const seat = (facing + offset) % 4;
     const p = v.players[seat];
     const active = !result && !v.offer && seat === v.turn;
     return (
@@ -148,7 +143,7 @@ export default function HongKongTable({
             </small>
           </div>
         </div>
-        {offset !== 0 && (
+        {(spectating || offset !== 0) && (
           <div className={styles.backs} aria-label={`${p.count} ubin tertutup`}>
             {Array.from({ length: p.count }, (_, i) => (
               <i key={i} />
@@ -196,7 +191,7 @@ export default function HongKongTable({
       <div className={styles.felt}>
         {[2, 3, 1, 0].map(playerArea)}
         <div className={styles.center}>
-          <Wall head={v.wallHead} count={v.wall} you={you} />
+          <Wall head={v.wallHead} count={v.wall} you={facing} />
           <div className={styles.hub}>
             {v.offer ? (
               <span className={styles.offered}>
@@ -220,74 +215,76 @@ export default function HongKongTable({
           </div>
         </div>
       </div>
-      <div className={styles.tray}>
-        <div className={styles.trayTitle}>
-          <strong>Ubin kamu</strong>
-          <span>
-            {mayDiscard
-              ? 'Pilih ubin untuk dibuang'
-              : v.offer && actions.length
-                ? 'Pilih klaim atau lewati'
-                : v.offer
-                  ? 'Menunggu klaim'
-                  : result
-                    ? 'Tangan selesai'
-                    : 'Menunggu giliran'}
-          </span>
-        </div>
-        <div className={styles.rack} aria-label='Ubin kamu'>
-          {hand.map((tile, i) => (
-            <button
-              key={i}
-              type='button'
-              aria-label={`Pilih ${tileLabel(tile)}`}
-              aria-pressed={i === selected}
-              disabled={busy || !mayDiscard}
-              data-drawn={v.drawn !== null && i === hand.length - 1}
-              onClick={() => setPick({ index: i, revision: v.revision })}
-            >
-              <Tile tile={tile} />
-            </button>
-          ))}
-        </div>
-        {(mayDiscard || actions.length > 0) && (
-          <div className={styles.actions}>
-            {mayDiscard && (
+      {!spectating && (
+        <div className={styles.tray}>
+          <div className={styles.trayTitle}>
+            <strong>Ubin kamu</strong>
+            <span>
+              {mayDiscard
+                ? 'Pilih ubin untuk dibuang'
+                : v.offer && actions.length
+                  ? 'Pilih klaim atau lewati'
+                  : v.offer
+                    ? 'Menunggu klaim'
+                    : result
+                      ? 'Tangan selesai'
+                      : 'Menunggu giliran'}
+            </span>
+          </div>
+          <div className={styles.rack} aria-label='Ubin kamu'>
+            {hand.map((tile, i) => (
               <button
+                key={i}
                 type='button'
-                disabled={busy || selected === null}
-                onClick={() =>
-                  selected !== null &&
-                  play({ type: 'discard', tile: hand[selected] })
-                }
+                aria-label={`Pilih ${tileLabel(tile)}`}
+                aria-pressed={i === selected}
+                disabled={busy || !mayDiscard}
+                data-drawn={v.drawn !== null && i === hand.length - 1}
+                onClick={() => setPick({ index: i, revision: v.revision })}
               >
-                Buang {selected !== null ? tileLabel(hand[selected]) : 'ubin'}
-              </button>
-            )}
-            {actions.map((a) => (
-              <button
-                type='button'
-                key={a.type + ('tile' in a ? a.tile : '')}
-                data-secondary={a.type === 'pass'}
-                disabled={busy}
-                onClick={() => play(a)}
-              >
-                {actionLabel(a)}
-                {'tile' in a && (
-                  <span className={styles.choice}>
-                    {(a.type === 'chow'
-                      ? [a.tile, a.tile + 1, a.tile + 2]
-                      : [a.tile]
-                    ).map((t) => (
-                      <Tile key={t} tile={t} />
-                    ))}
-                  </span>
-                )}
+                <Tile tile={tile} />
               </button>
             ))}
           </div>
-        )}
-      </div>
+          {(mayDiscard || actions.length > 0) && (
+            <div className={styles.actions}>
+              {mayDiscard && (
+                <button
+                  type='button'
+                  disabled={busy || selected === null}
+                  onClick={() =>
+                    selected !== null &&
+                    play({ type: 'discard', tile: hand[selected] })
+                  }
+                >
+                  Buang {selected !== null ? tileLabel(hand[selected]) : 'ubin'}
+                </button>
+              )}
+              {actions.map((a) => (
+                <button
+                  type='button'
+                  key={a.type + ('tile' in a ? a.tile : '')}
+                  data-secondary={a.type === 'pass'}
+                  disabled={busy}
+                  onClick={() => play(a)}
+                >
+                  {actionLabel(a)}
+                  {'tile' in a && (
+                    <span className={styles.choice}>
+                      {(a.type === 'chow'
+                        ? [a.tile, a.tile + 1, a.tile + 2]
+                        : [a.tile]
+                      ).map((t) => (
+                        <Tile key={t} tile={t} />
+                      ))}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {result && (
         <section className={styles.result} aria-label='Hasil tangan'>
           <h2>

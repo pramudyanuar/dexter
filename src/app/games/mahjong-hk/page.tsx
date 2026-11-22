@@ -41,7 +41,7 @@ function TableRoom() {
                 busy={r.busy}
                 onPlay={r.move}
               />
-              {room.status === 'over' && <Rematch r={r} />}
+              {room.status === 'over' && !r.spectating && <Rematch r={r} />}
             </>
           )}
         </RoomGate>

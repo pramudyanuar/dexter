@@ -1,7 +1,12 @@
 import { z } from 'zod';
 
 import { readJson } from '@/lib/read-json';
-import { checkAdmission, duelFailure, NO_STORE } from '@/lib/snake-duel/http';
+import {
+  checkAdmission,
+  duelFailure,
+  duelName,
+  NO_STORE,
+} from '@/lib/snake-duel/http';
 import { TOKEN_PATTERN } from '@/lib/snake-duel/protocol';
 import {
   DUEL_UNAVAILABLE,
@@ -9,7 +14,7 @@ import {
   getDuelStore,
 } from '@/lib/snake-duel/store';
 
-const player = z.object({ name: z.string().trim().min(1).max(16) });
+const player = z.object({ name: duelName });
 
 function ticketFrom(request: Request) {
   const header = request.headers.get('authorization') ?? '';

@@ -195,7 +195,7 @@ describe('the Blind Monkey’s call', () => {
       type: 'offer',
       sdp: 'x',
     });
-    expect(result.current.status).toBe('connecting');
+    await waitFor(() => expect(result.current.status).toBe('connecting'));
   });
 
   it('can switch the sound off on its own side', async () => {

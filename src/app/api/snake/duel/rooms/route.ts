@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
+import { SEATS } from '@/lib/games/snake-duel';
 import { readJson } from '@/lib/read-json';
 import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/code-format';
-import { checkAdmission, duelFailure, NO_STORE } from '@/lib/snake-duel/http';
+import type { PublicRoom } from '@/lib/rooms/types';
+import {
+  checkAdmission,
+  duelFailure,
+  duelName,
+  NO_STORE,
+} from '@/lib/snake-duel/http';
 import { TOKEN_PATTERN } from '@/lib/snake-duel/protocol';
 import {
   DUEL_UNAVAILABLE,
@@ -11,7 +18,7 @@ import {
 } from '@/lib/snake-duel/store';
 
 const player = {
-  name: z.string().trim().min(1).max(16),
+  name: duelName,
   token: z.string().regex(TOKEN_PATTERN),
 };
 const bodySchema = z.discriminatedUnion('action', [
@@ -23,8 +30,16 @@ export async function GET() {
   const store = getDuelStore();
   if (!store) return duelFailure(new DuelError(DUEL_UNAVAILABLE, 503));
   try {
+    const rooms = (await store.listRooms()).map(
+      (room): PublicRoom & typeof room => ({
+        ...room,
+        hostName: room.name,
+        players: SEATS.length - 1,
+        capacity: SEATS.length,
+      }),
+    );
     return Response.json(
-      { rooms: await store.listRooms() },
+      { rooms },
       { headers: { 'Cache-Control': 'public, max-age=0, s-maxage=4' } },
     );
   } catch (error) {

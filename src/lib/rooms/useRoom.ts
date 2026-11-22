@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { normalizeCode } from '@/lib/rooms/code-format';
+import { callRoom } from '@/lib/rooms/room-request';
 import {
   forgetSeat,
   holdSeat,
@@ -18,29 +19,6 @@ export interface RoomSession {
 }
 
 const POLL_MS = 1000;
-async function call(
-  path: string,
-  options: { body?: unknown; token?: string } = {},
-) {
-  const hasBody = options.body !== undefined;
-  const res = await fetch(path, {
-    method: hasBody ? 'POST' : 'GET',
-    headers: {
-      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-      // the token goes in a header so it stays out of URLs and logs
-      ...(options.token ? { 'x-player-token': options.token } : {}),
-    },
-    body: hasBody ? JSON.stringify(options.body) : undefined,
-    cache: 'no-store',
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw Object.assign(new Error(data.error ?? `HTTP ${res.status}`), {
-      status: res.status,
-    });
-  }
-  return data;
-}
 
 /**
  * Everything a room page needs: creating and joining, keeping the view fresh by
@@ -110,7 +88,7 @@ export function useRoom<V>(game: GameId) {
         const qs = spectating
           ? `v=${version.current}&spectate=1`
           : `v=${version.current}`;
-        const data = await call(`/api/rooms/${code}?${qs}`, {
+        const data = await callRoom(`/api/rooms/${code}?${qs}`, {
           token,
         });
         if (!stopped && data.changed) adopt(data.room);
@@ -182,7 +160,9 @@ export function useRoom<V>(game: GameId) {
 
   const create = (isPublic = true) =>
     run(async () => {
-      const data = await call('/api/rooms', { body: { game, name, isPublic } });
+      const data = await callRoom('/api/rooms', {
+        body: { game, name, isPublic },
+      });
       rememberSeat(game, data.code, data);
       setSession({ code: data.code, token: data.token, you: data.you });
       adopt(data.room);
@@ -193,7 +173,7 @@ export function useRoom<V>(game: GameId) {
       const target = normalizeCode(input);
       // coming back to a room you were already in gives you the same seat
       const before = await recallSeat(game, target);
-      const data = await call(`/api/rooms/${target}`, {
+      const data = await callRoom(`/api/rooms/${target}`, {
         body: { action: 'join', name, token: before?.token },
       });
       rememberSeat(game, target, data);
@@ -205,7 +185,7 @@ export function useRoom<V>(game: GameId) {
   const act = (action: string, extra: Record<string, unknown> = {}) =>
     run(async () => {
       if (!session) return;
-      const data = await call(`/api/rooms/${session.code}`, {
+      const data = await callRoom(`/api/rooms/${session.code}`, {
         body: { action, token: session.token, ...extra },
       });
       adopt(data.room);
@@ -228,7 +208,7 @@ export function useRoom<V>(game: GameId) {
       // tell the server now, so the others are not left waiting for a sign
       // that never comes; coming back soon cancels it
       if (session) {
-        void call(`/api/rooms/${session.code}`, {
+        void callRoom(`/api/rooms/${session.code}`, {
           body: { action: 'leave', token: session.token },
           token: session.token,
         }).catch(() => {});
