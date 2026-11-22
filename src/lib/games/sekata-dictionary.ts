@@ -1,15 +1,17 @@
 /**
- * The word checker behind Sekata. A local dictionary stands in for a full
- * Indonesian dictionary: the game's own list, the 5-letter dictionary words
- * Wordle already carries, and a root-plus-affix check ("makan" → "dimakan",
- * "memakan", "makanan"). Whatever it does not know is not simply rejected: the
- * game sends it to the moderator (or rejects it, if the host chose strict).
+ * Sekata's local dictionary combines the game's own list, Wordle's five-letter
+ * words, and forms from Kamus Indonesia and MALINDO Morph. Turunan such as
+ * "dimakan", "memakan" and "makanan" are looked up as complete words.
+ * The moderator reviews unknown words unless the host chose strict mode.
  */
 import type { WordTag } from '@/lib/games/sekata-config';
 
+import { SEKATA_HUNSPELL_FORMS } from '@/constant/sekata-hunspell';
+import { SEKATA_MALINDO_FORMS } from '@/constant/sekata-malindo';
 import {
   SEKATA_ABBR,
   SEKATA_FOREIGN,
+  SEKATA_NONSTANDARD,
   SEKATA_PLACE,
   SEKATA_PROPER,
   SEKATA_REGIONAL,
@@ -39,87 +41,26 @@ function words() {
   if (index) return index;
   const map = new Map<string, WordTag>();
   // the weaker tags first, so a word listed as ordinary stays ordinary
+  for (const w of split(SEKATA_HUNSPELL_FORMS)) map.set(w, 'standard');
+  for (const w of split(SEKATA_MALINDO_FORMS)) map.set(w, 'standard');
   for (const w of split(WORDLE_VALID_WORDS)) map.set(w, 'standard');
   for (const w of WORDLE_ANSWERS) map.set(w, 'standard');
   for (const [tag, list] of [...TAGGED].reverse()) {
     for (const w of split(list)) map.set(w, tag);
   }
+  for (const w of split(SEKATA_NONSTANDARD)) map.delete(w);
   index = map;
   return map;
 }
 
-const PREFIXES = [
-  'meng',
-  'meny',
-  'mem',
-  'men',
-  'me',
-  'peng',
-  'peny',
-  'pem',
-  'pen',
-  'pe',
-  'ber',
-  'be',
-  'per',
-  'ter',
-  'di',
-  'ke',
-  'se',
-];
-const SUFFIXES = ['kan', 'an', 'i', 'nya', 'lah', 'kah', 'ku', 'mu', 'pun'];
-
-/** The roots a word might come from once its prefix and suffix are taken off. */
-function roots(word: string): string[] {
-  const out = new Set<string>();
-  const bases = new Set<string>([word]);
-  for (const s of SUFFIXES) {
-    if (word.endsWith(s) && word.length - s.length >= 3) {
-      bases.add(word.slice(0, -s.length));
-    }
-  }
-  for (const base of bases) {
-    out.add(base);
-    for (const p of PREFIXES) {
-      if (!base.startsWith(p) || base.length - p.length < 3) continue;
-      const rest = base.slice(p.length);
-      out.add(rest);
-      // the nasal prefixes swallow a first letter: meN + tulis → menulis, sapu → menyapu
-      if (p === 'meny' || p === 'peny') out.add(`s${rest}`);
-      if (p === 'meng' || p === 'peng') {
-        for (const c of ['k', 'g', 'h']) out.add(`${c}${rest}`);
-      }
-      if (p === 'mem' || p === 'pem') out.add(`p${rest}`).add(`b${rest}`);
-      if (p === 'men' || p === 'pen') out.add(`t${rest}`).add(`d${rest}`);
-    }
-  }
-  return [...out];
-}
-
-export interface Lookup {
-  tag: WordTag;
-  /** True when the word is known through its root rather than listed itself */
-  derived: boolean;
-}
-
 /** What the dictionary knows about a word, or null when it does not know it. */
-export function lookup(word: string): Lookup | null {
-  const map = words();
-  const w = word.toLowerCase();
-  const direct = map.get(w);
-  if (direct) return { tag: direct, derived: false };
-  for (const root of roots(w)) {
-    if (root === w || root.length < 3) continue;
-    const found = map.get(root);
-    // only ordinary roots carry over: "dibudi" is not a word
-    if (found === 'standard') return { tag: 'standard', derived: true };
-  }
-  return null;
+export function lookup(word: string): WordTag | null {
+  return words().get(word.toLowerCase()) ?? null;
 }
 
 const VOWELS = 'aiueo';
 
-/** Whether a word can be said: it has a vowel, and no run of four consonants. */
+/** A spelling heuristic for unknown words. Listed words may have clusters. */
 export function pronounceable(word: string): boolean {
   if (!/^[a-z]+$/.test(word)) return false;
   if (![...word].some((c) => VOWELS.includes(c))) return false;

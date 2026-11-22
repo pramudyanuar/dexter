@@ -89,24 +89,65 @@ describe('cards', () => {
 });
 
 describe('the dictionary', () => {
-  it('knows ordinary words and words made from a root', () => {
-    expect(lookup('mana')?.tag).toBe('standard');
-    expect(lookup('makan')?.tag).toBe('standard');
-    expect(lookup('dimakan')?.derived).toBe(true);
-    expect(lookup('memakan')?.derived).toBe(true);
-    expect(lookup('makanan')?.derived).toBe(true);
-    expect(lookup('menulis')?.derived).toBe(true);
-    expect(lookup('menyapu')?.derived).toBe(true);
+  it('recognizes roots, attested derivatives and supported clitics', () => {
+    for (const word of [
+      'mana',
+      'makan',
+      'dimakan',
+      'memakan',
+      'makanan',
+      'menulis',
+      'menyapu',
+      'mengecat',
+      'mempertanggungjawabkan',
+      'diperlakukan',
+      'penyalahgunaan',
+      'makanlah',
+      'maukah',
+      'bukuku',
+      'rumahmu',
+      'kaubaca',
+      'kumakan',
+      'dimakannya',
+      'diterima',
+      'diterimanya',
+      'makanannya',
+      'bagaimanapun',
+    ]) {
+      expect(lookup(word)).toBe('standard');
+    }
   });
 
-  it('does not make up words', () => {
-    expect(lookup('mamaba')).toBeNull();
-    expect(lookup('xyzkl')).toBeNull();
+  it('does not recognize guessed affixes, separate particles, or nonstandard spellings', () => {
+    for (const word of [
+      'dimeja',
+      'kesekolah',
+      'diketerbatasan',
+      'mensapu',
+      'memsapu',
+      'menytulis',
+      'bukupun',
+      'makanpun',
+      'makanlahlah',
+      'apapun',
+      'mempengaruhi',
+      'nafas',
+      'televisyen',
+      'mamaba',
+      'xyzkl',
+    ]) {
+      expect(lookup(word)).toBeNull();
+    }
   });
 
   it('tags names, slang and the rest', () => {
-    expect(lookup('jakarta')?.tag).toBe('place');
-    expect(lookup('gak')?.tag).toBe('slang');
+    expect(lookup('JAKARTA')).toBe('place');
+    expect(lookup('bali')).toBe('place');
+    expect(lookup('gak')).toBe('slang');
+    expect(lookup('ktp')).toBe('abbr');
+    expect(lookup('online')).toBe('foreign');
+    expect(lookup('komputer')).toBe('standard');
+    expect(lookup('memengaruhi')).toBe('standard');
   });
 
   it('can tell what can be said', () => {
@@ -311,6 +352,42 @@ describe('assistance cards', () => {
 });
 
 describe('judging words', () => {
+  it('accepts a listed complex derivative in strict mode', () => {
+    const s0 = game([['ke', 'ter', 'ba', 'tas', 'an'], ['ka'], ['ba']], {
+      unknownWords: 'reject',
+    });
+    const s = word(s0, 0, ['h0-0', 'h0-1', 'h0-2', 'h0-3', 'h0-4']);
+    expect(s.words[0]).toMatchObject({ word: 'keterbatasan', status: 'ok' });
+    expect(s.scores[0]).toBeGreaterThan(0);
+  });
+
+  it('applies the dictionary before the unknown-word spelling filter', () => {
+    const withCards = (pieces: string[], config: Partial<SekataConfig> = {}) =>
+      game([[...pieces, 'ka'], ['ka'], ['ba']], config);
+    const ids = ['h0-0', 'h0-1', 'h0-2'];
+    const strict = { unknownWords: 'reject' } as const;
+    expect(
+      word(withCards(['in', 'struk', 'si'], strict), 0, ids).words[0],
+    ).toMatchObject({ word: 'instruksi', status: 'ok' });
+    expect(
+      word(withCards(['k', 't', 'p'], strict), 0, ids).words[0].reason,
+    ).toMatch(/singkatan/);
+    const abbr = withCards(['k', 't', 'p'], {
+      ...strict,
+      categories: { ...sanitizeConfig(null).categories, abbr: true },
+    });
+    expect(word(abbr, 0, ids).words[0].status).toBe('ok');
+  });
+
+  it('routes a guessed affix through review and refuses it in strict mode', () => {
+    const hands = [['di', 'me', 'ja', 'ka'], ['ka'], ['ba']];
+    const ids = ['h0-0', 'h0-1', 'h0-2'];
+    expect(word(game(hands), 0, ids).words[0].status).toBe('review');
+    expect(
+      word(game(hands, { unknownWords: 'reject' }), 0, ids).words[0].status,
+    ).toBe('invalid');
+  });
+
   it('rejects a word that cannot be said, with a penalty card', () => {
     const s = word(game([['ng', 'k', 'x'], ['ka'], ['ba']]), 0, [
       'h0-0',
@@ -376,6 +453,13 @@ describe('the moderator', () => {
     expect(s.stats[0].words).toBe(1);
   });
 
+  it('revokes a previous approval when the moderator changes the verdict', () => {
+    let s = mv(unknown(), 0, { type: 'rule', n: 1, verdict: 'accept' });
+    s = mv(s, 1, { type: 'challenge', n: 1 });
+    s = mv(s, 0, { type: 'rule', n: 1, verdict: 'reject' });
+    expect(s.approved).not.toContain('maba');
+    expect(word(s, 0, ['h0-0', 'h0-1']).words[1].status).toBe('review');
+  });
   it('rejecting gives the cards back, and a penalty', () => {
     const s = mv(unknown(), 0, { type: 'rule', n: 1, verdict: 'reject' });
     expect(s.words[0].status).toBe('invalid');

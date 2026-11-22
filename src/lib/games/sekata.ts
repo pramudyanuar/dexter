@@ -309,20 +309,20 @@ const TAG_NAME: Record<Exclude<WordTag, 'standard'>, string> = {
 };
 
 function judge(s: SekataState, word: string): Verdict {
-  if (!pronounceable(word)) {
-    return { kind: 'invalid', reason: `"${word}" tidak bisa diucapkan.` };
-  }
   if (s.approved.includes(word)) return { kind: 'ok' };
-  const found = lookup(word);
-  if (!found) {
+  const tag = lookup(word);
+  if (!tag) {
+    if (!pronounceable(word)) {
+      return { kind: 'invalid', reason: `"${word}" tidak bisa diucapkan.` };
+    }
     return s.config.unknownWords === 'reject'
       ? { kind: 'invalid', reason: `"${word}" tidak ada di kamus.` }
       : { kind: 'review' };
   }
-  if (found.tag !== 'standard' && !s.config.categories[found.tag]) {
+  if (tag !== 'standard' && !s.config.categories[tag]) {
     return {
       kind: 'invalid',
-      reason: `"${word}" ${TAG_NAME[found.tag]}, belum diizinkan di game ini.`,
+      reason: `"${word}" ${TAG_NAME[tag]}, belum diizinkan di game ini.`,
     };
   }
   return { kind: 'ok' };
@@ -583,6 +583,7 @@ function rule(
   } else {
     const wasFinal = e.final;
     revert(s, e);
+    s.approved = s.approved.filter((word) => word !== e.word);
     e.status = wasFinal ? 'void' : 'invalid';
     e.reason = 'Ditolak moderator.';
     s.stats[e.seat].invalid += 1;
