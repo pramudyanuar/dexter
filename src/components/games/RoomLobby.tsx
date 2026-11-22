@@ -2,23 +2,20 @@
 
 import * as React from 'react';
 
-import { normalizeCode } from '@/lib/rooms/code-format';
+import {
+  CODE_LENGTH,
+  CODE_PATTERN,
+  normalizeCode,
+} from '@/lib/rooms/code-format';
+import { cleanName, NAME_MAX } from '@/lib/rooms/player-name';
+import { callRoom } from '@/lib/rooms/room-request';
+import type { PublicRoom } from '@/lib/rooms/types';
 
 import GameArt from '@/components/games/GameArt';
 import useGameEntry from '@/components/games/useGameEntry';
 
 import { GAME_HINTS } from '@/constant/game-hints';
-
-export const NAME_MAX = 16;
-
-interface PublicRoom {
-  code: string;
-  game: string;
-  hostName: string;
-  players: number;
-  capacity: number;
-  createdAt: number;
-}
+import type { GameEntry } from '@/constant/games';
 
 const field =
   'w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 placeholder:text-[var(--mute)] focus:border-[var(--mute)] focus:ring-0 focus:outline-none';
@@ -33,6 +30,12 @@ export default function RoomLobby({
   onCreate,
   onJoin,
   guide,
+  entry,
+  publicRoomsUrl,
+  initialCode,
+  initialPublic = true,
+  requireName = false,
+  actions,
 }: {
   blurb: string;
   busy: boolean;
@@ -43,55 +46,73 @@ export default function RoomLobby({
   onCreate: (isPublic?: boolean) => void;
   onJoin: (code: string) => void;
   guide?: React.ReactNode;
+  entry?: Pick<GameEntry, 'id' | 'title' | 'players'>;
+  publicRoomsUrl?: string;
+  initialCode?: string;
+  initialPublic?: boolean;
+  requireName?: boolean;
+  actions?: (disabled: boolean) => React.ReactNode;
 }) {
-  const game = useGameEntry();
+  const currentGame = useGameEntry();
+  const game = entry ?? currentGame;
   const hints = (game && GAME_HINTS[game.id]) ?? [];
-  const [isPublic, setIsPublic] = React.useState(true);
-  const [publicRooms, setPublicRooms] = React.useState<PublicRoom[]>([]);
+  const [isPublic, setIsPublic] = React.useState(initialPublic);
+  const [publicRooms, setPublicRooms] = React.useState<PublicRoom[] | null>(
+    null,
+  );
+  const [listError, setListError] = React.useState('');
+  const [refresh, setRefresh] = React.useState(0);
   const [code, setCode] = React.useState(() =>
     normalizeCode(
-      new URLSearchParams(window.location.search).get('room') ?? '',
+      initialCode ??
+        new URLSearchParams(window.location.search).get('room') ??
+        '',
     ),
   );
-  const invited = code.length === 5;
+  const invited = CODE_PATTERN.test(code);
 
-  const gameId = game?.id;
+  const listUrl =
+    publicRoomsUrl ??
+    (game ? `/api/rooms?game=${encodeURIComponent(game.id)}` : null);
   React.useEffect(() => {
-    if (!gameId) return;
-    let stopped = false;
+    if (!listUrl) return;
+    const controller = new AbortController();
     const load = async () => {
-      if (stopped || document.visibilityState !== 'visible') return;
+      if (controller.signal.aborted || document.visibilityState !== 'visible')
+        return;
       try {
-        const res = await fetch(
-          `/api/rooms?game=${encodeURIComponent(gameId)}`,
-          { cache: 'no-store' },
-        );
-        if (!res.ok) return;
-        const data = (await res.json()) as { rooms?: PublicRoom[] };
-        if (!stopped && Array.isArray(data.rooms)) {
+        const data: { rooms?: PublicRoom[] } = await callRoom(listUrl, {
+          signal: controller.signal,
+        });
+        if (!controller.signal.aborted && Array.isArray(data.rooms)) {
           setPublicRooms(data.rooms);
+          setListError('');
         }
-      } catch {
-        // ignore transient network errors
+      } catch (err) {
+        if (!controller.signal.aborted && publicRoomsUrl)
+          setListError((err as Error).message);
       }
     };
     const first = setTimeout(load, 0);
     const timer = setInterval(load, 5000);
     document.addEventListener('visibilitychange', load);
     return () => {
-      stopped = true;
+      controller.abort();
       clearTimeout(first);
       clearInterval(timer);
       document.removeEventListener('visibilitychange', load);
     };
-  }, [gameId]);
+  }, [listUrl, publicRoomsUrl, refresh]);
 
-  const hasPublic = publicRooms.length > 0;
+  const rooms = publicRooms ?? [];
+  const showRoomList = rooms.length > 0 || Boolean(publicRoomsUrl);
+  const unavailable = publicRooms === null && Boolean(listError);
+  const disabled = busy || (requireName && !cleanName(name)) || unavailable;
 
   return (
     <div
       className={
-        hasPublic
+        showRoomList
           ? 'relative left-1/2 grid w-[min(56rem,calc(100vw-2rem))] -translate-x-1/2 items-stretch gap-5 pb-6 md:grid-cols-2'
           : 'mx-auto w-full max-w-md pb-6'
       }
@@ -169,7 +190,7 @@ export default function RoomLobby({
               <button
                 type='button'
                 onClick={() => onCreate(isPublic)}
-                disabled={busy}
+                disabled={disabled}
                 className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-50 ${
                   invited
                     ? 'border border-line-strong text-ink hover:border-[var(--mute)]'
@@ -197,26 +218,26 @@ export default function RoomLobby({
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (invited) onJoin(code);
+                if (!disabled && invited) onJoin(code);
               }}
               className='mt-4 flex gap-2'
             >
               <input
                 value={code}
                 onChange={(e) =>
-                  setCode(normalizeCode(e.target.value).slice(0, 5))
+                  setCode(normalizeCode(e.target.value).slice(0, CODE_LENGTH))
                 }
                 placeholder='ABCDE'
                 aria-label='Kode room'
                 autoCapitalize='characters'
                 autoCorrect='off'
                 spellCheck={false}
-                maxLength={5}
+                maxLength={CODE_LENGTH}
                 className={`min-w-0 flex-1 text-center font-mono text-lg tracking-[0.35em] uppercase ${field}`}
               />
               <button
                 type='submit'
-                disabled={busy || !invited}
+                disabled={disabled || !invited}
                 className={`shrink-0 rounded-lg px-5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-40 ${
                   invited
                     ? 'bg-ink text-paper hover:opacity-90'
@@ -228,6 +249,7 @@ export default function RoomLobby({
             </form>
           </div>
 
+          {actions?.(disabled)}
           {error && (
             <p
               role='alert'
@@ -239,21 +261,41 @@ export default function RoomLobby({
         </div>
       </div>
 
-      {hasPublic && (
+      {showRoomList && (
         <aside className='flex flex-col rounded-xl border border-line bg-surface/50 p-4'>
           <div className='mb-3 flex items-center justify-between border-b border-line pb-3'>
             <div className='flex items-center gap-2'>
               <h2 className='text-sm font-semibold text-ink'>Room terbuka</h2>
               <span className='rounded-full bg-line px-2 py-0.5 text-[11px] font-medium text-ink'>
-                {publicRooms.length}
+                {rooms.length}
               </span>
             </div>
-            <span className='text-xs text-[var(--mute)]'>
-              Klik untuk gabung
-            </span>
+            {publicRoomsUrl ? (
+              <button
+                type='button'
+                onClick={() => setRefresh((n) => n + 1)}
+                className='text-xs text-[var(--mute)] hover:text-ink'
+              >
+                Muat ulang
+              </button>
+            ) : (
+              <span className='text-xs text-[var(--mute)]'>
+                Klik untuk gabung
+              </span>
+            )}
           </div>
+          {listError && (
+            <p role='status' className='text-sm text-mute'>
+              {listError}
+            </p>
+          )}
+          {!listError && rooms.length === 0 && (
+            <p role='status' className='text-sm text-mute'>
+              {publicRooms ? 'Belum ada room terbuka.' : 'Memuat lobi…'}
+            </p>
+          )}
           <ul className='flex flex-1 flex-col gap-2.5 overflow-y-auto'>
-            {publicRooms.map((r) => (
+            {rooms.map((r) => (
               <li
                 key={r.code}
                 className='flex items-center justify-between gap-3 rounded-lg border border-line bg-paper px-3 py-2'
@@ -273,7 +315,7 @@ export default function RoomLobby({
                 </div>
                 <button
                   type='button'
-                  disabled={busy}
+                  disabled={disabled}
                   onClick={() => onJoin(r.code)}
                   className='shrink-0 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper transition hover:opacity-90 disabled:opacity-40'
                 >

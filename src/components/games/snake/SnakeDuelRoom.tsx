@@ -16,6 +16,7 @@ import {
   DuelView,
 } from '@/lib/snake-duel/protocol';
 
+import RoomBar from '@/components/games/RoomBar';
 import { SnakePad, useSnakeKeys } from '@/components/games/snake/controls';
 import SnakeBoard from '@/components/games/snake/SnakeBoard';
 
@@ -40,7 +41,6 @@ export default function SnakeDuelRoom({
   const [attempt, setAttempt] = React.useState(0);
   const [notice, setNotice] = React.useState('');
   const [left, setLeft] = React.useState(false);
-  const [copied, setCopied] = React.useState(false);
   const [now, setNow] = React.useState(Date.now);
   const socket = React.useRef<WebSocket | null>(null);
   const seq = React.useRef(0);
@@ -160,17 +160,6 @@ export default function SnakeDuelRoom({
     }
   }
 
-  async function copyInvite() {
-    const url = new URL('/games/snake/duel', window.location.href);
-    url.searchParams.set('room', session.code);
-    try {
-      await navigator.clipboard.writeText(url.href);
-      setCopied(true);
-    } catch {
-      setNotice('Gunakan kode room untuk mengundang teman.');
-    }
-  }
-
   useSnakeKeys(steer);
 
   const countdown =
@@ -211,30 +200,15 @@ export default function SnakeDuelRoom({
 
   return (
     <section aria-label='Duel Snake' className='space-y-3'>
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <span className='text-sm text-mute'>
-          Kode{' '}
-          <strong className='font-mono tracking-wider text-ink'>
-            {session.code}
-          </strong>
-        </span>
-        <div className='flex flex-wrap gap-2'>
-          <button type='button' className={button} onClick={copyInvite}>
-            {copied ? 'Tautan disalin' : 'Salin tautan'}
-          </button>
-          <button
-            type='button'
-            className={button}
-            disabled={left}
-            onClick={() => {
-              if (online && send({ type: 'leave' })) setLeft(true);
-              else onExit();
-            }}
-          >
-            Keluar
-          </button>
-        </div>
-      </div>
+      <RoomBar
+        code={session.code}
+        share
+        leaveDisabled={left}
+        onLeave={() => {
+          if (online && send({ type: 'leave' })) setLeft(true);
+          else onExit();
+        }}
+      />
 
       <div className='grid grid-cols-2 gap-2'>
         {SEATS.map((seat) => {

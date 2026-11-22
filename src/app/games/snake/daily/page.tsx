@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import {
+  DAILY_DURATION_MS,
   DailyChallenge,
   dailyChallenge,
   SnakeReplay,
@@ -10,6 +11,7 @@ import {
 import type { LeaderboardEntry } from '@/lib/leaderboard/types';
 import useStoredState from '@/lib/useStoredState';
 
+import LeaderboardTable from '@/components/games/LeaderboardTable';
 import SnakeShell from '@/components/games/snake/SnakeShell';
 import SnakeSolo from '@/components/games/snake/SnakeSolo';
 import SubmitScore from '@/components/games/SubmitScore';
@@ -102,7 +104,7 @@ export default function SnakeDailyPage() {
       {data ? (
         <>
           <p className='text-sm text-mute'>
-            {data.day} WIB · 120 detik waktu bermain
+            {data.day} WIB · {DAILY_DURATION_MS / 1000} detik waktu bermain
           </p>
           <SnakeSolo
             key={data.day}
@@ -132,15 +134,11 @@ export default function SnakeDailyPage() {
                 Peringkat sedang tidak tersedia. Kamu masih bisa bermain.
               </p>
             ) : data.entries.length ? (
-              <ol className='divide-y divide-line'>
-                {data.entries.map(({ id, name, score }, index) => (
-                  <li key={id} className='flex items-center gap-3 py-2 text-sm'>
-                    <span className='w-6 text-mute'>{index + 1}.</span>
-                    <span className='min-w-0 flex-1 truncate'>{name}</span>
-                    <span className='font-semibold tabular-nums'>{score}</span>
-                  </li>
-                ))}
-              </ol>
+              <LeaderboardTable
+                game='snake'
+                entries={data.entries}
+                showMeta={false}
+              />
             ) : (
               <p className='text-sm text-mute'>Belum ada skor hari ini.</p>
             )}

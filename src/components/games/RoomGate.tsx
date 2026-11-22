@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 
+import { NAME_MAX } from '@/lib/rooms/player-name';
 import type { RoomView } from '@/lib/rooms/types';
 import type { useRoom } from '@/lib/rooms/useRoom';
 
 import RoomBar, { inviteLink, useCopy } from '@/components/games/RoomBar';
-import RoomLobby, { NAME_MAX } from '@/components/games/RoomLobby';
+import RoomLobby from '@/components/games/RoomLobby';
 import RoomNotice from '@/components/games/RoomNotice';
 
 /** "Kamu" for yourself, otherwise the player's name (or "Pemain N"). */
