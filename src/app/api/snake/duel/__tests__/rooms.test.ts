@@ -10,18 +10,42 @@ jest.mock('@/lib/snake-duel/store', () => ({
   getDuelStore: jest.fn(),
 }));
 
+const realGetStore = jest.requireActual<
+  typeof import('@/lib/snake-duel/store')
+>('@/lib/snake-duel/store').getDuelStore;
+
+it('lists rooms with the existing Redis config and no Duel flag', async () => {
+  const config: NodeJS.ProcessEnv = {
+    ...process.env,
+    UPSTASH_REDIS_REST_URL: 'https://redis.example.test',
+    UPSTASH_REDIS_REST_TOKEN: 'test-token',
+  };
+  delete config.SNAKE_DUEL_ENABLED;
+  const env = jest.replaceProperty(process, 'env', config);
+  const redis = jest
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(Response.json({ result: [] }));
+  jest.mocked(getDuelStore).mockImplementationOnce(realGetStore);
+  try {
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ rooms: [] });
+    expect(redis).toHaveBeenCalledWith(
+      'https://redis.example.test',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  } finally {
+    redis.mockRestore();
+    env.restore();
+  }
+});
+
 it('explains when Duel is disabled without trying to access storage', async () => {
   const env = jest.replaceProperty(process, 'env', {
     ...process.env,
     SNAKE_DUEL_ENABLED: '0',
   });
-  jest
-    .mocked(getDuelStore)
-    .mockImplementationOnce(
-      jest.requireActual<typeof import('@/lib/snake-duel/store')>(
-        '@/lib/snake-duel/store',
-      ).getDuelStore,
-    );
+  jest.mocked(getDuelStore).mockImplementationOnce(realGetStore);
   try {
     const response = await GET();
     expect(response.status).toBe(503);

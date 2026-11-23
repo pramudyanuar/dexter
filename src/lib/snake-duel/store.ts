@@ -503,7 +503,7 @@ export class DuelStore {
 }
 
 export function getDuelStore() {
-  if (process.env.SNAKE_DUEL_ENABLED !== '1') {
+  if ((process.env.SNAKE_DUEL_ENABLED ?? '1') !== '1') {
     throw new DuelError(
       'Snake Duel belum diaktifkan. Kamu masih bisa bermain Klasik atau Harian.',
       503,
