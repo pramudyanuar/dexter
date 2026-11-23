@@ -954,12 +954,6 @@
   animation: g-tick 1s ease-in-out infinite;
 }
 
-@keyframes suit-shrink {
-  to {
-    width: 0%;
-  }
-}
-
 @keyframes g-roll {
   0% {
     transform: translateY(-40px) rotate(-200deg) scale(0.6);
@@ -1414,8 +1408,8 @@
   stroke: var(--accent);
   stroke-dashoffset: var(--from, 0);
   animation:
-    g-ring-run var(--left, 40s) linear forwards,
-    g-ring-urgent 0.7s ease-in-out calc(var(--left, 40s) - 10s) infinite;
+    g-ring-run var(--left, 0s) linear forwards,
+    g-ring-urgent 0.7s ease-in-out calc(var(--left, 0s) - 10s) infinite;
 }
 @keyframes g-ring-run {
   to {

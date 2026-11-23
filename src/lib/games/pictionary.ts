@@ -5,6 +5,7 @@ import { RoomError } from '@/lib/rooms/types';
 
 /** Rounds each player draws in one game. */
 export const TURNS_EACH = 2;
+export const ROUND_SECONDS = 80;
 export const COORD_MAX = 1000;
 export const COLORS = [
   '#1f2328',
@@ -41,6 +42,7 @@ export interface PictionaryState {
   /** Index of the current round, 0-based */
   round: number;
   rounds: number;
+  deadline?: number;
   drawer: number;
   word: string;
   /** Two word options offered to the drawer before drawing starts */
@@ -61,6 +63,7 @@ export interface PictionaryView {
   players: number;
   round: number;
   rounds: number;
+  remainingMs: number;
   drawer: number;
   /** The word for the drawer, otherwise a hint like "_ _ _ _" */
   word: string | null;
@@ -103,6 +106,7 @@ function fresh(
   players: number,
   rng: () => number = Math.random,
   options?: unknown,
+  now = Date.now(),
 ): PictionaryState {
   const opts = (options && typeof options === 'object' ? options : {}) as {
     turnsEach?: number;
@@ -120,6 +124,7 @@ function fresh(
     players,
     round: 0,
     rounds: players * turnsEach,
+    deadline: now + ROUND_SECONDS * 1000,
     drawer: 0,
     word: first,
     choices,
@@ -137,7 +142,11 @@ const activeSeats = (s: PictionaryState) =>
   Array.from({ length: s.players }, (_, i) => i).filter((i) => !s.out?.[i]);
 
 /** Closes the current round and opens the next, or ends the game. */
-function advance(s: PictionaryState, rng: () => number): PictionaryState {
+function advance(
+  s: PictionaryState,
+  rng: () => number,
+  now: number,
+): PictionaryState {
   const last = { word: s.word, solved: s.solved };
   const round = s.round + 1;
   if (round >= s.rounds) {
@@ -157,6 +166,7 @@ function advance(s: PictionaryState, rng: () => number): PictionaryState {
   return {
     ...s,
     round,
+    deadline: now + ROUND_SECONDS * 1000,
     // players still in the game take turns drawing
     drawer: activeSeats(s)[round % activeSeats(s).length],
     word,
@@ -177,19 +187,23 @@ export const pictionaryGame: GameDef<PictionaryState> = {
   minPlayers: 2,
   maxPlayers: 6,
   autoStart: false,
+  fixedTurnClock: true,
 
   start: fresh,
-  restart: (_previous, players, rng) => fresh(players, rng),
+  restart: (_previous, players, rng, options, now) =>
+    fresh(players, rng, options, now),
 
-  move(state, seat, move, rng = Math.random) {
+  move(state, seat, move, rng = Math.random, ctx) {
+    const now = ctx?.now ?? Date.now();
     const m = move as Record<string, unknown> | null;
     const type = m?.type;
 
-    // anyone may end a round that ran out of time, as long as it is still that round
     if (type === 'next') {
       if (m?.round !== state.round)
         throw new RoomError('Ronde sudah berganti', 409);
-      return advance(state, rng);
+      if (seat !== state.drawer && (state.deadline ?? Infinity) > now)
+        throw new RoomError('Hanya penggambar yang bisa melewati ronde', 403);
+      return advance(state, rng, now);
     }
 
     if (type === 'pick_word') {
@@ -284,7 +298,7 @@ export const pictionaryGame: GameDef<PictionaryState> = {
       scores[state.drawer] += 1;
       const next = { ...state, guesses, solved, scores };
       return solved.length >= activeSeats(state).length - 1
-        ? advance(next, rng)
+        ? advance(next, rng, now)
         : next;
     }
 
@@ -299,8 +313,15 @@ export const pictionaryGame: GameDef<PictionaryState> = {
       : null,
 
   autoMove: (state) => ({ type: 'next', round: state.round }),
+  passive: (_move, previous, next) => previous?.round === next?.round,
+  tick(state, now, rng = Math.random) {
+    if (state.winners) return null;
+    if (state.deadline === undefined)
+      return { ...state, deadline: now + ROUND_SECONDS * 1000 };
+    return now >= state.deadline ? advance(state, rng, now) : null;
+  },
 
-  eliminate(state, seat, rng = Math.random) {
+  eliminate(state, seat, rng = Math.random, now = Date.now()) {
     if (state.out?.[seat]) return state;
     const out = [...(state.out ?? Array<boolean>(state.players).fill(false))];
     out[seat] = true;
@@ -321,18 +342,23 @@ export const pictionaryGame: GameDef<PictionaryState> = {
     }
     // the drawer left, or everyone still here has already guessed
     if (seat === state.drawer || next.solved.length >= left.length - 1) {
-      return advance(next, rng);
+      return advance(next, rng, now);
     }
     return next;
   },
 
-  view(state, seat): PictionaryView {
+  view(state, seat, ctx): PictionaryView {
+    const now = ctx?.now ?? Date.now();
     const isDrawer = seat === state.drawer;
     const over = state.winners !== null;
     return {
       players: state.players,
       round: state.round,
       rounds: state.rounds,
+      remainingMs: Math.max(
+        0,
+        (state.deadline ?? now + ROUND_SECONDS * 1000) - now,
+      ),
       drawer: state.drawer,
       word: isDrawer && !over ? state.word : null,
       choices:

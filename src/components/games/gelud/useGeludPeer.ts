@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 
+import { SIGNAL_KEEP } from '@/lib/rooms/types';
+
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
@@ -19,12 +21,14 @@ export default function useGeludPeer({
   code,
   token,
   you,
+  match,
   active,
   onMessage,
 }: {
   code: string;
   token: string;
   you: number;
+  match: number;
   active: boolean;
   onMessage: (raw: string) => void;
 }) {
@@ -53,9 +57,17 @@ export default function useGeludPeer({
     let stopped = false;
     let lastId = '';
     let makingOffer = false;
+    let polling = false;
     const isInitiator = you === 0;
 
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pendingIce: RTCIceCandidateInit[] = [];
+    const setRemote = async (description: RTCSessionDescriptionInit) => {
+      await pc.setRemoteDescription(description);
+      for (const candidate of pendingIce.splice(0)) {
+        await pc.addIceCandidate(candidate).catch(() => {});
+      }
+    };
 
     const postSignal = async (kind: SignalKind, data: string) => {
       if (stopped) return;
@@ -66,7 +78,7 @@ export default function useGeludPeer({
             'Content-Type': 'application/json',
             'x-player-token': token,
           },
-          body: JSON.stringify({ kind, data }),
+          body: JSON.stringify({ kind, data: JSON.stringify({ match, data }) }),
           cache: 'no-store',
         });
       } catch {
@@ -100,7 +112,12 @@ export default function useGeludPeer({
     };
 
     const startOffer = async () => {
-      if (makingOffer || pc.signalingState !== 'stable') return;
+      if (makingOffer) return;
+      if (pc.signalingState === 'have-local-offer') {
+        await postSignal('offer', JSON.stringify(pc.localDescription));
+        return;
+      }
+      if (pc.signalingState !== 'stable' || pc.remoteDescription) return;
       makingOffer = true;
       try {
         const offer = await pc.createOffer();
@@ -113,12 +130,17 @@ export default function useGeludPeer({
       }
     };
 
-    if (!isInitiator) {
-      void postSignal('hello', '1');
-    }
+    const hello = () => {
+      if (!isInitiator && !pc.remoteDescription) void postSignal('hello', '1');
+    };
+    hello();
+    const helloTimer = isInitiator
+      ? undefined
+      : window.setInterval(hello, 2000);
 
     const poll = async () => {
-      if (stopped) return;
+      if (stopped || polling) return;
+      polling = true;
       try {
         const url = `/api/rooms/${encodeURIComponent(code)}/signal${
           lastId ? `?after=${encodeURIComponent(lastId)}` : ''
@@ -127,27 +149,40 @@ export default function useGeludPeer({
           headers: { 'x-player-token': token },
           cache: 'no-store',
         });
-        if (!res.ok) return;
+        if (!res.ok || stopped) return;
         const data = (await res.json()) as {
           signals?: SignalMsg[];
           last?: string | null;
         };
         if (data.last) lastId = data.last;
         for (const s of data.signals ?? []) {
+          let received: { match?: number; data?: string } | null;
+          try {
+            received = JSON.parse(s.data);
+          } catch {
+            continue;
+          }
+          if (received?.match !== match || typeof received.data !== 'string')
+            continue;
           if (s.kind === 'hello' && isInitiator) {
             await startOffer();
           } else if (s.kind === 'offer' && !isInitiator) {
-            await pc.setRemoteDescription(JSON.parse(s.data));
+            await setRemote(JSON.parse(received.data));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await postSignal('answer', JSON.stringify(pc.localDescription));
           } else if (s.kind === 'answer' && isInitiator) {
             if (pc.signalingState === 'have-local-offer') {
-              await pc.setRemoteDescription(JSON.parse(s.data));
+              await setRemote(JSON.parse(received.data));
             }
           } else if (s.kind === 'ice') {
             try {
-              await pc.addIceCandidate(JSON.parse(s.data));
+              const candidate = JSON.parse(
+                received.data,
+              ) as RTCIceCandidateInit;
+              if (pc.remoteDescription) await pc.addIceCandidate(candidate);
+              else if (pendingIce.length < SIGNAL_KEEP)
+                pendingIce.push(candidate);
             } catch {
               // ignore late/duplicate ICE candidate
             }
@@ -155,6 +190,8 @@ export default function useGeludPeer({
         }
       } catch {
         // ignore transient poll errors
+      } finally {
+        polling = false;
       }
     };
 
@@ -164,12 +201,13 @@ export default function useGeludPeer({
     return () => {
       stopped = true;
       window.clearInterval(timer);
+      window.clearInterval(helloTimer);
       channelRef.current?.close();
       channelRef.current = null;
       pc.close();
       setConnected(false);
     };
-  }, [active, code, token, you]);
+  }, [active, code, token, you, match]);
 
   return { connected, send };
 }

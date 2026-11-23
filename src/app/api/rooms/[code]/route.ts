@@ -126,20 +126,21 @@ export async function POST(req: Request, { params }: Context) {
 
     switch (body.action) {
       case 'join': {
-        const joined = join(room, body.token, newToken(), undefined, body.name);
-        if (joined.room !== room) {
-          await store.save(joined.room);
-          // two people joining at once: only the one that really got the seat stays
-          const check = await store.get(code);
-          if (!check || seatOf(check, joined.token) === null) {
-            throw new RoomError('Room sudah penuh', 409);
+        const candidate = newToken();
+        const rng = cryptoRng();
+        const next = await mutate(store, room, (current) => {
+          if (body.game !== undefined && body.game !== current.game) {
+            throw new RoomError('Kode ini untuk game lain', 409);
           }
-        }
+          return join(current, body.token, candidate, rng, body.name).room;
+        });
+        const existing = seatOf(next, body.token);
+        const token = existing === null ? candidate : (body.token as string);
         return NextResponse.json(
           {
-            token: joined.token,
-            you: joined.you,
-            room: toView(joined.room, joined.token),
+            token,
+            you: existing ?? seatOf(next, candidate),
+            room: toView(next, token),
           },
           { headers: NO_STORE },
         );

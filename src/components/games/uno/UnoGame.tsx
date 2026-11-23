@@ -10,6 +10,7 @@ import {
   stackable,
   UnoView,
 } from '@/lib/games/uno';
+import { UNO_MERCY_LIMIT, UNO_PLAYERS } from '@/lib/games/uno-rules';
 import type { UnoXView } from '@/lib/games/unox';
 import type { GameId } from '@/lib/rooms/types';
 import { useRoom } from '@/lib/rooms/useRoom';
@@ -50,6 +51,8 @@ const placeText = (place: number) =>
 /** "You draw", "Sari draws" */
 const verb = (seat: number, you: number, base: string) =>
   seat === you ? base : `${base}s`;
+const cardCountText = (count: number) =>
+  `${count} ${count === 1 ? 'card' : 'cards'}`;
 
 /** Stable small pseudo-random from a string, so a card stays where it landed. */
 const hash = (s: string) => {
@@ -222,9 +225,15 @@ function iconOf(e: NonNullable<UnoView['last']>): IconKind {
   return e.kind;
 }
 
-function lastText(view: UnoView, you: number, names: (string | null)[]) {
+function lastText(
+  view: UnoView,
+  you: number,
+  names: (string | null)[],
+  mercyLimit: number,
+) {
   const e = view.last;
   if (!e) return null;
+  const drawn = cardCountText(e.drew?.count ?? 0);
   const who = seatNameFor('en', e.seat, you, names);
   const out = (seat: number) => {
     const place = view.places.indexOf(seat);
@@ -247,12 +256,12 @@ function lastText(view: UnoView, you: number, names: (string | null)[]) {
         .map((m) => seatNameFor('en', m, you, names))
         .join(
           ', ',
-        )} hit 25 cards and ${e.mercy.length > 1 ? 'are' : 'is'} out!`;
+        )} hit ${mercyLimit} cards and ${e.mercy.length > 1 ? 'are' : 'is'} out!`;
     }
     return t;
   };
   if (e.kind === 'take')
-    return `${who} ${verb(e.seat, you, 'take')} ${e.drew?.count ?? 0} cards.${e.mercy?.length ? extras() : ''}`;
+    return `${who} ${verb(e.seat, you, 'take')} ${drawn}.${extras()}`;
   if (e.kind === 'play' && e.card && e.cards) {
     const colors = e.cards
       .map((c) => (c.c === 'W' ? '' : COLOR_NAME[c.c]))
@@ -263,21 +272,20 @@ function lastText(view: UnoView, you: number, names: (string | null)[]) {
     return `${who} ${verb(e.seat, you, 'play')} ${describe(e.card)}${e.color ? `, color ${COLOR_NAME[e.color]}` : ''}.${extras()}${out(e.seat)}`;
   }
   if (e.kind === 'draw') {
-    return e.passed
-      ? `${who} ${verb(e.seat, you, 'draw')} ${e.drew && e.drew.count > 1 ? `${e.drew.count} cards` : 'a card'} and ${verb(e.seat, you, 'pass')}.${e.mercy?.length ? extras() : ''}`
-      : `${who} ${verb(e.seat, you, 'draw')} ${e.drew && e.drew.count > 1 ? `${e.drew.count} cards` : 'a card'}.`;
+    const pass = e.passed ? ` and ${verb(e.seat, you, 'pass')}` : '';
+    return `${who} ${verb(e.seat, you, 'draw')} ${drawn}${pass}.${extras()}`;
   }
   if (e.kind === 'uno') return `${who} ${verb(e.seat, you, 'call')} UNO!`;
   if (e.kind === 'accept')
-    return `${who} ${verb(e.seat, you, 'accept')} the +4 and ${verb(e.seat, you, 'draw')} 4 cards.`;
+    return `${who} ${verb(e.seat, you, 'accept')} the +4 and ${verb(e.seat, you, 'draw')} ${drawn}.`;
   const target = seatNameFor('en', e.target ?? 0, you, names);
   if (e.kind === 'challenge') {
     return e.caught
-      ? `${who} ${verb(e.seat, you, 'challenge')} ${target} and ${e.seat === you ? 'were' : 'was'} right! ${target} ${verb(e.target ?? 0, you, 'draw')} 4 cards.`
-      : `${who} ${verb(e.seat, you, 'challenge')} ${target} but ${e.seat === you ? 'were' : 'was'} wrong and ${verb(e.seat, you, 'draw')} 6 cards.`;
+      ? `${who} ${verb(e.seat, you, 'challenge')} ${target} and ${e.seat === you ? 'were' : 'was'} right! ${target} ${verb(e.target ?? 0, you, 'draw')} ${drawn}.`
+      : `${who} ${verb(e.seat, you, 'challenge')} ${target} but ${e.seat === you ? 'were' : 'was'} wrong and ${verb(e.seat, you, 'draw')} ${drawn}.`;
   }
   if (e.kind === 'catch') {
-    return `${who} ${verb(e.seat, you, 'catch')} ${target} forgetting UNO. ${target} ${verb(e.target ?? 0, you, 'draw')} 2 cards.`;
+    return `${who} ${verb(e.seat, you, 'catch')} ${target} forgetting UNO. ${target} ${verb(e.target ?? 0, you, 'draw')} ${drawn}.`;
   }
   return `${who} ${verb(e.seat, you, 'skip')}.`;
 }
@@ -862,13 +870,12 @@ function UnoKeys({
 }
 
 type UnoKind = Extract<GameId, 'uno' | 'unoflip' | 'unomercy'>;
+const PLAYER_RANGE = `${UNO_PLAYERS.min} sampai ${UNO_PLAYERS.max} pemain`;
 
 const BLURB: Record<UnoKind, string> = {
-  uno: '# Uno untuk 2 sampai 8 pemain di device berbeda. Pembuat room memulai permainan setelah semua bergabung.',
-  unoflip:
-    '# Uno Flip: kartu dua sisi. Kartu FLIP membalik semuanya ke sisi gelap yang jauh lebih kejam. 2 sampai 8 pemain.',
-  unomercy:
-    '# Uno No Mercy: hukuman bisa ditumpuk, 7 tukar kartu, 0 oper kartu, dan 25 kartu langsung gugur. 2 sampai 8 pemain.',
+  uno: `# Uno untuk ${PLAYER_RANGE} di device berbeda. Pembuat room memulai permainan setelah semua bergabung.`,
+  unoflip: `# Uno Flip: kartu dua sisi. Kartu FLIP membalik semuanya ke sisi gelap yang jauh lebih kejam. ${PLAYER_RANGE}.`,
+  unomercy: `# Uno No Mercy: hukuman bisa ditumpuk, 7 tukar kartu, 0 oper kartu. Pemain gugur saat mencapai batas kartu room. ${PLAYER_RANGE}.`,
 };
 
 /** Your own cards: one fanned row, or two when there are too many for the screen. */
@@ -1143,6 +1150,8 @@ function Uno({ game }: { game: UnoKind }) {
 
   // ------------------------------------------------------------------- game
   const over = room.status === 'over';
+  const mercyLimit = view.mercyLimit ?? UNO_MERCY_LIMIT.default;
+  const mercyWarningAt = Math.max(1, mercyLimit - 5);
   const myPlace = view.places.indexOf(you);
   const out = myPlace !== -1;
   /** Done playing (out of cards, or knocked out) while the others go on */
@@ -1374,11 +1383,13 @@ function Uno({ game }: { game: UnoKind }) {
     const e = view.last;
     if (!e || swapFx) return null;
     const draws = (seat: number) => verb(seat, you, 'draw');
+    const n = e.drew?.count ?? 0;
+    const drawn = cardCountText(n);
     if (e.mercy?.length) {
       return {
         icon: 'wrong' as IconKind,
         big: 'NO MERCY!',
-        sub: `${e.mercy.map((m) => seatName(m)).join(', ')} hit 25 cards`,
+        sub: `${e.mercy.map((m) => seatName(m)).join(', ')} hit ${mercyLimit} cards`,
         tone: 'text-err',
       };
     }
@@ -1388,13 +1399,13 @@ function Uno({ game }: { game: UnoKind }) {
         ? {
             icon: 'caught' as IconKind,
             big: 'BUSTED!',
-            sub: `${seatName(target)} bluffed and ${draws(target)} 4 cards`,
+            sub: `${seatName(target)} bluffed and ${draws(target)} ${drawn}`,
             tone: 'text-accent',
           }
         : {
             icon: 'wrong' as IconKind,
             big: 'WRONG GUESS!',
-            sub: `${seatName(e.seat)} ${draws(e.seat)} 6 cards`,
+            sub: `${seatName(e.seat)} ${draws(e.seat)} ${drawn}`,
             tone: 'text-err',
           };
     }
@@ -1403,7 +1414,7 @@ function Uno({ game }: { game: UnoKind }) {
       return {
         icon: 'catch' as IconKind,
         big: 'CAUGHT!',
-        sub: `${seatName(e.seat)} ${verb(e.seat, you, 'catch')} ${seatName(target)}: no UNO, ${draws(target)} ${e.drew?.count ?? 2} cards`,
+        sub: `${seatName(e.seat)} ${verb(e.seat, you, 'catch')} ${seatName(target)}: no UNO, ${draws(target)} ${drawn}`,
         tone: 'text-err',
       };
     }
@@ -1416,11 +1427,10 @@ function Uno({ game }: { game: UnoKind }) {
       };
     }
     if (e.kind === 'take') {
-      const n = e.drew?.count ?? 0;
       return {
         icon: 'plus4' as IconKind,
         big: `+${n}`,
-        sub: `${seatName(e.seat)} ${verb(e.seat, you, 'take')} ${n} cards`,
+        sub: `${seatName(e.seat)} ${verb(e.seat, you, 'take')} ${drawn}`,
         tone: 'text-err',
       };
     }
@@ -1429,8 +1439,7 @@ function Uno({ game }: { game: UnoKind }) {
     const who = seatName(e.seat);
     const victimSeat = e.drew?.seat ?? view.challenge?.victim ?? -1;
     const victim = seatName(victimSeat);
-    const n = e.drew?.count ?? 0;
-    const hit = `${victim} ${draws(victimSeat)} ${n} ${n === 1 ? 'card' : 'cards'}`;
+    const hit = `${victim} ${draws(victimSeat)} ${drawn}`;
     // No Mercy: the stack waiting for the next player
     const stacked = `${seatName(view.turn)}: stack or take ${view.penalty}`;
     const big = (icon: IconKind, text: string, sub: string, tone: string) => ({
@@ -1464,12 +1473,11 @@ function Uno({ game }: { game: UnoKind }) {
         'text-info',
       );
     if (v === 'F') {
+      if (!view.challenge && !e.drew) return null;
       return {
         icon: 'plus4' as IconKind,
         big: '+4',
-        sub: view.challenge
-          ? `${victim}: accept or challenge?`
-          : `${victim} ${draws(victimSeat)} 4 cards`,
+        sub: view.challenge ? `${victim}: accept or challenge?` : hit,
         tone: 'text-err',
       };
     }
@@ -1501,7 +1509,9 @@ function Uno({ game }: { game: UnoKind }) {
     }
     if (v === 'D' || v === 'D1' || v === 'WD2') {
       const seat = view.penalty ? view.turn : (e.drew?.seat ?? null);
-      return seat === null ? null : { seat, text: effect.big };
+      return seat === null
+        ? null
+        : { seat, text: view.penalty ? effect.big : `+${e.drew?.count ?? 0}` };
     }
     if (v === 'V') return { seat: null, text: 'REVERSE' };
     if (v === 'W') return { seat: null, text: COLOR_NAME[view.color] };
@@ -1591,8 +1601,8 @@ function Uno({ game }: { game: UnoKind }) {
               {view.places.includes(seat)
                 ? 'done'
                 : view.variant === 'nomercy'
-                  ? `${view.counts[seat]}/25`
-                  : `${view.counts[seat]} ${view.counts[seat] === 1 ? 'card' : 'cards'}`}
+                  ? `${view.counts[seat]}/${mercyLimit}`
+                  : cardCountText(view.counts[seat])}
             </span>
           )}
         />
@@ -1690,6 +1700,8 @@ function Uno({ game }: { game: UnoKind }) {
 
               {others.map(({ count, seat }, order) => {
                 const active = !over && view.turn === seat;
+                const nearMercyLimit =
+                  view.variant === 'nomercy' && count >= mercyWarningAt;
                 const place = view.places.indexOf(seat);
                 const pos = seatPos(seat, you, players);
                 const safe = count === 1 && view.calledUno[seat];
@@ -1765,17 +1777,17 @@ function Uno({ game }: { game: UnoKind }) {
                     </div>
                     <span
                       className={`flex items-center gap-1 text-xs font-semibold ${
-                        view.variant === 'nomercy' && count >= 20
-                          ? 'a-wiggle text-err'
-                          : 'text-ink'
+                        nearMercyLimit ? 'a-wiggle text-err' : 'text-ink'
                       }`}
                     >
                       <CountUp
                         value={count}
                         step={got ? dealStep(view.last!.drew!.count) : 70}
                       />
-                      {view.variant === 'nomercy' && count >= 20 && (
-                        <span className='text-[10px] font-normal'>/25</span>
+                      {nearMercyLimit && (
+                        <span className='text-[10px] font-normal'>
+                          /{mercyLimit}
+                        </span>
                       )}
                       {(just || got) && (
                         <span
@@ -2407,7 +2419,7 @@ function Uno({ game }: { game: UnoKind }) {
                 />
               )}
               <span className='truncate'>
-                {r.error || lastText(view, you, names)}
+                {r.error || lastText(view, you, names, mercyLimit)}
               </span>
             </p>
             <button
@@ -2513,7 +2525,14 @@ function Uno({ game }: { game: UnoKind }) {
           />
         </div>
 
-        {guide && <UnoGuide game={game} onClose={() => setGuide(false)} />}
+        {guide && (
+          <UnoGuide
+            game={game}
+            mercyLimit={mercyLimit}
+            turnSeconds={clock?.seconds}
+            onClose={() => setGuide(false)}
+          />
+        )}
 
         <UnoKeys
           enabled={!over && !out && !r.busy}

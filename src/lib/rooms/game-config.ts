@@ -1,3 +1,9 @@
+import { COUNTUP_ROUNDS } from '@/lib/games/dart-config';
+import { CAMPAIGN, MONKEY_CUSTOM_LIMITS } from '@/lib/games/monkeys-config';
+import { REMO_CLOCK } from '@/lib/games/remo-config';
+import { SEKATA_BLANK_CARDS, SEKATA_LIMITS } from '@/lib/games/sekata-config';
+import { UNO_HAND_SIZE, UNO_MERCY_LIMIT } from '@/lib/games/uno-rules';
+
 export interface GameConfig {
   room: {
     /** 0 = pakai bawaan tiap game, 10-300 = timpa batas waktu giliran (detik) */
@@ -115,14 +121,14 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
     leaveGraceSeconds: 10,
   },
   unomercy: {
-    mercyLimit: 25,
-    handSize: 7,
+    mercyLimit: UNO_MERCY_LIMIT.default,
+    handSize: UNO_HAND_SIZE.default,
   },
   unoflip: {
-    handSize: 7,
+    handSize: UNO_HAND_SIZE.default,
   },
   uno: {
-    handSize: 7,
+    handSize: UNO_HAND_SIZE.default,
   },
   domino: {
     handSize: 7,
@@ -158,7 +164,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
     handSize: 7,
     sharedYellow: 2,
     greenPerPlayer: 1,
-    blankCards: 2,
+    blankCards: 0,
     penalty: 1,
     timeLimit: 0,
     minWordCards: 2,
@@ -245,6 +251,17 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
     Number.isFinite(rawTurn) && rawTurn > 0
       ? Math.min(300, Math.max(10, Math.round(rawTurn)))
       : 0;
+  const sekataNumber = (key: keyof typeof SEKATA_LIMITS) => {
+    const { min, max } = SEKATA_LIMITS[key];
+    return clampInt(
+      obj.sekata?.[key],
+      min,
+      max,
+      DEFAULT_GAME_CONFIG.sekata[key],
+    );
+  };
+  const customMonkey = obj.monkeys?.custom as
+    Record<string, unknown> | undefined;
 
   return {
     room: {
@@ -265,30 +282,30 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
     unomercy: {
       mercyLimit: clampInt(
         obj.unomercy?.mercyLimit,
-        5,
-        100,
+        UNO_MERCY_LIMIT.min,
+        UNO_MERCY_LIMIT.max,
         DEFAULT_GAME_CONFIG.unomercy.mercyLimit,
       ),
       handSize: clampInt(
         obj.unomercy?.handSize,
-        2,
-        15,
+        UNO_HAND_SIZE.min,
+        UNO_HAND_SIZE.max,
         DEFAULT_GAME_CONFIG.unomercy.handSize,
       ),
     },
     unoflip: {
       handSize: clampInt(
         obj.unoflip?.handSize,
-        2,
-        15,
+        UNO_HAND_SIZE.min,
+        UNO_HAND_SIZE.max,
         DEFAULT_GAME_CONFIG.unoflip.handSize,
       ),
     },
     uno: {
       handSize: clampInt(
         obj.uno?.handSize,
-        2,
-        15,
+        UNO_HAND_SIZE.min,
+        UNO_HAND_SIZE.max,
         DEFAULT_GAME_CONFIG.uno.handSize,
       ),
     },
@@ -330,12 +347,15 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
         ['discard', 'melded'] as const,
         DEFAULT_GAME_CONFIG.remo.finish,
       ),
-      turnSeconds: clampInt(
-        obj.remo?.turnSeconds,
-        0,
-        180,
-        DEFAULT_GAME_CONFIG.remo.turnSeconds,
-      ),
+      turnSeconds:
+        Number(obj.remo?.turnSeconds) <= 0
+          ? 0
+          : clampInt(
+              obj.remo?.turnSeconds,
+              REMO_CLOCK.min,
+              REMO_CLOCK.max,
+              DEFAULT_GAME_CONFIG.remo.turnSeconds,
+            ),
       rounds: clampInt(
         obj.remo?.rounds,
         1,
@@ -396,48 +416,16 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
         ] as const,
         DEFAULT_GAME_CONFIG.sekata.mode,
       ),
-      handSize: clampInt(
-        obj.sekata?.handSize,
-        5,
-        14,
-        DEFAULT_GAME_CONFIG.sekata.handSize,
-      ),
-      sharedYellow: clampInt(
-        obj.sekata?.sharedYellow,
-        1,
-        5,
-        DEFAULT_GAME_CONFIG.sekata.sharedYellow,
-      ),
-      greenPerPlayer: clampInt(
-        obj.sekata?.greenPerPlayer,
-        0,
-        4,
-        DEFAULT_GAME_CONFIG.sekata.greenPerPlayer,
-      ),
-      blankCards: clampInt(
-        obj.sekata?.blankCards,
-        0,
-        6,
-        DEFAULT_GAME_CONFIG.sekata.blankCards,
-      ),
-      penalty: clampInt(
-        obj.sekata?.penalty,
-        0,
-        5,
-        DEFAULT_GAME_CONFIG.sekata.penalty,
-      ),
-      timeLimit: clampInt(
-        obj.sekata?.timeLimit,
-        0,
-        300,
-        DEFAULT_GAME_CONFIG.sekata.timeLimit,
-      ),
-      minWordCards: clampInt(
-        obj.sekata?.minWordCards,
-        1,
-        5,
-        DEFAULT_GAME_CONFIG.sekata.minWordCards,
-      ),
+      handSize: sekataNumber('handSize'),
+      sharedYellow: sekataNumber('sharedYellow'),
+      greenPerPlayer: sekataNumber('greenPerPlayer'),
+      blankCards:
+        Number(obj.sekata?.blankCards) === SEKATA_BLANK_CARDS
+          ? SEKATA_BLANK_CARDS
+          : DEFAULT_GAME_CONFIG.sekata.blankCards,
+      penalty: sekataNumber('penalty'),
+      timeLimit: sekataNumber('timeLimit'),
+      minWordCards: sekataNumber('minWordCards'),
       replaceLimit: clampInt(
         obj.sekata?.replaceLimit,
         1,
@@ -497,8 +485,8 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
       ),
       rounds: clampInt(
         obj.dart?.rounds,
-        3,
-        20,
+        COUNTUP_ROUNDS.min,
+        COUNTUP_ROUNDS.max,
         DEFAULT_GAME_CONFIG.dart.rounds,
       ),
       maxRounds: clampInt(
@@ -517,7 +505,7 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
       level: clampInt(
         obj.monkeys?.level,
         1,
-        10,
+        CAMPAIGN.length,
         DEFAULT_GAME_CONFIG.monkeys.level,
       ),
       roles: pickEnum(
@@ -527,21 +515,21 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
       ),
       custom: {
         modules: clampInt(
-          (obj.monkeys?.custom as Record<string, unknown> | undefined)?.modules,
-          1,
-          6,
+          customMonkey?.modules,
+          MONKEY_CUSTOM_LIMITS.modules.min,
+          MONKEY_CUSTOM_LIMITS.modules.max,
           DEFAULT_GAME_CONFIG.monkeys.custom.modules,
         ),
         seconds: clampInt(
-          (obj.monkeys?.custom as Record<string, unknown> | undefined)?.seconds,
-          30,
-          300,
+          customMonkey?.seconds,
+          MONKEY_CUSTOM_LIMITS.seconds.min,
+          MONKEY_CUSTOM_LIMITS.seconds.max,
           DEFAULT_GAME_CONFIG.monkeys.custom.seconds,
         ),
         strikes: clampInt(
-          (obj.monkeys?.custom as Record<string, unknown> | undefined)?.strikes,
-          1,
-          5,
+          customMonkey?.strikes,
+          MONKEY_CUSTOM_LIMITS.mistakes.min,
+          MONKEY_CUSTOM_LIMITS.mistakes.max,
           DEFAULT_GAME_CONFIG.monkeys.custom.strikes,
         ),
       },

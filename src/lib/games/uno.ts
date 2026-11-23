@@ -1,3 +1,8 @@
+import {
+  UNO_HAND_SIZE,
+  UNO_PLAYERS,
+  UNO_TURN_SECONDS,
+} from '@/lib/games/uno-rules';
 import type { GameDef } from '@/lib/rooms/game';
 import { RoomError } from '@/lib/rooms/types';
 
@@ -44,7 +49,7 @@ export const COLORS: readonly Color[] = ['R', 'Y', 'G', 'B'];
 export const DARK_COLORS: readonly Color[] = ['P', 'T', 'O', 'U'];
 const NUMBERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 const ACTIONS = ['S', 'V', 'D'] as const;
-export const HAND_SIZE = 7;
+export const HAND_SIZE = UNO_HAND_SIZE.default;
 
 /** The standard 108-card deck. */
 export function deck(): Card[] {
@@ -97,7 +102,7 @@ export interface UnoEvent {
   swapped?: number;
   /** No Mercy: every hand was passed on by a 0 */
   rotated?: boolean;
-  /** No Mercy: seats knocked out for reaching 25 cards */
+  /** No Mercy: seats knocked out for reaching the room's card limit */
   mercy?: number[];
   /** Cards pulled from the pile this move, so clients can animate them */
   drew?: { seat: number; count: number };
@@ -216,21 +221,23 @@ export function start(
   const opts = (options && typeof options === 'object' ? options : {}) as {
     handSize?: number;
   };
-  const handSize =
+  const requestedHandSize =
     typeof opts.handSize === 'number' &&
-    opts.handSize >= 2 &&
-    opts.handSize <= 15
+    opts.handSize >= UNO_HAND_SIZE.min &&
+    opts.handSize <= UNO_HAND_SIZE.max
       ? Math.round(opts.handSize)
       : HAND_SIZE;
   const draw = shuffle(deck(), rng);
+  // Open with a plain number card, so no action has to be resolved at the start.
+  const first = draw.splice(draw.findLastIndex(isNumber), 1)[0];
+  const handSize = Math.min(
+    requestedHandSize,
+    Math.floor(draw.length / players),
+  );
   const hands: Card[][] = Array.from({ length: players }, () => []);
   for (let i = 0; i < handSize; i++) {
     for (let p = 0; p < players; p++) hands[p].push(draw.pop()!);
   }
-
-  // open with a plain number card, so no action has to be resolved at the start
-  const at = draw.findLastIndex(isNumber);
-  const first = draw.splice(at, 1)[0];
 
   return {
     players,
@@ -250,16 +257,18 @@ export function start(
 
 /** Deals `count` cards to `seat`, reshuffling the discard pile if the deck runs out. */
 function deal(s: UnoState, seat: number, count: number, rng: () => number) {
-  for (let i = 0; i < count; i++) {
+  let given = 0;
+  for (; given < count; given++) {
     if (s.draw.length === 0) {
       const keep = s.discard.pop()!;
       s.draw = shuffle(s.discard, rng);
       s.discard = [keep];
     }
     const card = s.draw.pop();
-    if (!card) return; // nothing left anywhere
+    if (!card) break; // nothing left anywhere
     s.hands[seat].push(card);
   }
+  return given;
 }
 
 type Move =
@@ -310,9 +319,9 @@ function catchUno(
   if (s.hands[t].length !== 1 || flags[t]) {
     throw new RoomError('Tidak bisa ditangkap', 409);
   }
-  deal(s, t, 2, rng);
+  const given = deal(s, t, 2, rng);
   flags[t] = false;
-  s.last = { seat, kind: 'catch', target: t, drew: { seat: t, count: 2 } };
+  s.last = { seat, kind: 'catch', target: t, drew: { seat: t, count: given } };
 }
 
 /**
@@ -423,8 +432,8 @@ function play(
       break;
     case 'D': {
       const victim = nextSeat(s, seat);
-      deal(s, victim, 2, rng);
-      if (s.last) s.last.drew = { seat: victim, count: 2 };
+      const given = deal(s, victim, 2, rng);
+      if (s.last) s.last.drew = { seat: victim, count: given };
       s.turn = nextSeat(s, seat, 2);
       break;
     }
@@ -432,8 +441,8 @@ function play(
       const victim = nextSeat(s, seat);
       if (out) {
         // the last card cannot be challenged: just pay up
-        deal(s, victim, 4, rng);
-        if (s.last) s.last.drew = { seat: victim, count: 4 };
+        const given = deal(s, victim, 4, rng);
+        if (s.last) s.last.drew = { seat: victim, count: given };
         s.turn = nextSeat(s, seat, 2);
       } else {
         // the victim decides: take four, or challenge
@@ -450,9 +459,14 @@ function play(
 /** The victim of a wild draw four takes the four cards and loses the turn. */
 function acceptFour(s: UnoState, seat: number, rng: () => number) {
   const ch = s.challenge!;
-  deal(s, seat, 4, rng);
+  const given = deal(s, seat, 4, rng);
   s.challenge = null;
-  s.last = { seat, kind: 'accept', target: ch.from, drew: { seat, count: 4 } };
+  s.last = {
+    seat,
+    kind: 'accept',
+    target: ch.from,
+    drew: { seat, count: given },
+  };
   s.turn = nextSeat(s, seat);
 }
 
@@ -465,23 +479,23 @@ function challengeFour(s: UnoState, seat: number, rng: () => number) {
   const caught = s.hands[ch.from].some((c) => c.c === ch.color);
   s.challenge = null;
   if (caught) {
-    deal(s, ch.from, 4, rng);
+    const given = deal(s, ch.from, 4, rng);
     s.last = {
       seat,
       kind: 'challenge',
       target: ch.from,
       caught,
-      drew: { seat: ch.from, count: 4 },
+      drew: { seat: ch.from, count: given },
     };
     s.turn = seat;
   } else {
-    deal(s, seat, 6, rng);
+    const given = deal(s, seat, 6, rng);
     s.last = {
       seat,
       kind: 'challenge',
       target: ch.from,
       caught,
-      drew: { seat, count: 6 },
+      drew: { seat, count: given },
     };
     s.turn = nextSeat(s, seat);
   }
@@ -490,12 +504,10 @@ function challengeFour(s: UnoState, seat: number, rng: () => number) {
 function drawCard(s: UnoState, seat: number, rng: () => number) {
   if (s.pending) throw new RoomError('Kamu sudah menarik kartu', 409);
 
-  const before = s.hands[seat].length;
-  deal(s, seat, 1, rng);
-  const drawn = s.hands[seat].length > before;
+  const drawn = deal(s, seat, 1, rng);
   const index = s.hands[seat].length - 1;
 
-  const drew = drawn ? { seat, count: 1 } : undefined;
+  const drew = drawn ? { seat, count: drawn } : undefined;
   if (drawn && canPlay(s, s.hands[seat][index], s.hands[seat])) {
     // the drawn card fits: its owner decides whether to play it or pass
     s.pending = { seat, index };
@@ -508,13 +520,13 @@ function drawCard(s: UnoState, seat: number, rng: () => number) {
 
 export const unoGame: GameDef<UnoState> = {
   id: 'uno',
-  minPlayers: 2,
-  maxPlayers: 8,
+  minPlayers: UNO_PLAYERS.min,
+  maxPlayers: UNO_PLAYERS.max,
   autoStart: false,
 
   start,
-  restart: (previous, players, rng) => {
-    const next = start(players, rng);
+  restart: (previous, players, rng, options) => {
+    const next = start(players, rng, options);
     // the winner opens the next game (if they are still seated)
     const opener = previous.winner ?? 0;
     return { ...next, turn: opener < players ? opener : 0 };
@@ -586,7 +598,7 @@ export const unoGame: GameDef<UnoState> = {
   },
 
   waiting: (state) =>
-    finished(state) ? null : { seats: [state.turn], seconds: 40 },
+    finished(state) ? null : { seats: [state.turn], seconds: UNO_TURN_SECONDS },
 
   // an idle player draws a card (and passes if it fits): a penalty, not a play
   autoMove: (state, seat) =>

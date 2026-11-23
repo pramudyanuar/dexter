@@ -327,9 +327,13 @@ describe('missing turns', () => {
     });
 
     const one = act(room, 't0', { pick: 'batu' }, rng, T0 + 5_000);
-    expect(toView(one, 't0', T0 + 6_000).waiting?.seats).toEqual([1]);
+    expect(toView(one, 't0', T0 + 6_000).waiting).toEqual({
+      seats: [1],
+      remaining: 19,
+      seconds: 25,
+    });
 
-    const next = sweep(one, T0 + 5_000 + 26_000, rng);
+    const next = sweep(one, T0 + 25_000, rng);
     expect(next.strikes).toEqual([0, 1]);
     expect((next.state as { last: unknown }).last).not.toBeNull();
   });

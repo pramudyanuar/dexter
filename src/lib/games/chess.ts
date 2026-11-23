@@ -38,10 +38,13 @@ export interface ChessState {
   /** Pieces taken so far, in order */
   taken: Piece[];
   starter: 0 | 1;
+  positions?: Record<string, number>;
 }
 
 export interface ChessView extends ChessState {
   legal: ChessMove[];
+  canClaimDraw: boolean;
+  drawMoves: ChessMove[];
 }
 
 const colorOf = (seat: number): Color => (seat === 0 ? 'w' : 'b');
@@ -281,6 +284,29 @@ function insufficient(board: Board) {
   );
 }
 
+function positionKey(state: ChessState, legal: ChessMove[]) {
+  const ep = state.ep;
+  const canCapture =
+    ep &&
+    legal.some(
+      ({ from, to }) =>
+        same(to, ep) &&
+        from[1] !== to[1] &&
+        state.board[from[0]][from[1]]?.[1] === 'P',
+    );
+  const squares = state.board
+    .flat()
+    .map((piece) => piece ?? '-')
+    .join(',');
+  const rights = ['wK', 'wQ', 'bK', 'bQ'] as const;
+  return [
+    state.turn,
+    squares,
+    rights.filter((right) => state.castling[right]).join(''),
+    canCapture ? ep.join(',') : '-',
+  ].join(':');
+}
+
 const fresh = (starter: 0 | 1): ChessState => ({
   board: initialBoard(),
   turn: 0,
@@ -297,6 +323,49 @@ const fresh = (starter: 0 | 1): ChessState => ({
 
 const same = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1];
 
+function applyMove(state: ChessState, chosen: ChessMove): ChessState {
+  const color = colorOf(state.turn);
+  const piece = state.board[chosen.from[0]][chosen.from[1]]!;
+  const { board, captured } = applyToBoard(state.board, chosen, state.ep);
+
+  // castling rights end when the king or a rook moves, or a rook is taken
+  const castling = { ...state.castling };
+  if (piece[1] === 'K') {
+    castling[`${color}K`] = false;
+    castling[`${color}Q`] = false;
+  }
+  for (const sq of [chosen.from, chosen.to]) {
+    if (sq[0] === 7 && sq[1] === 0) castling.wQ = false;
+    if (sq[0] === 7 && sq[1] === 7) castling.wK = false;
+    if (sq[0] === 0 && sq[1] === 0) castling.bQ = false;
+    if (sq[0] === 0 && sq[1] === 7) castling.bK = false;
+  }
+
+  const double =
+    piece[1] === 'P' && Math.abs(chosen.to[0] - chosen.from[0]) === 2;
+  const ep: Point | null = double
+    ? [(chosen.from[0] + chosen.to[0]) / 2, chosen.from[1]]
+    : null;
+
+  return {
+    ...state,
+    board,
+    castling,
+    ep,
+    half: captured || piece[1] === 'P' ? 0 : state.half + 1,
+    last: { from: chosen.from, to: chosen.to, promo: chosen.promo },
+    taken: captured ? [...state.taken, captured] : state.taken,
+    turn: (1 - state.turn) as 0 | 1,
+    check: false,
+  };
+}
+
+function repeatsOnMove(previous: ChessState, next: ChessState) {
+  return (
+    next.half > 0 && (previous.positions?.[positionKey(next, [])] ?? 0) >= 2
+  );
+}
+
 export const chessGame: GameDef<ChessState> = {
   id: 'chess',
   minPlayers: 2,
@@ -309,12 +378,19 @@ export const chessGame: GameDef<ChessState> = {
 
   move(state, seat, move) {
     if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
-    const m = move as ChessMove | null;
+    const m = move as (ChessMove & { type?: unknown }) | null;
+    const legal = legalMoves(state, seat);
+    const claiming = m?.type === 'claim_draw';
+    if (claiming && m.from === undefined && m.to === undefined) {
+      if ((state.positions?.[positionKey(state, legal)] ?? 0) < 3)
+        throw new RoomError('Posisi belum berulang tiga kali', 409);
+      return { ...state, status: 'draw' };
+    }
     if (!m || !Array.isArray(m.from) || !Array.isArray(m.to))
       throw new RoomError('Langkah tidak valid');
 
     const promo = m.promo ?? 'Q';
-    const chosen = legalMoves(state, seat).find(
+    const chosen = legal.find(
       (l) =>
         same(l.from, m.from) &&
         same(l.to, m.to) &&
@@ -322,49 +398,33 @@ export const chessGame: GameDef<ChessState> = {
     );
     if (!chosen) throw new RoomError('Langkah tidak sah', 409);
 
-    const color = colorOf(seat);
-    const piece = state.board[chosen.from[0]][chosen.from[1]]!;
-    const { board, captured } = applyToBoard(state.board, chosen, state.ep);
-
-    // castling rights end when the king or a rook moves, or a rook is taken
-    const castling = { ...state.castling };
-    if (piece[1] === 'K') {
-      castling[`${color}K`] = false;
-      castling[`${color}Q`] = false;
+    const next = applyMove(state, chosen);
+    if (claiming) {
+      if (!repeatsOnMove(state, next))
+        throw new RoomError(
+          'Langkah ini tidak mengulang posisi tiga kali',
+          409,
+        );
+      return { ...state, status: 'draw' };
     }
-    for (const sq of [chosen.from, chosen.to]) {
-      if (sq[0] === 7 && sq[1] === 0) castling.wQ = false;
-      if (sq[0] === 7 && sq[1] === 7) castling.wK = false;
-      if (sq[0] === 0 && sq[1] === 0) castling.bQ = false;
-      if (sq[0] === 0 && sq[1] === 7) castling.bK = false;
-    }
-
-    const double =
-      piece[1] === 'P' && Math.abs(chosen.to[0] - chosen.from[0]) === 2;
-    const ep: Point | null = double
-      ? [(chosen.from[0] + chosen.to[0]) / 2, chosen.from[1]]
-      : null;
-    const half = captured || piece[1] === 'P' ? 0 : state.half + 1;
-
-    const next: ChessState = {
-      ...state,
-      board,
-      castling,
-      ep,
-      half,
-      last: { from: chosen.from, to: chosen.to, promo: chosen.promo },
-      taken: captured ? [...state.taken, captured] : state.taken,
-      turn: (1 - seat) as 0 | 1,
-      check: false,
-    };
+    const { board, half } = next;
 
     const check = inCheck(board, colorOf(1 - seat));
     next.check = check;
-    if (legalMoves(next, 1 - seat).length === 0) {
+    const nextLegal = legalMoves(next, 1 - seat);
+    if (nextLegal.length === 0) {
       return check
         ? { ...next, status: 'checkmate', winner: seat as 0 | 1 }
         : { ...next, status: 'stalemate' };
     }
+    const key = positionKey(next, nextLegal);
+    const positions =
+      half === 0
+        ? {}
+        : { ...(state.positions ?? { [positionKey(state, legal)]: 1 }) };
+    positions[key] = (positions[key] ?? 0) + 1;
+    next.positions = positions;
+    if (positions[key] >= 5) return { ...next, status: 'draw' };
     if (half >= 100 || insufficient(board)) return { ...next, status: 'draw' };
     return next;
   },
@@ -386,12 +446,23 @@ export const chessGame: GameDef<ChessState> = {
   }),
 
   view(state, seat): ChessView {
+    const { positions, ...view } = state;
+    const myTurn =
+      seat !== null && state.status === 'playing' && state.turn === seat;
+    const legal = myTurn ? legalMoves(state, seat) : [];
+    const canClaimDraw =
+      myTurn && (positions?.[positionKey(state, legal)] ?? 0) >= 3;
+    const drawMoves =
+      myTurn &&
+      !canClaimDraw &&
+      Object.values(positions ?? {}).some((n) => n >= 2)
+        ? legal.filter((move) => repeatsOnMove(state, applyMove(state, move)))
+        : [];
     return {
-      ...state,
-      legal:
-        seat !== null && state.status === 'playing' && state.turn === seat
-          ? legalMoves(state, seat)
-          : [],
+      ...view,
+      legal,
+      canClaimDraw,
+      drawMoves,
     };
   },
 

@@ -4,6 +4,7 @@ import type { GameDef } from '@/lib/rooms/game';
 import { RoomError } from '@/lib/rooms/types';
 
 export const TOTAL = 10;
+export const QUESTION_SECONDS = 15;
 
 export interface QuizResult {
   q: string;
@@ -113,7 +114,8 @@ export const quizGame: GameDef<QuizState> = {
   autoStart: false,
 
   start: fresh,
-  restart: (_previous, players, rng) => fresh(players, rng),
+  restart: (_previous, players, rng, options) => fresh(players, rng, options),
+  passive: (_move, previous, next) => previous?.idx === next?.idx,
 
   move(state, seat, move) {
     const m = move as { q?: unknown; choice?: unknown } | null;
@@ -140,11 +142,13 @@ export const quizGame: GameDef<QuizState> = {
     const seats = state.answers.flatMap((a, i) =>
       a === null && !state.out?.[i] ? [i] : [],
     );
-    return seats.length ? { seats, seconds: 25 } : null;
+    return seats.length ? { seats, seconds: QUESTION_SECONDS } : null;
   },
 
   // no answer at all: no points
   autoMove: (state) => ({ q: state.idx, choice: -1 }),
+  timeout: (state) =>
+    settle({ ...state, answers: state.answers.map((choice) => choice ?? -1) }),
 
   eliminate(state, seat) {
     if (state.out?.[seat]) return state;

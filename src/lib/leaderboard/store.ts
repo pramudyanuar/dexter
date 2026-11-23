@@ -1,3 +1,4 @@
+import type { Level } from '@/lib/games/minesweeper';
 import {
   LeaderboardEntry,
   sortEntries,
@@ -181,4 +182,8 @@ export function getDailyLeaderboardStore(day: string, version: number) {
     keepBest: true,
     ttlSeconds: 48 * 60 * 60,
   });
+}
+
+export function getMinesLeaderboardStore(level: Level) {
+  return getLeaderboardStore({ keyFor: (game) => `lb:${game}:${level}` });
 }

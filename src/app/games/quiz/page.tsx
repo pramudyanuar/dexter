@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { QuizView } from '@/lib/games/quiz';
+import type { QuizView } from '@/lib/games/quiz';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
@@ -12,7 +12,6 @@ import GameShell from '@/components/games/GameShell';
 import RoomChat from '@/components/games/RoomChat';
 import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
 
-const SECONDS = 15;
 const LETTERS = ['A', 'B', 'C', 'D'];
 const TONE = [
   'border-err/60 bg-err/10',
@@ -27,7 +26,7 @@ function Quiz() {
   return (
     <RoomGate
       r={r}
-      blurb='# Quiz cepat untuk 2 sampai 6 pemain. 10 soal, jawab benar dan lebih cepat dari yang lain untuk dapat poin lebih banyak (3, 2, lalu 1).'
+      blurb='# Quiz cepat untuk 2 sampai 6 pemain. Jawab benar dan lebih cepat dari yang lain untuk dapat poin lebih banyak (3, 2, lalu 1).'
     >
       {({ room, you }) => {
         const v = room.state;
@@ -140,12 +139,12 @@ function Quiz() {
                     {v.question.q}
                   </h2>
 
-                  {!answered ? (
+                  {!answered && room.waiting ? (
                     <Countdown
                       key={v.idx}
                       className='mb-4'
-                      seconds={SECONDS}
-                      onExpire={() => r.move({ q: v.idx, choice: -1 })}
+                      seconds={room.waiting.seconds}
+                      deadline={r.receivedAt + room.waiting.remaining * 1000}
                     />
                   ) : (
                     <p className='a-bob mb-4 text-center text-xs text-mute'>
@@ -185,8 +184,8 @@ function Quiz() {
             )}
 
             <p className='mt-auto pt-4 text-center text-xs text-mute'>
-              Waktu 15 detik per soal. Tidak menjawab berarti 0 poin. Room
-              hilang sendiri setelah 2 jam.
+              {room.waiting && `Waktu ${room.waiting.seconds} detik per soal. `}
+              Tidak menjawab berarti 0 poin.
             </p>
           </>
         );

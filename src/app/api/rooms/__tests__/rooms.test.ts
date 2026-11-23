@@ -1,20 +1,25 @@
 /** @jest-environment node */
 import type { UnoView } from '@/lib/games/uno';
+import { GameConfig, sanitizeGameConfig } from '@/lib/rooms/game-config';
 
 import { GET, POST } from '@/app/api/rooms/[code]/route';
 import { GET as list, POST as create } from '@/app/api/rooms/route';
 
 const OLD = { ...process.env };
+const adminConfig = globalThis as { __gameConfig?: GameConfig };
 let ipCounter = 0;
 
 beforeEach(() => {
   process.env = { ...OLD };
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.KV_REST_API_URL;
+  delete process.env.KV_REST_API_TOKEN;
   (globalThis as { __rooms?: unknown }).__rooms = undefined;
 });
 afterEach(() => {
   process.env = OLD;
+  delete adminConfig.__gameConfig;
 });
 
 const ctx = (code: string) => ({ params: Promise.resolve({ code }) });
@@ -52,6 +57,44 @@ async function startedRoom(game = 'connect4') {
   const b = await (await post(a.code, { action: 'join' })).json();
   return { code: a.code as string, A: a.token as string, B: b.token as string };
 }
+
+describe('admin defaults in a new game', () => {
+  it('uses the configured custom clock, module count, and mistake allowance in Three Monkeys', async () => {
+    adminConfig.__gameConfig = sanitizeGameConfig({
+      monkeys: {
+        mode: 'custom',
+        custom: { modules: 5, seconds: 480, strikes: 7 },
+      },
+    });
+    const { code, A } = await startedRoom('monkeys');
+    expect((await post(code, { action: 'join' })).status).toBe(200);
+    const started = await post(code, { action: 'start', token: A });
+
+    expect(started.status).toBe(200);
+    const { room } = await started.json();
+    expect(room.state.allowed).toBe(7);
+    expect(room.state.modules).toHaveLength(5);
+    expect(room.state.total).toBe(480_000);
+  });
+
+  it('keeps Sekata admin settings within the ranges the game uses', async () => {
+    adminConfig.__gameConfig = sanitizeGameConfig({
+      sekata: { handSize: 15, sharedYellow: 0, blankCards: 2, penalty: 5 },
+    });
+    const { code, A } = await startedRoom('sekata');
+    expect((await post(code, { action: 'join' })).status).toBe(200);
+    const started = await post(code, { action: 'start', token: A });
+
+    expect(started.status).toBe(200);
+    const { room } = await started.json();
+    expect(room.state.config).toMatchObject({
+      handSize: 15,
+      sharedYellow: 0,
+      blankCards: 0,
+      penalty: 3,
+    });
+  });
+});
 
 describe('creating', () => {
   it('returns a code and a secret for the host, without leaking secrets', async () => {
@@ -182,6 +225,21 @@ describe('polling', () => {
 });
 
 describe('joining', () => {
+  it('fills different seats on concurrent joins and rejects the wrong game before reserving one', async () => {
+    const { code } = await (await make('domino')).json();
+    const wrong = await post(code, { action: 'join', game: 'chess' });
+    expect(wrong.status).toBe(409);
+    const joined = await Promise.all(
+      ['A', 'B', 'C'].map((name) =>
+        post(code, { action: 'join', name, game: 'domino' }),
+      ),
+    );
+    expect(joined.map((response) => response.status)).toEqual([200, 200, 200]);
+    const answers = await Promise.all(
+      joined.map((response) => response.json()),
+    );
+    expect(answers.map((answer) => answer.you).sort()).toEqual([1, 2, 3]);
+  });
   it('seats the second player, lets them rejoin, and refuses a third', async () => {
     const a = await (await make()).json();
     const first = await (await post(a.code, { action: 'join' })).json();

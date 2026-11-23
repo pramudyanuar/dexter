@@ -30,7 +30,7 @@ const MODES = [
     id: 'unomercy',
     title: 'No Mercy',
     blurb:
-      'Stack penalties, swap hands with a 7, pass them on with a 0. 25 cards and you are out.',
+      'Stack penalties, swap hands with a 7, pass them on with a 0. Reach the room’s card limit and you are out.',
     href: '/games/unomercy',
   },
 ] as const;

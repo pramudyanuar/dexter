@@ -11,17 +11,22 @@ import {
   move,
   newBoard,
 } from '@/lib/games/game2048';
+import { seededRandom } from '@/lib/games/seeded-random';
 import useMounted from '@/lib/useMounted';
 import useStoredState from '@/lib/useStoredState';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
+import { isInteractive } from '@/components/games/snake/controls';
 import SubmitScore from '@/components/games/SubmitScore';
 
 interface Game {
   board: Board;
   score: number;
   over: boolean;
+  seed: number;
+  moves: Move[];
+  rng: () => number;
 }
 
 const KEYS: Record<string, Move> = {
@@ -35,7 +40,11 @@ const KEYS: Record<string, Move> = {
   d: 'right',
 };
 
-const fresh = (): Game => ({ board: newBoard(), score: 0, over: false });
+function fresh(): Game {
+  const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+  const rng = seededRandom(seed);
+  return { seed, rng, board: newBoard(rng), score: 0, over: false, moves: [] };
+}
 
 const TILE_BG: Record<number, string> = {
   2: '#eee4da',
@@ -68,23 +77,37 @@ function tileStyle(value: number): React.CSSProperties {
 function Game2048() {
   // the board is random, so it is only created on the client
   const [game, setGame] = React.useState<Game>(fresh);
+  const latest = React.useRef(game);
   const [best, setBest] = useStoredState<number>('g2048-best', 0);
   const touchStart = React.useRef<{ x: number; y: number } | null>(null);
   const reached = maxTile(game.board);
 
+  const restart = () => {
+    latest.current = fresh();
+    setGame(latest.current);
+  };
+
   const play = (dir: Move) => {
-    if (game.over) return;
-    const result = move(game.board, dir);
+    const current = latest.current;
+    if (current.over) return;
+    const result = move(current.board, dir);
     if (!result.moved) return;
 
-    const board = addTile(result.board);
-    const score = game.score + result.gained;
-    setGame({ board, score, over: !canMove(board) });
+    const board = addTile(result.board, current.rng);
+    const score = current.score + result.gained;
+    latest.current = {
+      ...current,
+      board,
+      score,
+      over: !canMove(board),
+      moves: [...current.moves, dir],
+    };
+    setGame(latest.current);
     if (score > best) setBest(score);
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || isInteractive(e.target)) return;
     const dir = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
     if (dir) {
       e.preventDefault(); // arrow keys would scroll the page
@@ -124,11 +147,7 @@ function Game2048() {
         <span>
           skor <span className='text-ink'>{game.score}</span>
         </span>
-        <button
-          type='button'
-          onClick={() => setGame(fresh())}
-          className='text-info'
-        >
+        <button type='button' onClick={restart} className='text-info'>
           game baru
         </button>
         <span>
@@ -170,7 +189,7 @@ function Game2048() {
             </p>
             <button
               type='button'
-              onClick={() => setGame(fresh())}
+              onClick={restart}
               className='text-info hover:underline'
             >
               main lagi
@@ -187,7 +206,11 @@ function Game2048() {
       </p>
 
       {game.over && game.score > 0 && (
-        <SubmitScore game='2048' score={game.score} />
+        <SubmitScore
+          game='2048'
+          score={game.score}
+          replay={{ seed: game.seed, moves: game.moves }}
+        />
       )}
     </>
   );

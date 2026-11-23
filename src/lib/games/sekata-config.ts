@@ -108,6 +108,16 @@ export function modeDefaults(mode: Mode): Partial<SekataConfig> {
   }
 }
 
+export const SEKATA_LIMITS = {
+  handSize: { min: 4, max: 15 },
+  sharedYellow: { min: 0, max: 6 },
+  greenPerPlayer: { min: 0, max: 3 },
+  penalty: { min: 0, max: 3 },
+  timeLimit: { min: 0, max: 900 },
+  minWordCards: { min: 1, max: 4 },
+} as const;
+export const SEKATA_BLANK_CARDS = 3;
+
 const int = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === 'number' && Number.isFinite(v)
     ? Math.min(max, Math.max(min, Math.round(v)))
@@ -129,16 +139,22 @@ export function sanitizeConfig(raw: unknown): SekataConfig {
   };
   const cats = (r.categories ?? {}) as Record<string, unknown>;
   const sc = (r.scoring ?? {}) as Record<string, unknown>;
+  const setting = (key: keyof typeof SEKATA_LIMITS) => {
+    const { min, max } = SEKATA_LIMITS[key];
+    return int(r[key], min, max, base[key]);
+  };
   const cfg: SekataConfig = {
     mode,
-    handSize: int(r.handSize, 4, 15, base.handSize),
-    sharedYellow: int(r.sharedYellow, 0, 6, base.sharedYellow),
-    greenPerPlayer: int(r.greenPerPlayer, 0, 3, base.greenPerPlayer),
+    handSize: setting('handSize'),
+    sharedYellow: setting('sharedYellow'),
+    greenPerPlayer: setting('greenPerPlayer'),
     greenConsumed: bool(r.greenConsumed, base.greenConsumed),
     yellowConsumed: bool(r.yellowConsumed, base.yellowConsumed),
     blankCards:
-      r.blankCards === 3 ? 3 : r.blankCards === 0 ? 0 : base.blankCards,
-    penalty: int(r.penalty, 0, 3, base.penalty),
+      r.blankCards === 0 || r.blankCards === SEKATA_BLANK_CARDS
+        ? r.blankCards
+        : base.blankCards,
+    penalty: setting('penalty'),
     allowRepeats: bool(r.allowRepeats, base.allowRepeats),
     categories: {
       proper: bool(cats.proper, base.categories.proper),
@@ -152,8 +168,8 @@ export function sanitizeConfig(raw: unknown): SekataConfig {
     cooldown: bool(r.cooldown, base.cooldown),
     replacement: bool(r.replacement, base.replacement),
     replaceLimit: int(r.replaceLimit, 1, 5, base.replaceLimit),
-    timeLimit: int(r.timeLimit, 0, 900, base.timeLimit),
-    minWordCards: int(r.minWordCards, 1, 4, base.minWordCards),
+    timeLimit: setting('timeLimit'),
+    minWordCards: setting('minWordCards'),
     challenges: bool(r.challenges, base.challenges),
     needMeaning: bool(r.needMeaning, base.needMeaning),
     scoring: {

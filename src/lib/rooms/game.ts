@@ -27,7 +27,12 @@ export interface GameDef<S = unknown> {
   maxPlayers: number;
   /** Start once every seat is taken; otherwise the host starts the game. */
   autoStart: boolean;
-  start(players: number, rng?: () => number, options?: unknown): S;
+  start(
+    players: number,
+    rng?: () => number,
+    options?: unknown,
+    now?: number,
+  ): S;
   /**
    * Settings the admin may change in the waiting room. `sanitizeOptions` turns
    * whatever a client sent into a complete, safe settings object.
@@ -35,7 +40,13 @@ export interface GameDef<S = unknown> {
   defaultOptions?: unknown;
   sanitizeOptions?(raw: unknown): unknown;
   /** A new round after one has ended. */
-  restart(previous: S, players: number, rng?: () => number): S;
+  restart(
+    previous: S,
+    players: number,
+    rng?: () => number,
+    options?: unknown,
+    now?: number,
+  ): S;
   move(
     state: S,
     seat: number,
@@ -58,7 +69,7 @@ export interface GameDef<S = unknown> {
    * Moves that are not play (a reaction, say): the turn clock keeps running, so
    * nobody can stall by sending them.
    */
-  passive?(move: unknown): boolean;
+  passive?(move: unknown, previous?: S, next?: S): boolean;
   /** Chat rules for the state the game is in (otherwise everyone talks to everyone). */
   chat?(state: S, seat: number | null): ChatPolicy;
   /**
@@ -87,6 +98,8 @@ export interface GameDef<S = unknown> {
    * from the game must not be listed.
    */
   waiting?(state: S): { seats: number[]; seconds: number } | null;
+  /** Resolves a shared deadline when missed responses count as skips. */
+  timeout?(state: S): S;
   /**
    * A legal move to play for a seat that ran out of time, as the payload
    * `move` would receive. Null when there is nothing sensible to play. It may
@@ -97,5 +110,5 @@ export interface GameDef<S = unknown> {
    * Takes a player out of the game (they left or kept missing turns): the
    * others carry on without them, and with one player left that player wins.
    */
-  eliminate?(state: S, seat: number, rng?: () => number): S;
+  eliminate?(state: S, seat: number, rng?: () => number, now?: number): S;
 }

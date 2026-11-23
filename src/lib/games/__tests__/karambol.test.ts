@@ -11,6 +11,15 @@ import {
 } from '@/lib/games/karambol';
 
 describe('karambol engine', () => {
+  it('skips departing seats and ends when a team has no players left', () => {
+    const next = karambolGame.eliminate!(start(4), 0);
+    expect(next.turn).toBe(1);
+    expect(next.winner).toBeNull();
+    expect(karambolGame.eliminate!(next, 2)).toMatchObject({
+      winner: 1,
+      winningTeam: 1,
+    });
+  });
   it('sets up a standard 19-piece rack (9 white, 9 black, 1 queen)', () => {
     const rack = initialRack();
     expect(rack).toHaveLength(19);

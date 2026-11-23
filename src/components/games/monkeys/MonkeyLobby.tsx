@@ -10,6 +10,7 @@ import {
   MODES,
   MODULE_INFO,
   MODULE_KINDS,
+  MONKEY_CUSTOM_LIMITS,
   MonkeyConfig,
   Role,
   ROLE_INFO,
@@ -261,8 +262,7 @@ export default function MonkeyLobby({ r }: { r: Api }) {
                 <Stepper
                   label='Seconds on the clock'
                   value={cfg.custom.seconds}
-                  min={60}
-                  max={900}
+                  {...MONKEY_CUSTOM_LIMITS.seconds}
                   step={30}
                   disabled={locked}
                   onChange={(v) => setSpec({ seconds: v })}
@@ -270,8 +270,7 @@ export default function MonkeyLobby({ r }: { r: Api }) {
                 <Stepper
                   label='Modules'
                   value={cfg.custom.modules}
-                  min={3}
-                  max={5}
+                  {...MONKEY_CUSTOM_LIMITS.modules}
                   disabled={locked}
                   onChange={(v) => setSpec({ modules: v })}
                 />
@@ -286,8 +285,7 @@ export default function MonkeyLobby({ r }: { r: Api }) {
                 <Stepper
                   label='Mistakes allowed'
                   value={cfg.custom.mistakes}
-                  min={1}
-                  max={9}
+                  {...MONKEY_CUSTOM_LIMITS.mistakes}
                   disabled={locked}
                   onChange={(v) => setSpec({ mistakes: v })}
                 />

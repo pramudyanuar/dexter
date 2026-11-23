@@ -17,7 +17,7 @@ export const GAME_HINTS: Record<string, string[]> = {
   suit: [
     'Batu, gunting, kertas. Batu kalahkan gunting, gunting kalahkan kertas, kertas kalahkan batu.',
     'Pilih diam-diam; pilihan baru terbuka setelah kedua pemain memilih.',
-    'Yang menang dua ronde lebih dulu, menang.',
+    'Yang pertama mencapai target kemenangan ronde di room menang.',
   ],
   karambol: [
     'Bisa 2 pemain (1v1 Putih vs Hitam), 3 pemain (rebutan poin), atau 4 pemain (2v2 tim seberang).',
@@ -44,9 +44,9 @@ export const GAME_HINTS: Record<string, string[]> = {
     'Teriak UNO di kartu kedua terakhir, atau ditangkap dan tarik 2.',
   ],
   unomercy: [
-    'Uno paling kejam: hukuman +2/+4 bisa ditumpuk ke korban berikutnya.',
+    'Hukuman +2, +4, +6, dan +10 bisa ditumpuk ke pemain berikutnya.',
     'Ada kartu tukar tangan dan oper kartu; waspada.',
-    'Sampai 25 kartu? Kamu langsung gugur dari ronde itu.',
+    'Kamu langsung gugur saat mencapai batas kartu room.',
     'Teriak UNO di kartu kedua terakhir seperti biasa.',
   ],
   sekata: [

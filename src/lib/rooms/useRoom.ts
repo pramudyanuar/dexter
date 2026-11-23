@@ -54,6 +54,7 @@ export function useRoom<V>(game: GameId) {
   }, []);
 
   const adopt = (next: RoomView<V>) => {
+    if (next.version < version.current) return;
     version.current = next.version;
     setRoom(next);
     setReceivedAt(Date.now());
@@ -164,6 +165,7 @@ export function useRoom<V>(game: GameId) {
         body: { game, name, isPublic },
       });
       rememberSeat(game, data.code, data);
+      version.current = 0;
       setSession({ code: data.code, token: data.token, you: data.you });
       adopt(data.room);
     });
@@ -174,9 +176,11 @@ export function useRoom<V>(game: GameId) {
       // coming back to a room you were already in gives you the same seat
       const before = await recallSeat(game, target);
       const data = await callRoom(`/api/rooms/${target}`, {
-        body: { action: 'join', name, token: before?.token },
+        body: { action: 'join', game, name, token: before?.token },
       });
+      if (data.room.game !== game) throw new Error('Kode ini untuk game lain');
       rememberSeat(game, target, data);
+      version.current = 0;
       setSession({ code: target, token: data.token, you: data.you });
       adopt(data.room);
       window.history.replaceState(null, '', window.location.pathname);

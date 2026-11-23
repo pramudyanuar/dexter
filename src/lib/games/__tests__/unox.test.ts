@@ -345,12 +345,38 @@ describe('No Mercy', () => {
     let s = game('nomercy', {
       hands: [['RD', 'R2'], ['B1', ...big], ['G1']],
     });
+    expect(view(mercy, s, 0).mercyLimit).toBe(MERCY_LIMIT);
     s = n(s, 0, { type: 'play', index: 0 });
     const done = n(s, 1, { type: 'draw' });
     expect(done.dropped).toEqual([1]);
     expect(done.hands[1]).toHaveLength(0);
     expect(done.last?.mercy).toEqual([1]);
     expect(done.turn).toBe(2);
+  });
+
+  it('shows the configured mercy limit to both players across a rematch', () => {
+    const options = { mercyLimit: 40 };
+    const started = mercy.start(2, seeded(1), options);
+    const rematch = mercy.restart!(started, 2, seeded(2), options);
+
+    for (const state of [started, rematch]) {
+      expect(view(mercy, state, 0).mercyLimit).toBe(40);
+      expect(view(mercy, state, 1).mercyLimit).toBe(40);
+    }
+    expect(view(flip, flip.start(2, seeded(1)), 0).mercyLimit).toBeUndefined();
+  });
+
+  it('deals fewer cards than the mercy limit at the start and on rematch', () => {
+    const options = { mercyLimit: 5, handSize: 7 };
+    const started = mercy.start(2, seeded(1), options);
+    const rematch = mercy.restart!(started, 2, seeded(2), options);
+
+    expect(view(mercy, started, 0).counts).toEqual([4, 4]);
+    expect(view(mercy, rematch, 0).counts).toEqual([4, 4]);
+    expect(view(mercy, started, 0).mercyLimit).toBe(5);
+    expect(view(flip, flip.start(2, seeded(1), options), 0).counts).toEqual([
+      7, 7,
+    ]);
   });
 
   it('with two players left, the one who stays wins when the other is out', () => {

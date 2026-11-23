@@ -11,6 +11,8 @@ import {
   reveal,
   toggleFlag,
 } from '@/lib/games/minesweeper';
+import { seededRandom } from '@/lib/games/seeded-random';
+import type { MinesMove } from '@/lib/leaderboard/replay';
 import useStoredState from '@/lib/useStoredState';
 
 import Confetti from '@/components/games/Confetti';
@@ -34,9 +36,35 @@ const NUMBER_COLOR = [
 
 const pad = (n: number) => String(Math.min(n, 999)).padStart(3, '0');
 
+function newRun() {
+  return {
+    controller: new AbortController(),
+    opening: false,
+    ticket: null as string | null,
+    rng: Math.random,
+    moves: [] as MinesMove[],
+  };
+}
+
+async function requestRun<T>(body: object, signal: AbortSignal): Promise<T> {
+  const response = await fetch('/api/leaderboard/mines', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(3500)]),
+  });
+  if (!response.ok) throw new Error('Peringkat tidak tersedia');
+  return response.json();
+}
+
 function Minesweeper() {
   const [level, setLevel] = React.useState<Level>('mudah');
   const [game, setGame] = React.useState<MinesGame>(() => newGame('mudah'));
+  const latest = React.useRef(game);
+  const run = React.useRef<ReturnType<typeof newRun> | null>(null);
+  const [ranked, setRanked] = React.useState<
+    { receipt: string; score: number } | 'checking' | 'unavailable' | null
+  >(null);
   const [flagMode, setFlagMode] = React.useState(false);
   const [seconds, setSeconds] = React.useState(0);
   const [best, setBest] = useStoredState<Best>('mines-best', NO_BEST);
@@ -45,6 +73,13 @@ function Minesweeper() {
   const held = React.useRef(false);
 
   const playing = game.status === 'playing';
+  React.useEffect(() => {
+    run.current = newRun();
+    return () => {
+      run.current?.controller.abort();
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!playing) return;
@@ -56,16 +91,29 @@ function Minesweeper() {
   }, [playing]);
 
   const start = (next: Level) => {
+    run.current?.controller.abort();
+    run.current = newRun();
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    held.current = false;
     setLevel(next);
-    setGame(newGame(next));
+    latest.current = newGame(next);
+    setGame(latest.current);
+    setRanked(null);
     setSeconds(0);
   };
 
-  const apply = (next: MinesGame) => {
-    if (game.status === 'ready' && next.status !== 'ready') {
+  const apply = (
+    next: MinesGame,
+    move: MinesMove,
+    active: ReturnType<typeof newRun>,
+  ) => {
+    const before = latest.current;
+    if (next === before) return;
+    active.moves.push(move);
+    if (before.status === 'ready' && next.status !== 'ready') {
       startedAt.current = Date.now();
     }
-    if (next.status === 'won' && game.status !== 'won') {
+    if (next.status === 'won' && before.status !== 'won') {
       const time = Math.max(
         1,
         Math.round((Date.now() - startedAt.current) / 1000),
@@ -73,16 +121,64 @@ function Minesweeper() {
       setSeconds(time);
       if (!best[level] || time < best[level]!)
         setBest({ ...best, [level]: time });
+      if (active.ticket) {
+        setRanked('checking');
+        void requestRun<{ receipt: string; score: number }>(
+          { action: 'finish', ticket: active.ticket, moves: active.moves },
+          active.controller.signal,
+        )
+          .then((result) => {
+            if (run.current === active && !active.controller.signal.aborted)
+              setRanked(result);
+          })
+          .catch(() => {
+            if (run.current === active && !active.controller.signal.aborted)
+              setRanked('unavailable');
+          });
+      } else {
+        setRanked('unavailable');
+      }
     }
+    latest.current = next;
     setGame(next);
   };
 
-  const open = (x: number, y: number) => {
-    const cell = game.cells[y * game.width + x];
-    apply(cell.state === 'open' ? chord(game, x, y) : reveal(game, x, y));
+  const open = async (x: number, y: number) => {
+    const active = run.current;
+    const board = latest.current;
+    const cell = board.cells[y * board.width + x];
+    if (!active || active.opening || !cell) return;
+    if (board.status === 'ready' && cell.state === 'hidden') {
+      active.opening = true;
+      try {
+        const { seed, ticket } = await requestRun<{
+          seed: number;
+          ticket: string;
+        }>({ action: 'start', level }, active.controller.signal);
+        active.ticket = ticket;
+        active.rng = seededRandom(seed);
+      } catch {
+        // A local game can still start while the leaderboard is unavailable.
+      } finally {
+        active.opening = false;
+      }
+      if (run.current !== active || active.controller.signal.aborted) return;
+    }
+    apply(
+      cell.state === 'open'
+        ? chord(board, x, y, active.rng)
+        : reveal(board, x, y, active.rng),
+      ['open', x, y],
+      active,
+    );
   };
 
-  const flag = (x: number, y: number) => apply(toggleFlag(game, x, y));
+  const flag = (x: number, y: number) => {
+    const active = run.current;
+    const board = latest.current;
+    if (!active || active.opening || !board.cells[y * board.width + x]) return;
+    apply(toggleFlag(board, x, y), ['flag', x, y], active);
+  };
 
   const press = (x: number, y: number) => {
     if (held.current) {
@@ -90,7 +186,7 @@ function Minesweeper() {
       return;
     }
     if (flagMode) flag(x, y);
-    else open(x, y);
+    else void open(x, y);
   };
 
   // long press on touch screens places a flag
@@ -240,13 +336,21 @@ function Minesweeper() {
         )}
       </p>
 
-      {game.status === 'won' && (
+      {ranked && typeof ranked === 'object' && (
         <SubmitScore
           game='minesweeper'
-          score={seconds}
-          meta={level}
+          score={ranked.score}
+          replay={ranked.receipt}
           label='Waktu'
+          leaderboardHref={`/games/leaderboard?game=minesweeper&level=${level}`}
         />
+      )}
+      {typeof ranked === 'string' && (
+        <p className='mt-2 text-center text-xs text-mute' role='status'>
+          {ranked === 'checking'
+            ? 'Memverifikasi waktu untuk leaderboard…'
+            : 'Leaderboard tidak tersedia untuk ronde ini.'}
+        </p>
       )}
 
       <p className='mt-auto pt-4 text-center text-xs text-mute'>

@@ -104,9 +104,8 @@ function fresh(
       ? Math.round(opts.handSize)
       : HAND;
   const tiles = shuffle(set(), rng);
-  const hands = Array.from({ length: players }, () =>
-    tiles.splice(0, handSize),
-  );
+  const dealt = Math.min(handSize, Math.floor(tiles.length / players));
+  const hands = Array.from({ length: players }, () => tiles.splice(0, dealt));
   return {
     players,
     hands,
@@ -131,8 +130,8 @@ export const dominoGame: GameDef<DominoState> = {
   autoStart: false,
 
   start: (players, rng, options) => fresh(players, 0, rng, options),
-  restart: (previous, players, rng) =>
-    fresh(players, (previous.starter + 1) % players, rng),
+  restart: (previous, players, rng, options) =>
+    fresh(players, (previous.starter + 1) % players, rng, options),
 
   move(state, seat, move) {
     if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);

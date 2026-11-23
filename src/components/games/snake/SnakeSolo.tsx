@@ -16,7 +16,7 @@ import SnakeBoard from '@/components/games/snake/SnakeBoard';
 
 type Status =
   | { phase: 'ready' | 'running' | 'paused' }
-  | { phase: 'ended'; replay: SnakeReplay };
+  | { phase: 'ended'; replay: SnakeReplay; seed: number };
 
 function preview(challenge?: DailyChallenge) {
   return initialSnake(challenge ? seededRandom(challenge.seed) : () => 0.5);
@@ -33,7 +33,11 @@ export default function SnakeSolo({
   onBest: (score: number) => void;
   challenge?: DailyChallenge;
   onRestart?: () => void;
-  resultContent: (board: SnakeState, replay: SnakeReplay) => React.ReactNode;
+  resultContent: (
+    board: SnakeState,
+    replay: SnakeReplay,
+    seed: number,
+  ) => React.ReactNode;
 }) {
   const [{ board, elapsed }, setDisplay] = React.useState(() => ({
     board: preview(challenge),
@@ -43,6 +47,7 @@ export default function SnakeSolo({
   const { phase } = status;
   const run = React.useRef({
     board,
+    seed: 0,
     rng: Math.random,
     elapsed: 0,
     ticks: 0,
@@ -57,7 +62,7 @@ export default function SnakeSolo({
     const before = play.board;
     play.elapsed += nextSnakeDelay(before.score, play.elapsed, limit);
     play.ticks++;
-    if (challenge && before.dir !== before.next) {
+    if (before.dir !== before.next) {
       play.turns.push([play.ticks, before.next]);
     }
     const next = step(before, play.rng);
@@ -70,6 +75,7 @@ export default function SnakeSolo({
     setStatus({
       phase: 'ended',
       replay: { ticks: play.ticks, turns: play.turns },
+      seed: play.seed,
     });
     if (next.score > best) onBest(next.score);
     return null;
@@ -104,10 +110,13 @@ export default function SnakeSolo({
   const focusBoard = () => boardRef.current?.focus({ preventScroll: true });
 
   function start(dir?: Dir) {
-    const rng = challenge ? seededRandom(challenge.seed) : Math.random;
+    const seed =
+      challenge?.seed ?? crypto.getRandomValues(new Uint32Array(1))[0];
+    const rng = seededRandom(seed);
     const initial = initialSnake(rng);
     run.current = {
       board: dir ? turn(initial, dir) : initial,
+      seed,
       rng,
       elapsed: 0,
       ticks: 0,
@@ -200,7 +209,8 @@ export default function SnakeSolo({
                     ? `Game over. Skor ${board.score}.`
                     : `Waktu habis. Skor ${board.score}.`)}
             </p>
-            {status.phase === 'ended' && resultContent(board, status.replay)}
+            {status.phase === 'ended' &&
+              resultContent(board, status.replay, status.seed)}
             <button
               type='button'
               className='min-h-11 rounded-lg bg-ink px-4 font-semibold text-paper hover:opacity-90'

@@ -24,13 +24,13 @@ const c = (code: string): Card => ({
   v: code.slice(1) as Card['v'],
 });
 
-const BASICS: Record<Kind, string[]> = {
+const basics = (mercyLimit: number): Record<Kind, string[]> => ({
   uno: [
     'Play a card that matches the colour or the number/symbol of the top card. First to empty their hand wins; the rest play on for 2nd, 3rd…',
     'Nothing fits? Draw one. If the drawn card fits you may play it, or pass.',
     'Same numbers can go down together: tap a number, pick the others, the last one sets the colour.',
     'On your second-to-last card, call UNO (button, or the U key). Forget it and anyone can catch you: you draw 2.',
-    'Tap or drag a card onto the pile to play it. You have 40 seconds per turn.',
+    'Tap or drag a card onto the pile to play it.',
   ],
   unoflip: [
     'Every card has two faces. The game starts on the light side; a FLIP card turns the pile and every hand over to the dark side (and back).',
@@ -41,10 +41,10 @@ const BASICS: Record<Kind, string[]> = {
   unomercy: [
     'Match colour or number/symbol. Nothing fits? You keep drawing until a card does.',
     'Draw cards stack: answer a +2/+4/+6/+10 with any other draw card and the total moves on. Whoever cannot answer takes the whole stack and loses the turn.',
-    'Reach 25 cards and you are out of the game. No mercy.',
+    `Reach ${mercyLimit} cards and you are out of the game. No mercy.`,
     'Call UNO on your second-to-last card, or get caught and draw 2.',
   ],
-};
+});
 
 const CARDS: Record<Kind, Section[]> = {
   uno: [
@@ -196,9 +196,13 @@ const TITLE: Record<Kind, string> = {
 /** The rules and what every special card does, for the Uno being played. */
 export default function UnoGuide({
   game,
+  mercyLimit,
+  turnSeconds,
   onClose,
 }: {
   game: Kind;
+  mercyLimit: number;
+  turnSeconds?: number;
   onClose: () => void;
 }) {
   React.useEffect(() => {
@@ -231,9 +235,12 @@ export default function UnoGuide({
         </div>
         <div className='space-y-4 overflow-y-auto px-4 py-3 text-sm'>
           <ul className='list-disc space-y-1.5 pl-5 text-ink/90'>
-            {BASICS[game].map((line) => (
+            {basics(mercyLimit)[game].map((line) => (
               <li key={line}>{line}</li>
             ))}
+            {turnSeconds !== undefined && (
+              <li>You have {turnSeconds} seconds per turn.</li>
+            )}
           </ul>
           {CARDS[game].map((section) => (
             <section key={section.title}>

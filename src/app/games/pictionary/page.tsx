@@ -6,6 +6,7 @@ import {
   COLORS,
   COORD_MAX,
   PictionaryView,
+  ROUND_SECONDS,
   Stroke,
   WIDTHS,
 } from '@/lib/games/pictionary';
@@ -20,7 +21,6 @@ import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
 
 const W = 960;
 const H = 540;
-const ROUND_SECONDS = 80;
 const CHUNK = 400; // numbers per request, matches the server limit
 
 interface Batch {
@@ -179,33 +179,6 @@ function Canvas({
       className={`mx-auto aspect-video max-h-full w-full touch-none rounded-lg border-2 border-line bg-white shadow-md ${
         canDraw ? 'cursor-crosshair' : ''
       }`}
-    />
-  );
-}
-
-/** Ends the round when time is up. The drawer does it; others only if the drawer is gone. */
-function RoundClock({
-  isDrawer,
-  onNext,
-}: {
-  isDrawer: boolean;
-  onNext: () => void;
-}) {
-  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  React.useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-  return (
-    <Countdown
-      seconds={ROUND_SECONDS}
-      className='mb-3'
-      onExpire={() => {
-        if (isDrawer) onNext();
-        else timer.current = setTimeout(onNext, 4000);
-      }}
     />
   );
 }
@@ -415,10 +388,16 @@ function PlayArea({
             />
           </div>
           <div className='mt-2 shrink-0'>
-            <RoundClock
-              key={`clock-${v.round}`}
-              isDrawer={isDrawer}
-              onNext={() => r.move({ type: 'next', round: v.round })}
+            <Countdown
+              seconds={r.room?.waiting?.seconds ?? ROUND_SECONDS}
+              deadline={
+                r.receivedAt +
+                Math.min(
+                  v.remainingMs,
+                  (r.room?.waiting?.remaining ?? Infinity) * 1000,
+                )
+              }
+              className='mb-3'
             />
           </div>
 

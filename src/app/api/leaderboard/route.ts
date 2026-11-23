@@ -1,13 +1,22 @@
 import { NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
-import { MAX_SNAKE_SCORE } from '@/lib/games/snake';
-import { getLeaderboardStore } from '@/lib/leaderboard/store';
+import type { Level } from '@/lib/games/minesweeper';
+import { LEVELS } from '@/lib/games/minesweeper';
+import { readMinesResult } from '@/lib/leaderboard/mines-proof';
+import { verifySoloReplay } from '@/lib/leaderboard/replay';
+import {
+  getLeaderboardStore,
+  getMinesLeaderboardStore,
+} from '@/lib/leaderboard/store';
 import {
   isLowerBetter,
+  isMinesLevel,
   scoreUnit,
+  sortEntries,
   VALID_GAME_IDS,
 } from '@/lib/leaderboard/types';
+import { readJson } from '@/lib/read-json';
 import { isAdminAuthed } from '@/lib/rooms/admin-auth';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
@@ -33,10 +42,35 @@ export async function GET(req: Request) {
 
   try {
     if (!game) {
-      const all = await store.listAll();
+      const [all, mines] = await Promise.all([
+        store.listAll(),
+        getMinesLeaderboardStore('mudah')?.list('minesweeper'),
+      ]);
+      const entries = sortEntries(
+        [
+          ...(mines ?? []),
+          ...(all.minesweeper ?? []).filter((entry) => entry.meta === 'mudah'),
+        ],
+        'minesweeper',
+      );
+      if (entries.length) all.minesweeper = entries;
+      else delete all.minesweeper;
       return NextResponse.json({ games: all }, { headers: NO_STORE });
     }
-    const entries = await store.list(game);
+    let entries = await store.list(game);
+    if (game === 'minesweeper') {
+      const level = searchParams.get('level') ?? 'mudah';
+      if (!isMinesLevel(level))
+        return NextResponse.json(
+          { error: 'Level tidak dikenal' },
+          { status: 400 },
+        );
+      const ranked = await getMinesLeaderboardStore(level)?.list(game);
+      entries = sortEntries(
+        [...(ranked ?? []), ...entries.filter((entry) => entry.meta === level)],
+        game,
+      );
+    }
     return NextResponse.json(
       {
         game,
@@ -52,25 +86,22 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const store = getLeaderboardStore();
+  let store = getLeaderboardStore();
   if (!store) return storageUnavailable(NO_STORE_ERROR);
 
-  const body = (await req.json().catch(() => null)) as {
-    game?: string;
-    name?: string;
-    score?: number;
-    meta?: string;
-    submissionId?: string;
+  const body = (await readJson(req, 256 * 1024)) as {
+    game?: unknown;
+    name?: unknown;
+    replay?: unknown;
   } | null;
 
-  const game = String(body?.game ?? '').trim();
+  const game = typeof body?.game === 'string' ? body.game.trim() : '';
   if (!VALID_GAME_IDS.has(game)) {
     return NextResponse.json({ error: 'Game tidak dikenal' }, { status: 400 });
   }
 
-  const name = String(body?.name ?? '')
-    .trim()
-    .slice(0, 24);
+  const name =
+    typeof body?.name === 'string' ? body.name.trim().slice(0, 24) : '';
   if (!name) {
     return NextResponse.json(
       { error: 'Nama pemain wajib diisi' },
@@ -78,28 +109,31 @@ export async function POST(req: Request) {
     );
   }
 
-  const score = Number(body?.score);
-  if (
-    !Number.isFinite(score) ||
-    score < 0 ||
-    (game === 'snake' && (!Number.isInteger(score) || score > MAX_SNAKE_SCORE))
-  ) {
-    return NextResponse.json({ error: 'Skor tidak valid' }, { status: 400 });
+  const mine = game === 'minesweeper' ? readMinesResult(body?.replay) : null;
+  const solo =
+    game === 'minesweeper' ? null : verifySoloReplay(game, body?.replay);
+  const verified = mine ?? solo;
+  if (!verified) {
+    return NextResponse.json(
+      { error: 'Riwayat permainan tidak valid' },
+      { status: 400, headers: NO_STORE },
+    );
   }
-
-  const meta = body?.meta ? String(body.meta).trim().slice(0, 40) : undefined;
+  if (mine) store = getMinesLeaderboardStore(mine.level);
+  if (!store) return storageUnavailable(NO_STORE_ERROR);
   const id =
-    typeof body?.submissionId === 'string' &&
-    /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(body.submissionId)
-      ? body.submissionId
-      : randomUUID();
+    mine?.id ??
+    createHash('sha256')
+      .update(`${game}:${JSON.stringify(solo?.replay)}`)
+      .digest('hex');
   try {
     const result = await store.submit(game, {
       id,
       name,
-      score: Math.round(score),
-      meta,
+      score: verified.score,
+      meta: mine?.level ?? solo?.meta,
       at: Date.now(),
+      verified: true,
     });
     return NextResponse.json(
       { game, rank: result.rank, entries: result.entries },
@@ -124,6 +158,13 @@ export async function DELETE(req: Request) {
   }
 
   try {
+    if (game === 'minesweeper') {
+      await Promise.all(
+        (Object.keys(LEVELS) as Level[]).map((level) =>
+          getMinesLeaderboardStore(level)?.clear(game),
+        ),
+      );
+    }
     await store.clear(game);
     return NextResponse.json({ cleared: game }, { headers: NO_STORE });
   } catch {

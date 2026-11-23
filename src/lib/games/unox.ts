@@ -10,6 +10,13 @@ import {
   UnoEvent,
   UnoView,
 } from '@/lib/games/uno';
+import {
+  maxMercyHandSize,
+  UNO_HAND_SIZE,
+  UNO_MERCY_LIMIT,
+  UNO_PLAYERS,
+  UNO_TURN_SECONDS,
+} from '@/lib/games/uno-rules';
 import type { GameDef } from '@/lib/rooms/game';
 import { GameId, RoomError } from '@/lib/rooms/types';
 
@@ -21,7 +28,7 @@ import { GameId, RoomError } from '@/lib/rooms/types';
  *   until your colour comes up).
  * - No Mercy: a bigger, crueller deck. Draw cards stack, you keep drawing until
  *   something fits, a 7 swaps hands, a 0 passes every hand along, and anyone who
- *   reaches 25 cards is out.
+ *   reaches the room's card limit is out.
  */
 
 export type Variant = 'flip' | 'nomercy';
@@ -33,9 +40,9 @@ export interface XCard {
   d: Card;
 }
 
-export const HAND_SIZE = 7;
-/** At this many cards in hand a No Mercy player is knocked out. */
-export const MERCY_LIMIT = 25;
+export const HAND_SIZE = UNO_HAND_SIZE.default;
+/** Default number of cards in hand that knocks out a No Mercy player. */
+export const MERCY_LIMIT = UNO_MERCY_LIMIT.default;
 
 export interface XState {
   variant: Variant;
@@ -55,7 +62,7 @@ export interface XState {
   pending: { seat: number; index: number } | null;
   /** No Mercy: stacked draw cards the current player must beat or take */
   penalty: number;
-  /** No Mercy: configurable mercy limit (defaults to MERCY_LIMIT = 25) */
+  /** No Mercy: configurable mercy limit (defaults to MERCY_LIMIT) */
   mercyLimit?: number;
   calledUno: boolean[];
   last: UnoEvent | null;
@@ -67,6 +74,7 @@ export interface UnoXView extends UnoView {
   side: Side;
   /** Stacked cards you must beat with another draw card, or take (No Mercy) */
   penalty: number;
+  mercyLimit?: number;
 }
 
 // ------------------------------------------------------------------- decks
@@ -252,28 +260,36 @@ export function makeStart(variant: Variant) {
       handSize?: number;
       mercyLimit?: number;
     };
-    const handSize =
+    const requestedHandSize =
       typeof opts.handSize === 'number' &&
-      opts.handSize >= 2 &&
-      opts.handSize <= 15
+      opts.handSize >= UNO_HAND_SIZE.min &&
+      opts.handSize <= UNO_HAND_SIZE.max
         ? Math.round(opts.handSize)
         : HAND_SIZE;
     const mercyLimit =
       typeof opts.mercyLimit === 'number' &&
-      opts.mercyLimit >= 5 &&
-      opts.mercyLimit <= 100
+      opts.mercyLimit >= UNO_MERCY_LIMIT.min &&
+      opts.mercyLimit <= UNO_MERCY_LIMIT.max
         ? Math.round(opts.mercyLimit)
         : MERCY_LIMIT;
 
     const draw =
       variant === 'flip' ? flipDeck(rng) : shuffle(noMercyDeck(), rng);
+    // Open with a card that is a plain number on the light side.
+    const first = draw.splice(
+      draw.findLastIndex((c) => isNumber(c.l)),
+      1,
+    )[0];
+    const handSize = Math.min(
+      variant === 'nomercy'
+        ? Math.min(requestedHandSize, maxMercyHandSize(mercyLimit))
+        : requestedHandSize,
+      Math.floor(draw.length / players),
+    );
     const hands: XCard[][] = Array.from({ length: players }, () => []);
     for (let i = 0; i < handSize; i++) {
       for (let p = 0; p < players; p++) hands[p].push(draw.pop()!);
     }
-    // open with a card that is a plain number on the light side
-    const at = draw.findLastIndex((c) => isNumber(c.l));
-    const first = draw.splice(at, 1)[0];
     return {
       variant,
       players,
@@ -470,8 +486,9 @@ function play(
     case 'L': {
       s.side = s.side === 'light' ? 'dark' : 'light';
       const now = topFace(s);
+      const colors = colorsOf(s);
       s.color =
-        now.c === 'W' ? colorsOf(s)[Math.floor(rng() * 4)] : (now.c as Color);
+        now.c === 'W' ? colors[Math.floor(rng() * colors.length)] : now.c;
       s.last.flipped = s.side;
       s.turn = after();
       break;
@@ -576,13 +593,13 @@ export function makeGame(variant: Variant, id: GameId): GameDef<XState> {
   const start = makeStart(variant);
   return {
     id,
-    minPlayers: 2,
-    maxPlayers: 8,
+    minPlayers: UNO_PLAYERS.min,
+    maxPlayers: UNO_PLAYERS.max,
     autoStart: false,
 
     start,
-    restart: (previous, players, rng) => {
-      const next = start(players, rng);
+    restart: (previous, players, rng, options) => {
+      const next = start(players, rng, options);
       const opener = previous.winner ?? 0;
       return { ...next, turn: opener < players ? opener : 0 };
     },
@@ -635,7 +652,9 @@ export function makeGame(variant: Variant, id: GameId): GameDef<XState> {
     },
 
     waiting: (state) =>
-      finished(state) ? null : { seats: [state.turn], seconds: 40 },
+      finished(state)
+        ? null
+        : { seats: [state.turn], seconds: UNO_TURN_SECONDS },
 
     autoMove: (state, seat) =>
       state.pending?.seat === seat ? { type: 'pass' } : { type: 'draw' },
@@ -672,6 +691,9 @@ export function makeGame(variant: Variant, id: GameId): GameDef<XState> {
         variant: state.variant,
         side: state.side,
         penalty: state.penalty,
+        ...(state.variant === 'nomercy'
+          ? { mercyLimit: state.mercyLimit ?? MERCY_LIMIT }
+          : {}),
         players: state.players,
         counts,
         hand,

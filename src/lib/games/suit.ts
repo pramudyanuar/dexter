@@ -75,6 +75,7 @@ export const suitGame: GameDef<SuitState> = {
   start: fresh,
   restart: (previous, players, rng) =>
     fresh(players, rng, { winsNeeded: previous.winsNeeded }),
+  passive: (_move, previous, next) => previous?.round === next?.round,
 
   move(state, seat, move) {
     const pick = (move as { pick?: unknown } | null)?.pick;
@@ -128,7 +129,7 @@ export const suitGame: GameDef<SuitState> = {
       last: state.last,
       round: state.round,
       winner: state.winner,
-      target: WINS_NEEDED,
+      target: state.winsNeeded ?? WINS_NEEDED,
     };
   },
 

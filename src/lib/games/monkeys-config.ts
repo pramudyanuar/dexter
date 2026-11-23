@@ -271,6 +271,12 @@ export const DEFAULT_MONKEYS: MonkeyConfig = {
   assign: ['blind', 'mute', 'deaf'],
 };
 
+export const MONKEY_CUSTOM_LIMITS = {
+  modules: { min: 3, max: 5 },
+  seconds: { min: 60, max: 900 },
+  mistakes: { min: 1, max: 9 },
+} as const;
+
 const clamp = (v: unknown, lo: number, hi: number, fallback: number) => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : NaN;
   return Number.isNaN(n) ? fallback : Math.min(hi, Math.max(lo, n));
@@ -288,10 +294,25 @@ export function sanitizeSpec(raw: unknown): Spec {
     ? MODULE_KINDS.filter((k) => (o.kinds as unknown[]).includes(k))
     : [];
   return {
-    seconds: clamp(o.seconds, 60, 900, DEFAULT_SPEC.seconds),
-    modules: clamp(o.modules, 3, 5, DEFAULT_SPEC.modules),
+    seconds: clamp(
+      o.seconds,
+      MONKEY_CUSTOM_LIMITS.seconds.min,
+      MONKEY_CUSTOM_LIMITS.seconds.max,
+      DEFAULT_SPEC.seconds,
+    ),
+    modules: clamp(
+      o.modules,
+      MONKEY_CUSTOM_LIMITS.modules.min,
+      MONKEY_CUSTOM_LIMITS.modules.max,
+      DEFAULT_SPEC.modules,
+    ),
     difficulty: clamp(o.difficulty, 1, 3, 2) as 1 | 2 | 3,
-    mistakes: clamp(o.mistakes, 1, 9, DEFAULT_SPEC.mistakes),
+    mistakes: clamp(
+      o.mistakes ?? o.strikes,
+      MONKEY_CUSTOM_LIMITS.mistakes.min,
+      MONKEY_CUSTOM_LIMITS.mistakes.max,
+      DEFAULT_SPEC.mistakes,
+    ),
     penalty: clamp(o.penalty, 0, 60, DEFAULT_SPEC.penalty),
     kinds: kinds.length ? kinds : MODULE_KINDS,
   };

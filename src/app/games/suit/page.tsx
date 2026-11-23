@@ -7,6 +7,7 @@ import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
+import Countdown from '@/components/games/Countdown';
 import GameShell from '@/components/games/GameShell';
 import RoomBar from '@/components/games/RoomBar';
 import RoomChat from '@/components/games/RoomChat';
@@ -65,60 +66,6 @@ function ShapeIcon({ pick, className }: { pick: Pick; className?: string }) {
   );
 }
 
-/** Seconds each player gets to choose before a random pick is made for them. */
-const PICK_SECONDS = 10;
-
-/** Shrinking bar + number. Calls onExpire once when time runs out. */
-function RoundTimer({
-  roundKey,
-  onExpire,
-}: {
-  roundKey: string;
-  onExpire: () => void;
-}) {
-  const [left, setLeft] = React.useState(PICK_SECONDS);
-  const expire = React.useRef(onExpire);
-  React.useEffect(() => {
-    expire.current = onExpire;
-  });
-
-  React.useEffect(() => {
-    const end = Date.now() + PICK_SECONDS * 1000;
-    const timer = setInterval(() => {
-      const remaining = Math.ceil((end - Date.now()) / 1000);
-      setLeft(Math.max(remaining, 0));
-      if (remaining <= 0) {
-        clearInterval(timer);
-        expire.current();
-      }
-    }, 200);
-    return () => clearInterval(timer);
-  }, [roundKey]);
-
-  const urgent = left <= 3;
-  return (
-    <div className='mb-4' data-testid='round-timer'>
-      <div className='h-2 overflow-hidden rounded-full bg-line'>
-        <div
-          key={roundKey}
-          className={`h-full rounded-full ${urgent ? 'bg-err' : 'bg-accent'}`}
-          style={{
-            width: '100%',
-            animation: `suit-shrink ${PICK_SECONDS}s linear forwards`,
-          }}
-        />
-      </div>
-      <p
-        className={`mt-1 text-center text-xs ${
-          urgent ? 'a-tick font-bold text-err' : 'text-mute'
-        }`}
-      >
-        {left} detik
-      </p>
-    </div>
-  );
-}
-
 /** Two shaking fists, then the real hand pops out. */
 function Hand({ pick, delay = 0 }: { pick: Pick; delay?: number }) {
   const [shown, setShown] = React.useState(false);
@@ -144,7 +91,7 @@ function Suit() {
   if (!r.session) {
     return (
       <RoomLobby
-        blurb='# Batu, gunting, kertas untuk dua pemain di device berbeda. Siapa yang menang dua ronde lebih dulu, menang.'
+        blurb='# Batu, gunting, kertas untuk dua pemain. Capai target kemenangan ronde di room untuk menang.'
         busy={r.busy}
         error={r.error}
         name={r.name}
@@ -230,13 +177,11 @@ function Suit() {
         {status}
       </p>
 
-      {room?.status === 'playing' && state && !state.myPick && (
-        <RoundTimer
-          key={state.round}
-          roundKey={`${state.round}`}
-          onExpire={() =>
-            r.move({ pick: PICKS[Math.floor(Math.random() * PICKS.length)] })
-          }
+      {room?.waiting?.seats.includes(you) && (
+        <Countdown
+          className='mb-4'
+          seconds={room.waiting.seconds}
+          deadline={r.receivedAt + room.waiting.remaining * 1000}
         />
       )}
 
@@ -317,8 +262,9 @@ function Suit() {
       {r.error && <p className='mt-3 text-center text-err'>{r.error}</p>}
 
       <p className='mt-auto pt-4 text-center text-xs text-mute'>
-        Pilihanmu tersembunyi sampai lawan juga memilih. Kamu punya 10 detik per
-        ronde, lewat itu dipilihkan acak. Room hilang sendiri setelah 2 jam.
+        Pilihanmu tersembunyi sampai lawan juga memilih.
+        {room?.waiting &&
+          ` Waktu ${room.waiting.seconds} detik per ronde. Jika waktu habis, room mencatat pelanggaran dan bisa memilihkan jawaban acak.`}
       </p>
     </>
   );

@@ -245,3 +245,37 @@ export function hardDrop(
   };
   return lock(dropped, rng);
 }
+
+export const TETRIS_ACTIONS = [
+  'gravity',
+  'left',
+  'right',
+  'rotate',
+  'reverse',
+  'soft',
+  'hard',
+] as const;
+export type TetrisAction = (typeof TETRIS_ACTIONS)[number];
+
+export function playTetris(
+  state: TetrisState,
+  action: TetrisAction,
+  rng: () => number,
+): TetrisState {
+  switch (action) {
+    case 'gravity':
+      return tick(state, rng);
+    case 'left':
+      return moveSideways(state, -1);
+    case 'right':
+      return moveSideways(state, 1);
+    case 'rotate':
+      return rotate(state);
+    case 'reverse':
+      return rotate(state, false);
+    case 'soft':
+      return softDrop(state, rng);
+    case 'hard':
+      return hardDrop(state, rng);
+  }
+}

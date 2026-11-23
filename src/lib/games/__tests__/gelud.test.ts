@@ -1,4 +1,9 @@
-import { createGeludState, FighterInput, stepGelud } from '@/lib/games/gelud';
+import {
+  createGeludState,
+  FighterInput,
+  geludGame,
+  stepGelud,
+} from '@/lib/games/gelud';
 
 const idle: FighterInput = {
   left: false,
@@ -11,6 +16,20 @@ const idle: FighterInput = {
 };
 
 describe('gelud fighting engine', () => {
+  it('requires both seats to agree and rejects a report from a previous match', () => {
+    const room = geludGame.start(2);
+    const pending = geludGame.move(room, 1, { match: 0, winner: 0 });
+    expect(pending.winner).toBeNull();
+    expect(
+      geludGame.move(pending, 0, { match: 0, winner: 1 }).winner,
+    ).toBeNull();
+    const over = geludGame.move(pending, 0, { match: 0, winner: 0 });
+    expect(over.winner).toBe(0);
+    const rematch = geludGame.restart(over, 2);
+    expect(rematch.winner).toBeNull();
+    expect(() => geludGame.move(rematch, 0, { match: 0, winner: 0 })).toThrow();
+    expect(geludGame.eliminate!(rematch, 0).winner).toBe(1);
+  });
   it('moves fighters and prevents walking past arena bounds', () => {
     let s = createGeludState('2p');
     for (let i = 0; i < 40; i++) {

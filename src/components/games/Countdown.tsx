@@ -14,38 +14,18 @@ export function useRemainingMs(deadline: number | null) {
   return deadline === null ? 0 : Math.max(0, deadline - now);
 }
 
-/**
- * A shrinking bar with the seconds left. Remount it (change `key`) to restart.
- * `onExpire` runs once when time is up.
- */
+/** Shows a server deadline translated to the browser's clock. */
 export default function Countdown({
   seconds,
-  onExpire,
+  deadline,
   className = '',
 }: {
   seconds: number;
-  onExpire: () => void;
+  deadline: number;
   className?: string;
 }) {
-  const [left, setLeft] = React.useState(seconds);
-  const expire = React.useRef(onExpire);
-  React.useEffect(() => {
-    expire.current = onExpire;
-  });
-
-  React.useEffect(() => {
-    const end = Date.now() + seconds * 1000;
-    const timer = setInterval(() => {
-      const remaining = Math.ceil((end - Date.now()) / 1000);
-      setLeft(Math.max(remaining, 0));
-      if (remaining <= 0) {
-        clearInterval(timer);
-        expire.current();
-      }
-    }, 200);
-    return () => clearInterval(timer);
-  }, [seconds]);
-
+  const leftMs = useRemainingMs(deadline);
+  const left = Math.ceil(leftMs / 1000);
   const urgent = left <= 3;
   return (
     <div className={className} data-testid='countdown'>
@@ -53,8 +33,7 @@ export default function Countdown({
         <div
           className={`h-full rounded-full ${urgent ? 'bg-err' : 'bg-accent'}`}
           style={{
-            width: '100%',
-            animation: `suit-shrink ${seconds}s linear forwards`,
+            width: `${Math.min(100, leftMs / (seconds * 10))}%`,
           }}
         />
       </div>

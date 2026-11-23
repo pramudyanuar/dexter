@@ -52,6 +52,29 @@ function custom(pieces: Record<string, Piece>, turn: 0 | 1 = 0): ChessState {
 }
 
 describe('chess', () => {
+  it('allows a claim after three repetitions and draws automatically after five', () => {
+    const repeat = (state: ChessState) =>
+      play(state, ['g1', 'f3'], ['g8', 'f6'], ['f3', 'g1'], ['f6', 'g8']);
+    const twice = repeat(start());
+    expect(() => chessGame.move(twice, 0, { type: 'claim_draw' })).toThrow();
+    const aboutToRepeat = play(twice, ['g1', 'f3'], ['g8', 'f6'], ['f3', 'g1']);
+    expect(chessGame.view(aboutToRepeat, 1)).toMatchObject({
+      drawMoves: expect.arrayContaining([mv('f6', 'g8')]),
+    });
+    expect(
+      chessGame.move(aboutToRepeat, 1, {
+        type: 'claim_draw',
+        ...mv('f6', 'g8'),
+      }).status,
+    ).toBe('draw');
+    const three = repeat(twice);
+    expect(chessGame.view(three, 0)).toMatchObject({ canClaimDraw: true });
+    expect(chessGame.view(three, 1)).toMatchObject({ canClaimDraw: false });
+    expect(chessGame.move(three, 0, { type: 'claim_draw' }).status).toBe(
+      'draw',
+    );
+    expect(repeat(repeat(three)).status).toBe('draw');
+  });
   it('generates the right number of positions (perft 1-3)', () => {
     const s = start();
     expect(perft(s, 1)).toBe(20);

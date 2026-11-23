@@ -2,7 +2,19 @@
 
 import * as React from 'react';
 
+import { COUNTUP_ROUNDS } from '@/lib/games/dart-config';
+import { CAMPAIGN, MONKEY_CUSTOM_LIMITS } from '@/lib/games/monkeys-config';
+import { REMO_CLOCK } from '@/lib/games/remo-config';
+import { SEKATA_BLANK_CARDS, SEKATA_LIMITS } from '@/lib/games/sekata-config';
+import {
+  maxMercyHandSize,
+  UNO_HAND_SIZE,
+  UNO_MERCY_LIMIT,
+} from '@/lib/games/uno-rules';
 import { GameConfig } from '@/lib/rooms/game-config';
+
+const rangeHint = ({ min, max }: { min: number; max: number }) =>
+  `${min}–${max}`;
 
 type Category = 'all' | 'global' | 'cards' | 'party' | 'duel';
 
@@ -146,6 +158,10 @@ export default function AdminConfigPanel({
   onReset: () => void;
 }) {
   const [category, setCategory] = React.useState<Category>('all');
+  const unoHandSizeHint = `${UNO_HAND_SIZE.min}–${UNO_HAND_SIZE.max} kartu`;
+  const maxMercyHand = maxMercyHandSize(
+    Math.max(UNO_MERCY_LIMIT.min, Math.round(config.unomercy.mercyLimit)),
+  );
 
   const update = <K extends keyof GameConfig>(
     section: K,
@@ -270,11 +286,11 @@ export default function AdminConfigPanel({
             >
               <NumberField
                 label='Kartu Awal per Pemain'
-                hint='2–15 kartu'
+                hint={unoHandSizeHint}
                 value={config.uno.handSize}
-                min={2}
-                max={15}
-                fallback={7}
+                min={UNO_HAND_SIZE.min}
+                max={UNO_HAND_SIZE.max}
+                fallback={UNO_HAND_SIZE.default}
                 onChange={(handSize) => update('uno', { handSize })}
               />
             </ConfigCard>
@@ -286,11 +302,11 @@ export default function AdminConfigPanel({
             >
               <NumberField
                 label='Kartu Awal per Pemain'
-                hint='2–15 kartu'
+                hint={unoHandSizeHint}
                 value={config.unoflip.handSize}
-                min={2}
-                max={15}
-                fallback={7}
+                min={UNO_HAND_SIZE.min}
+                max={UNO_HAND_SIZE.max}
+                fallback={UNO_HAND_SIZE.default}
                 onChange={(handSize) => update('unoflip', { handSize })}
               />
             </ConfigCard>
@@ -302,20 +318,24 @@ export default function AdminConfigPanel({
             >
               <NumberField
                 label='Batas Kartu Gugur (Mercy)'
-                hint='5–100 kartu'
+                hint={`${UNO_MERCY_LIMIT.min}–${UNO_MERCY_LIMIT.max} kartu`}
                 value={config.unomercy.mercyLimit}
-                min={5}
-                max={100}
-                fallback={25}
+                min={UNO_MERCY_LIMIT.min}
+                max={UNO_MERCY_LIMIT.max}
+                fallback={UNO_MERCY_LIMIT.default}
                 onChange={(mercyLimit) => update('unomercy', { mercyLimit })}
               />
               <NumberField
                 label='Kartu Awal per Pemain'
-                hint='2–15 kartu'
+                hint={
+                  maxMercyHand < UNO_HAND_SIZE.max
+                    ? `Dibagikan maksimal ${maxMercyHand} kartu sesuai batas gugur`
+                    : unoHandSizeHint
+                }
                 value={config.unomercy.handSize}
-                min={2}
-                max={15}
-                fallback={7}
+                min={UNO_HAND_SIZE.min}
+                max={UNO_HAND_SIZE.max}
+                fallback={UNO_HAND_SIZE.default}
                 onChange={(handSize) => update('unomercy', { handSize })}
               />
             </ConfigCard>
@@ -391,10 +411,10 @@ export default function AdminConfigPanel({
                 />
                 <NumberField
                   label='Waktu Giliran'
-                  hint='0–180 dtk'
+                  hint={`0 = tanpa timer, atau ${rangeHint(REMO_CLOCK)} dtk`}
                   value={config.remo.turnSeconds}
                   min={0}
-                  max={180}
+                  max={REMO_CLOCK.max}
                   fallback={60}
                   onChange={(turnSeconds) => update('remo', { turnSeconds })}
                 />
@@ -610,19 +630,17 @@ export default function AdminConfigPanel({
               <div className='grid grid-cols-2 gap-2'>
                 <NumberField
                   label='Kartu Awal'
-                  hint='5–14'
+                  hint={rangeHint(SEKATA_LIMITS.handSize)}
                   value={config.sekata.handSize}
-                  min={5}
-                  max={14}
+                  {...SEKATA_LIMITS.handSize}
                   fallback={7}
                   onChange={(handSize) => update('sekata', { handSize })}
                 />
                 <NumberField
                   label='Kartu Kuning Tengah'
-                  hint='1–5'
+                  hint={rangeHint(SEKATA_LIMITS.sharedYellow)}
                   value={config.sekata.sharedYellow}
-                  min={1}
-                  max={5}
+                  {...SEKATA_LIMITS.sharedYellow}
                   fallback={2}
                   onChange={(sharedYellow) =>
                     update('sekata', { sharedYellow })
@@ -630,30 +648,28 @@ export default function AdminConfigPanel({
                 />
                 <NumberField
                   label='Joker Hijau / Pemain'
-                  hint='0–4'
+                  hint={rangeHint(SEKATA_LIMITS.greenPerPlayer)}
                   value={config.sekata.greenPerPlayer}
-                  min={0}
-                  max={4}
+                  {...SEKATA_LIMITS.greenPerPlayer}
                   fallback={1}
                   onChange={(greenPerPlayer) =>
                     update('sekata', { greenPerPlayer })
                   }
                 />
-                <NumberField
-                  label='Kartu Kosong'
-                  hint='0–6'
-                  value={config.sekata.blankCards}
-                  min={0}
-                  max={6}
-                  fallback={2}
-                  onChange={(blankCards) => update('sekata', { blankCards })}
+                <ToggleField
+                  label={`Tambahkan ${SEKATA_BLANK_CARDS} kartu kosong`}
+                  checked={config.sekata.blankCards === SEKATA_BLANK_CARDS}
+                  onChange={(checked) =>
+                    update('sekata', {
+                      blankCards: checked ? SEKATA_BLANK_CARDS : 0,
+                    })
+                  }
                 />
                 <NumberField
                   label='Penalti Kata Ditolak'
-                  hint='0–5'
+                  hint={rangeHint(SEKATA_LIMITS.penalty)}
                   value={config.sekata.penalty}
-                  min={0}
-                  max={5}
+                  {...SEKATA_LIMITS.penalty}
                   fallback={1}
                   onChange={(penalty) => update('sekata', { penalty })}
                 />
@@ -661,17 +677,15 @@ export default function AdminConfigPanel({
                   label='Batas Waktu (dtk)'
                   hint='0 = tanpa batas'
                   value={config.sekata.timeLimit}
-                  min={0}
-                  max={300}
+                  {...SEKATA_LIMITS.timeLimit}
                   fallback={0}
                   onChange={(timeLimit) => update('sekata', { timeLimit })}
                 />
                 <NumberField
                   label='Min Kartu / Kata'
-                  hint='1–5'
+                  hint={rangeHint(SEKATA_LIMITS.minWordCards)}
                   value={config.sekata.minWordCards}
-                  min={1}
-                  max={5}
+                  {...SEKATA_LIMITS.minWordCards}
                   fallback={2}
                   onChange={(minWordCards) =>
                     update('sekata', { minWordCards })
@@ -840,10 +854,9 @@ export default function AdminConfigPanel({
                 />
                 <NumberField
                   label='Ronde Count Up'
-                  hint='3–20'
+                  hint={rangeHint(COUNTUP_ROUNDS)}
                   value={config.dart.rounds}
-                  min={3}
-                  max={20}
+                  {...COUNTUP_ROUNDS}
                   fallback={8}
                   onChange={(rounds) => update('dart', { rounds })}
                 />
@@ -888,10 +901,10 @@ export default function AdminConfigPanel({
               <div className='grid grid-cols-2 gap-2'>
                 <NumberField
                   label='Level Awal'
-                  hint='1–10'
+                  hint={`1–${CAMPAIGN.length}`}
                   value={config.monkeys.level}
                   min={1}
-                  max={10}
+                  max={CAMPAIGN.length}
                   fallback={1}
                   onChange={(level) => update('monkeys', { level })}
                 />
@@ -906,10 +919,9 @@ export default function AdminConfigPanel({
                 />
                 <NumberField
                   label='Modul Custom'
-                  hint='1–6'
+                  hint={rangeHint(MONKEY_CUSTOM_LIMITS.modules)}
                   value={config.monkeys.custom.modules}
-                  min={1}
-                  max={6}
+                  {...MONKEY_CUSTOM_LIMITS.modules}
                   fallback={3}
                   onChange={(modules) =>
                     update('monkeys', {
@@ -919,10 +931,9 @@ export default function AdminConfigPanel({
                 />
                 <NumberField
                   label='Waktu Custom (dtk)'
-                  hint='30–300'
+                  hint={rangeHint(MONKEY_CUSTOM_LIMITS.seconds)}
                   value={config.monkeys.custom.seconds}
-                  min={30}
-                  max={300}
+                  {...MONKEY_CUSTOM_LIMITS.seconds}
                   fallback={120}
                   onChange={(seconds) =>
                     update('monkeys', {
@@ -932,10 +943,9 @@ export default function AdminConfigPanel({
                 />
                 <NumberField
                   label='Batas Salah Custom'
-                  hint='1–5'
+                  hint={rangeHint(MONKEY_CUSTOM_LIMITS.mistakes)}
                   value={config.monkeys.custom.strikes}
-                  min={1}
-                  max={5}
+                  {...MONKEY_CUSTOM_LIMITS.mistakes}
                   fallback={3}
                   onChange={(strikes) =>
                     update('monkeys', {

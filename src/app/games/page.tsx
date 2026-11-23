@@ -66,10 +66,12 @@ export default function GamesPage() {
     }
   };
 
-  const solo = GAMES.filter((g) => !g.online).length;
-  const online = GAMES.length - solo;
+  const solo = GAMES.filter((g) => !g.online || g.solo).length;
+  const online = GAMES.filter((g) => g.online).length;
   const shown = GAMES.filter(
-    (g) => filter === 'all' || (filter === 'online' ? g.online : !g.online),
+    (g) =>
+      filter === 'all' ||
+      (filter === 'online' ? g.online : !g.online || g.solo),
   );
   const resume = GAMES.find((g) => g.id === last);
 
