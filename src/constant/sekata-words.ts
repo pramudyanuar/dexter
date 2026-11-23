@@ -2,8 +2,8 @@
  * Indonesian words for Sekata, by category. Written for the game: everyday
  * words that can be built from syllable cards, with a few names, borrowed words
  * and slang that hosts can allow or not. Words not listed here can still be
- * accepted through the moderator. Affixed forms (me-, ber-, di-, -an, -kan,
- * -nya...) are recognised from their root by the dictionary module.
+ * accepted through the moderator. The dictionary also uses listed derivatives
+ * and forms supported by the source dictionaries' clitic rules.
  */
 
 export const SEKATA_STANDARD =
@@ -53,17 +53,27 @@ export const SEKATA_STANDARD =
   'ubun ubin ucap udik ulam ulama ular ulas ulat ulet ultah umpan unggul ungu uniform unik universitas unjuk unsur untung upacara urat urusan usang usia usir usus utang uzur ' +
   'wadah wafat wahyu wajar walau wali wanita warisan warta wasit wawancara wayang wibawa wilayah wisata wisuda ' +
   'yatim yoga ' +
-  'zaman zat zebra zona';
+  'zaman zat zebra zona ' +
+  // Established Indonesian loanwords used to be grouped under foreign words.
+  'bank bus film foto gitar golf hotel internet kamera komputer kopi lift mobil motor piano plastik radio sirkus taksi teh telepon televisi tenis video ' +
+  // Joined particles and pronouns in EYD V, plus checked standard forms.
+  'adapun andaipun apatah ataupun bagaimanapun biarpun jikapun kalaupun kendatipun maupun meskipun sekalipun sementangpun sungguhpun walaupun ' +
+  'bukuku bukumu bukunya kaubaca kaukatakan kujual maukah rumahnya ' +
+  // MALINDO Morph, UniMorph ind and examples from KBBI VI.
+  'aktivitas diperkirakan diperlakukan diperhatikan disalahgunakan instruksi izin makanannya memengaruhi menyalahgunakan penyalahgunaan praktik risiko';
+
+/** Variants explicitly marked nonstandard in the corresponding KBBI VI entries. */
+export const SEKATA_NONSTANDARD =
+  'aktifitas idzin ijin mempengaruhi nafas praktek resiko';
 
 export const SEKATA_PROPER =
   'budi sari dewi andi rina agus wati joko siti ani dina rudi tono ' +
-  'indonesia jawa bali sumatra sunda batak minang bugis madura papua';
+  'sunda batak minang bugis';
 
 export const SEKATA_PLACE =
-  'jakarta bandung bogor medan padang malang solo bali jawa sumatra kalimantan sulawesi papua lombok surabaya semarang yogya palembang makassar manado ambon aceh riau';
+  'jakarta bandung bogor medan padang malang solo indonesia bali jawa sumatra kalimantan sulawesi madura papua lombok surabaya semarang yogya palembang makassar manado ambon aceh riau';
 
-export const SEKATA_FOREIGN =
-  'komputer televisi radio kamera internet telepon bank hotel taksi bus kopi teh gitar piano film foto video sepeda motor mobil lift listrik bola tenis golf sirkus plastik mesin';
+export const SEKATA_FOREIGN = 'download offline online upload';
 
 export const SEKATA_ABBR =
   'ktp sim rt rw pgri tni polri asap bbm sma smp tk sd';
