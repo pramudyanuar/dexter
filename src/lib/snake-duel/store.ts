@@ -43,7 +43,7 @@ import {
 const ROOM_TTL_SECONDS = 600;
 const LEASE_MS = 2000;
 const ATTEMPTS = 8;
-const DEFAULT_ROUNDS = 20;
+const MONTHLY_ROUNDS = 20;
 
 interface Frame {
   raw: string;
@@ -96,7 +96,6 @@ export class DuelStore {
   constructor(
     private readonly config: RedisConfig,
     private readonly prefix: string,
-    private readonly monthlyRounds: number,
   ) {}
 
   private key(kind: string, id?: string) {
@@ -477,7 +476,7 @@ export class DuelStore {
       reserve: reserve?.id,
       deadline: reserve?.expiresAt,
       now,
-      monthlyRounds: this.monthlyRounds,
+      monthlyRounds: MONTHLY_ROUNDS,
       lobby:
         opens !== listed(frame.room) ? (opens ? 'open' : 'hide') : undefined,
       indexExpiry: now + ROOM_TTL_SECONDS * 1000,
@@ -503,23 +502,8 @@ export class DuelStore {
 }
 
 export function getDuelStore() {
-  if ((process.env.SNAKE_DUEL_ENABLED ?? '1') !== '1') {
-    throw new DuelError(
-      'Snake Duel belum diaktifkan. Kamu masih bisa bermain Klasik atau Harian.',
-      503,
-    );
-  }
   const config = getRedisConfig();
   if (!config) throw new DuelError(DUEL_UNAVAILABLE, 503);
-  const namespace =
-    process.env.SNAKE_DUEL_NAMESPACE ??
-    (process.env.VERCEL_ENV === 'preview' ? 'preview' : 'prod');
-  const configured = Number(
-    process.env.SNAKE_DUEL_MONTHLY_ROUNDS ?? DEFAULT_ROUNDS,
-  );
-  const quota =
-    Number.isSafeInteger(configured) && configured >= 0
-      ? configured
-      : DEFAULT_ROUNDS;
-  return new DuelStore(config, `snake:duel:${namespace}`, quota);
+  const namespace = process.env.VERCEL_ENV === 'preview' ? 'preview' : 'prod';
+  return new DuelStore(config, `snake:duel:${namespace}`);
 }
