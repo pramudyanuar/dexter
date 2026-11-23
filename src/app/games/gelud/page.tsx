@@ -369,7 +369,10 @@ function OnlineArena({
   token,
   you,
   names,
+  match,
   roomWinner,
+  reported,
+  busy,
   onReportWinner,
   rematchControl,
 }: {
@@ -377,7 +380,10 @@ function OnlineArena({
   token: string;
   you: number;
   names: (string | null)[];
+  match: number;
   roomWinner: 0 | 1 | null;
+  reported: boolean;
+  busy: boolean;
   onReportWinner: (winner: 0 | 1) => void;
   rematchControl: React.ReactNode;
 }) {
@@ -386,7 +392,6 @@ function OnlineArena({
   const keysRef = React.useRef<Set<string>>(new Set());
   const touchRef = React.useRef<FighterInput>(emptyInput());
   const remoteInputRef = React.useRef<FighterInput>(emptyInput());
-  const reportedRef = React.useRef(false);
 
   const initialOnline = React.useCallback((): GeludState => {
     const base = createGeludState('2p');
@@ -403,6 +408,7 @@ function OnlineArena({
     code,
     token,
     you,
+    match,
     active: roomWinner === null,
     onMessage: (raw) => {
       try {
@@ -487,15 +493,6 @@ function OnlineArena({
             hudTimer = 0;
             setHud(res.state);
           }
-
-          if (
-            res.state.phase === 'match-over' &&
-            res.state.winner !== null &&
-            !reportedRef.current
-          ) {
-            reportedRef.current = true;
-            onReportWinner(res.state.winner);
-          }
         }
         const ctx = canvasRef.current?.getContext('2d');
         if (ctx) renderGelud(ctx, stateRef.current);
@@ -516,7 +513,7 @@ function OnlineArena({
 
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [you, connected, muted, send, onReportWinner]);
+  }, [you, connected, muted, send]);
 
   const myFighter = hud.fighters[you] ?? hud.fighters[0];
 
@@ -556,10 +553,28 @@ function OnlineArena({
         {(hud.phase === 'match-over' || roomWinner !== null) && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/75 p-6 text-center'>
             <h2 className='text-2xl font-black tracking-wider text-accent uppercase'>
-              {hud.banner ||
-                (roomWinner === you ? 'KAMU MENANG!' : 'KAMU KALAH')}
+              {roomWinner === null
+                ? hud.banner
+                : roomWinner === you
+                  ? 'KAMU MENANG!'
+                  : 'KAMU KALAH'}
             </h2>
-            {rematchControl}
+            {roomWinner !== null ? (
+              rematchControl
+            ) : reported ? (
+              <p className='text-sm text-mute'>Menunggu konfirmasi lawan.</p>
+            ) : hud.winner !== null ? (
+              <button
+                type='button'
+                className='rounded-lg border border-line px-3 py-2 text-sm'
+                disabled={busy}
+                onClick={() => {
+                  if (hud.winner !== null) onReportWinner(hud.winner);
+                }}
+              >
+                Konfirmasi hasil
+              </button>
+            ) : null}
           </div>
         )}
       </div>
@@ -834,12 +849,18 @@ function GeludRouter() {
       >
         {({ room, you }) => (
           <OnlineArena
+            key={room.state.match ?? 0}
             code={r.session!.code}
             token={r.session!.token}
             you={you}
             names={room.names}
+            match={room.state.match ?? 0}
             roomWinner={room.state.winner}
-            onReportWinner={(winner) => r.move({ winner })}
+            reported={room.state.reports?.[you] != null}
+            busy={r.busy}
+            onReportWinner={(winner) =>
+              r.move({ winner, match: room.state.match ?? 0 })
+            }
             rematchControl={<Rematch r={r} />}
           />
         )}

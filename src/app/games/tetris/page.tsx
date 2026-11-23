@@ -2,25 +2,24 @@
 
 import * as React from 'react';
 
+import { seededRandom } from '@/lib/games/seeded-random';
 import {
   colorIndex,
   COLS,
   delayFor,
-  hardDrop,
   landingY,
-  moveSideways,
   newGame,
   PieceType,
-  rotate,
+  playTetris,
   ROWS,
-  softDrop,
   spawn,
+  TetrisAction,
   TetrisState,
-  tick,
 } from '@/lib/games/tetris';
 import useStoredState from '@/lib/useStoredState';
 
 import GameShell from '@/components/games/GameShell';
+import { isInteractive } from '@/components/games/snake/controls';
 import SubmitScore from '@/components/games/SubmitScore';
 
 const CELL = 24;
@@ -40,6 +39,17 @@ const COLORS = [
 ];
 
 type Status = 'ready' | 'running' | 'paused' | 'over';
+type Replay = { seed: number; moves: TetrisAction[] };
+
+function newRun() {
+  const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+  const rng = seededRandom(seed);
+  return {
+    rng,
+    game: newGame(rng),
+    replay: { seed, moves: [] as TetrisAction[] },
+  };
+}
 
 function PadButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -58,6 +68,8 @@ function Tetris() {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const previewRef = React.useRef<HTMLCanvasElement>(null);
   const game = React.useRef<TetrisState | null>(null);
+  const run = React.useRef<ReturnType<typeof newRun> | null>(null);
+  const [replay, setReplay] = React.useState<Replay | null>(null);
   const [status, setStatus] = React.useState<Status>('ready');
   const [stats, setStats] = React.useState({ score: 0, lines: 0, level: 1 });
   const [best, setBest] = useStoredState<number>('tetris-best', 0);
@@ -170,6 +182,7 @@ function Tetris() {
         setStats({ score: next.score, lines: next.lines, level: next.level });
       }
       if (next.over) {
+        if (run.current) setReplay(run.current.replay);
         setStatus('over');
         if (next.score > best) setBest(next.score);
       }
@@ -177,36 +190,50 @@ function Tetris() {
     [draw, best, setBest],
   );
 
-  React.useEffect(() => {
-    game.current = newGame();
+  const resetBoard = React.useCallback(() => {
+    run.current = newRun();
+    game.current = run.current.game;
     draw();
   }, [draw]);
+
+  React.useEffect(resetBoard, [resetBoard]);
+
+  const apply = React.useCallback(
+    (action: TetrisAction) => {
+      if (!game.current || game.current.over || !run.current) return;
+      const next = playTetris(game.current, action, run.current.rng);
+      if (next === game.current) return;
+      run.current.replay.moves.push(action);
+      commit(next);
+    },
+    [commit],
+  );
 
   // gravity: one tick at a time so the delay can shrink with the level
   React.useEffect(() => {
     if (status !== 'running') return;
     let timer: ReturnType<typeof setTimeout>;
     const step = () => {
-      commit(tick(game.current!));
+      apply('gravity');
       if (!game.current!.over) {
         timer = setTimeout(step, delayFor(game.current!.level));
       }
     };
     timer = setTimeout(step, delayFor(game.current!.level));
     return () => clearTimeout(timer);
-  }, [status, commit]);
+  }, [status, apply]);
 
   const restart = () => {
-    game.current = newGame();
+    resetBoard();
+    setReplay(null);
     setStats({ score: 0, lines: 0, level: 1 });
     setStatus('ready');
-    draw();
   };
 
-  const act = (fn: (s: TetrisState) => TetrisState) => {
+  const act = (action: TetrisAction) => {
     if (!game.current || status === 'over') return;
     if (status === 'ready' || status === 'paused') setStatus('running');
-    commit(fn(game.current));
+    apply(action);
   };
 
   const togglePause = () => {
@@ -215,20 +242,20 @@ function Tetris() {
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || isInteractive(e.target)) return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const actions: Record<string, () => void> = {
-      ArrowLeft: () => act((s) => moveSideways(s, -1)),
-      a: () => act((s) => moveSideways(s, -1)),
-      ArrowRight: () => act((s) => moveSideways(s, 1)),
-      d: () => act((s) => moveSideways(s, 1)),
-      ArrowUp: () => act((s) => rotate(s)),
-      w: () => act((s) => rotate(s)),
-      x: () => act((s) => rotate(s)),
-      z: () => act((s) => rotate(s, false)),
-      ArrowDown: () => act((s) => softDrop(s)),
-      s: () => act((s) => softDrop(s)),
-      ' ': () => act((s) => hardDrop(s)),
+      ArrowLeft: () => act('left'),
+      a: () => act('left'),
+      ArrowRight: () => act('right'),
+      d: () => act('right'),
+      ArrowUp: () => act('rotate'),
+      w: () => act('rotate'),
+      x: () => act('rotate'),
+      z: () => act('reverse'),
+      ArrowDown: () => act('soft'),
+      s: () => act('soft'),
+      ' ': () => act('hard'),
       p: togglePause,
     };
     if (key === 'Enter' && status === 'over') {
@@ -264,11 +291,11 @@ function Tetris() {
                   <p className='a-pop text-err'>
                     Game over. Skor {stats.score}.
                   </p>
-                  {stats.score > 0 && (
+                  {stats.score > 0 && replay && (
                     <SubmitScore
                       game='tetris'
                       score={stats.score}
-                      meta={`${stats.lines} baris · Lv ${stats.level}`}
+                      replay={replay}
                     />
                   )}
                   <button
@@ -323,11 +350,11 @@ function Tetris() {
       </div>
 
       <div className='mx-auto mt-4 flex w-full max-w-[22rem] gap-1.5 md:hidden'>
-        <PadButton label='◀' onPress={() => act((s) => moveSideways(s, -1))} />
-        <PadButton label='⟳' onPress={() => act((s) => rotate(s))} />
-        <PadButton label='▶' onPress={() => act((s) => moveSideways(s, 1))} />
-        <PadButton label='▼' onPress={() => act((s) => softDrop(s))} />
-        <PadButton label='⤓' onPress={() => act((s) => hardDrop(s))} />
+        <PadButton label='◀' onPress={() => act('left')} />
+        <PadButton label='⟳' onPress={() => act('rotate')} />
+        <PadButton label='▶' onPress={() => act('right')} />
+        <PadButton label='▼' onPress={() => act('soft')} />
+        <PadButton label='⤓' onPress={() => act('hard')} />
       </div>
 
       <p className='mt-auto pt-4 text-center text-xs text-mute'>

@@ -608,6 +608,14 @@ export const sekataGame: GameDef<SekataState> = {
   start,
   restart: (previous, players, rng) => start(players, rng, previous.config),
 
+  tick(state, now) {
+    if (state.over || state.deadline === null || now < state.deadline)
+      return null;
+    const next = structuredClone(state);
+    end(next, 'time');
+    return next;
+  },
+
   move(state, seat, raw, rng = Math.random, ctx) {
     if (state.over) throw new RoomError('Permainan sudah selesai', 409);
     const move = raw as Move | null;
@@ -671,7 +679,7 @@ export const sekataGame: GameDef<SekataState> = {
       }
 
       case 'tick': {
-        if (s.deadline === null || Date.now() < s.deadline) {
+        if (s.deadline === null || (ctx?.now ?? Date.now()) < s.deadline) {
           throw new RoomError('Waktu belum habis', 409);
         }
         end(s, 'time');

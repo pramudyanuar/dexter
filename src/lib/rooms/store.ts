@@ -188,9 +188,9 @@ class MemoryStore implements RoomStore {
   }
 
   async saveIf(room: Room, expectedVersion: number) {
-    const current = await this.get(room.code);
+    const current = this.read(room.code);
     if (!current || current.version !== expectedVersion) return false;
-    await this.save(room);
+    this.write(room);
     return true;
   }
 
@@ -201,7 +201,10 @@ class MemoryStore implements RoomStore {
   }
 
   async chatAdd(code: string, message: ChatMsg) {
-    const lines = [...(await this.chatList(code)), message].slice(-CHAT_KEEP);
+    const current = this.chats.get(code);
+    const previous =
+      current && current.expires >= Date.now() ? current.lines : [];
+    const lines = [...previous, message].slice(-CHAT_KEEP);
     this.chats.set(code, {
       lines,
       expires: Date.now() + TTL_SECONDS * 1000,
@@ -215,32 +218,42 @@ class MemoryStore implements RoomStore {
   }
 
   async signalAdd(code: string, signal: Signal) {
-    const lines = [...(await this.signalList(code)), signal].slice(
-      -SIGNAL_KEEP,
-    );
+    const current = this.signals.get(code);
+    const previous =
+      current && current.expires >= Date.now() ? current.lines : [];
+    const lines = [...previous, signal].slice(-SIGNAL_KEEP);
     this.signals.set(code, {
       lines,
       expires: Date.now() + TTL_SECONDS * 1000,
     });
   }
 
-  async get(code: string) {
+  private read(code: string) {
     const entry = this.rooms.get(code);
     if (!entry) return null;
     if (entry.expires < Date.now()) {
       this.rooms.delete(code);
       return null;
     }
-    return structuredClone(entry.room);
+    return entry.room;
+  }
+
+  async get(code: string) {
+    const room = this.read(code);
+    return room ? structuredClone(room) : null;
   }
 
   async create(room: Room) {
-    if (await this.get(room.code)) return false;
-    await this.save(room);
+    if (this.read(room.code)) return false;
+    this.write(room);
     return true;
   }
 
   async save(room: Room) {
+    this.write(room);
+  }
+
+  private write(room: Room) {
     this.rooms.set(room.code, {
       room: structuredClone(room),
       expires: Date.now() + TTL_SECONDS * 1000,

@@ -14,8 +14,14 @@ export default function SnakePage() {
       <SnakeSolo
         best={best}
         onBest={setBest}
-        resultContent={(board) =>
-          board.score > 0 && <SubmitScore game='snake' score={board.score} />
+        resultContent={(board, moves, seed) =>
+          board.score > 0 && (
+            <SubmitScore
+              game='snake'
+              score={board.score}
+              replay={{ seed, moves }}
+            />
+          )
         }
       />
     </SnakeShell>

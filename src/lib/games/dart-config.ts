@@ -39,6 +39,8 @@ export const DEFAULT_DART: DartConfig = {
   maxRounds: 0,
 };
 
+export const COUNTUP_ROUNDS = { min: 1, max: 20 } as const;
+
 const int = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === 'number' && Number.isFinite(v)
     ? Math.min(max, Math.max(min, Math.round(v)))
@@ -62,7 +64,12 @@ export function sanitizeDart(raw: unknown): DartConfig {
       r.difficulty === 'easy' || r.difficulty === 'hard'
         ? r.difficulty
         : 'normal',
-    rounds: int(r.rounds, 1, 20, DEFAULT_DART.rounds),
+    rounds: int(
+      r.rounds,
+      COUNTUP_ROUNDS.min,
+      COUNTUP_ROUNDS.max,
+      DEFAULT_DART.rounds,
+    ),
     clockBull: typeof r.clockBull === 'boolean' ? r.clockBull : true,
     maxRounds: int(r.maxRounds, 0, 50, 0),
   };
@@ -74,12 +81,11 @@ export const startFor = (mode: DartMode) => (mode === '301' ? 301 : 501);
 export const MODE_INFO: Record<DartMode, { title: string; blurb: string }> = {
   '501': {
     title: '501',
-    blurb:
-      'Count down from 501 to exactly zero. Finish on a double or the inner bull. Go over, reach 1, or finish without a double and it is a bust.',
+    blurb: 'Count down to exactly zero.',
   },
   '301': {
     title: '301',
-    blurb: 'Same rules as 501, but you start from 301.',
+    blurb: 'Count down to exactly zero.',
   },
   countup: {
     title: 'Count Up',

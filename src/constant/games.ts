@@ -4,6 +4,8 @@ export interface GameEntry {
   title: string;
   /** Played with friends on other devices, through a room code */
   online?: boolean;
+  /** Has a solo mode as well as an online room. */
+  solo?: boolean;
   /** How many people play, e.g. `1` or `2–4` */
   players: string;
   href: string;
@@ -24,11 +26,13 @@ const ALL_GAMES: readonly GameEntry[] = [
   },
   {
     id: 'snake',
-    players: '1',
+    players: '1–2',
+    online: true,
+    solo: true,
     title: 'Snake',
     href: '/games/snake',
     description:
-      'Makan sebanyak mungkin tanpa menabrak dinding atau badan sendiri.',
+      'Makan apel dan hindari tabrakan di Classic, Harian, atau Duel online.',
     controls: 'panah atau WASD, spasi jeda, geser di layar sentuh',
   },
   {
@@ -87,6 +91,7 @@ const ALL_GAMES: readonly GameEntry[] = [
     players: '1–2',
     title: 'Gelud',
     online: true,
+    solo: true,
     href: '/games/gelud',
     description:
       'Game fighting arcade 2D: bisa mabar online lewat kode room, 1P vs AI, atau 2P di 1 keyboard.',
@@ -108,8 +113,7 @@ const ALL_GAMES: readonly GameEntry[] = [
     title: 'Suit',
     online: true,
     href: '/games/suit',
-    description:
-      'Batu, gunting, kertas online untuk dua pemain. Menang dua ronde dulu.',
+    description: 'Batu, gunting, kertas online untuk dua pemain.',
     controls: 'buat room lalu bagikan kodenya',
   },
   {
@@ -124,18 +128,17 @@ const ALL_GAMES: readonly GameEntry[] = [
   },
   {
     id: 'uno',
-    players: '2–8',
+    players: `${UNO_PLAYERS.min}–${UNO_PLAYERS.max}`,
     title: 'Uno',
     online: true,
     href: '/games/uno',
-    description:
-      'Uno online untuk 2 sampai 8 pemain: pilih klasik, Flip, atau No Mercy.',
+    description: `Uno online untuk ${UNO_PLAYERS.min} sampai ${UNO_PLAYERS.max} pemain: pilih klasik, Flip, atau No Mercy.`,
     controls: 'pembuat room memulai setelah semua bergabung',
   },
   {
     id: 'unoflip',
     hidden: true,
-    players: '2–8',
+    players: `${UNO_PLAYERS.min}–${UNO_PLAYERS.max}`,
     title: 'Uno Flip',
     online: true,
     href: '/games/unoflip',
@@ -146,12 +149,12 @@ const ALL_GAMES: readonly GameEntry[] = [
   {
     id: 'unomercy',
     hidden: true,
-    players: '2–8',
+    players: `${UNO_PLAYERS.min}–${UNO_PLAYERS.max}`,
     title: 'Uno No Mercy',
     online: true,
     href: '/games/unomercy',
     description:
-      'Hukuman ditumpuk, tukar dan oper kartu, dan 25 kartu langsung gugur.',
+      'Tumpuk hukuman, tukar dan oper kartu. Pemain gugur saat mencapai batas kartu room.',
     controls: 'pembuat room memulai setelah semua bergabung',
   },
   {
@@ -289,7 +292,7 @@ const ALL_GAMES: readonly GameEntry[] = [
     href: '/games/quiz',
     description:
       'Quiz cepat untuk 2 sampai 6 pemain. Yang benar dan tercepat dapat poin terbanyak.',
-    controls: '10 soal, 15 detik per soal',
+    controls: 'pilih jawaban sebelum waktu habis',
   },
   {
     id: 'pictionary',
@@ -308,3 +311,4 @@ export const GAMES: readonly GameEntry[] = ALL_GAMES.filter((g) => !g.hidden);
 
 /** Every game page, including the variants reached from another game's start screen. */
 export const GAME_PAGES: readonly GameEntry[] = ALL_GAMES;
+import { UNO_PLAYERS } from '@/lib/games/uno-rules';

@@ -281,6 +281,19 @@ describe('action cards', () => {
     expect(done.last?.drew).toEqual({ seat: 1, count: 4 });
   });
 
+  it('reports how many cards were available when accepting a draw four', () => {
+    const next = play(
+      game({ hands: [['WF', 'R2'], ['G1'], ['G2']], draw: [] }),
+      0,
+      0,
+      'Y',
+    );
+    const done = move(next, 1, { type: 'accept' });
+
+    expect(done.hands[1]).toHaveLength(2);
+    expect(view(done, 1).last?.drew).toEqual({ seat: 1, count: 1 });
+  });
+
   it('a right challenge makes the bluffer draw four and the victim plays on', () => {
     // seat 0 holds a red card (R is in play) yet plays the wild draw four
     const next = play(

@@ -117,11 +117,12 @@ describe('pictionary', () => {
     expect(() => pictionaryGame.move(s, 0, { type: 'next', round: 3 })).toThrow(
       /berganti/,
     );
+    expect(() => pictionaryGame.move(s, 1, { type: 'next', round: 0 })).toThrow(
+      /penggambar/,
+    );
     for (let i = 0; i < s.rounds; i++) {
-      s = pictionaryGame.move(s, 1, {
-        type: 'next',
-        round: i,
-      }) as PictionaryState;
+      expect(pictionaryGame.tick!(s, s.deadline! - 1)).toBeNull();
+      s = pictionaryGame.tick!(s, s.deadline!)!;
     }
     expect(pictionaryGame.isOver(s)).toBe(true);
     expect(s.winners).toEqual([0, 1]);

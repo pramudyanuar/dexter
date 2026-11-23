@@ -44,7 +44,7 @@ describe('Games menu', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Sendiri/ }));
     expect(screen.getAllByRole('listitem')).toHaveLength(
-      GAMES.filter((g) => !g.online).length,
+      GAMES.filter((g) => !g.online || g.solo).length,
     );
     expect(screen.queryByRole('link', { name: /^Chess:/ })).toBeNull();
 

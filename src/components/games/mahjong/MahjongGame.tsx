@@ -256,7 +256,10 @@ function Mahjong() {
     if (denied === 'limit') say('No hints left', 'text-hash');
     else if (denied === 'none')
       say('No pair to match. Shuffle or undo.', 'text-err');
-    else say('Try the highlighted pair (-50)', 'text-hash');
+    else {
+      const cost = cur.score - state.score;
+      say(`Try the highlighted pair${cost ? ` (-${cost})` : ''}`, 'text-hash');
+    }
     commit(state);
   };
   const doShuffle = () => {
@@ -266,7 +269,8 @@ function Mahjong() {
     if (denied === 'limit') say('No shuffles left', 'text-hash');
     else if (denied === 'disabled') say('Shuffle is off');
     else {
-      say('Tiles shuffled (-100)', 'text-hash');
+      const cost = cur.score - state.score;
+      say(`Tiles shuffled${cost ? ` (-${cost})` : ''}`, 'text-hash');
       sfx.play('tap');
     }
     commit(state);

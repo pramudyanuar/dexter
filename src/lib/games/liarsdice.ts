@@ -97,7 +97,7 @@ export const diceGame: GameDef<DiceState> = {
   autoStart: false,
 
   start: fresh,
-  restart: (_previous, players, rng) => fresh(players, rng),
+  restart: (_previous, players, rng, options) => fresh(players, rng, options),
 
   move(state, seat, move, rng = Math.random) {
     if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);

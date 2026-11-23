@@ -91,7 +91,7 @@ function begin(room: Room, rng?: () => number, now = Date.now()): Room {
   return {
     ...tidy,
     status: 'playing',
-    state: GAMES[room.game].start(seated(tidy), rng, room.options),
+    state: GAMES[room.game].start(seated(tidy), rng, room.options, now),
     out: Array<boolean>(n).fill(false),
     strikes: Array<number>(n).fill(0),
     left: Array<number | null>(n).fill(null),
@@ -236,6 +236,8 @@ export function start(
   if (seated(room) < minPlayers) {
     throw new RoomError(`Butuh minimal ${minPlayers} pemain`, 409);
   }
+  if (seated(room) > capacityOf(room))
+    throw new RoomError('Jumlah pemain melebihi kapasitas room', 409);
   return begin(room, rng, now);
 }
 
@@ -272,12 +274,15 @@ export function setOptions(
       }
     }
   }
-  return {
+  const next = {
     ...room,
     options: nextOpts,
     stamp: now,
     version: room.version + 1,
   };
+  if (seated(next) > capacityOf(next))
+    throw new RoomError('Kapasitas tidak boleh kurang dari jumlah pemain', 409);
+  return next;
 }
 
 export function act(
@@ -298,11 +303,14 @@ export function act(
 
   const def = GAMES[room.game];
   // anything that came due while nobody was looking happens first
-  const timed = def.fixedTurnClock
-    ? sweep(room, now, rng)
-    : runClock(room, now, rng);
-  if (def.fixedTurnClock && timed !== room) return timed;
-  if (timed.status !== 'playing') return timed;
+  const clocked = runClock(room, now, rng);
+  const timed = sweepSeats(clocked, now, rng);
+  if (
+    timed !== clocked ||
+    (def.fixedTurnClock && timed !== room) ||
+    timed.status !== 'playing'
+  )
+    return timed;
   const state = def.move(timed.state, seat, move, rng, {
     host: hostOf(room),
     now,
@@ -313,7 +321,7 @@ export function act(
     status: def.isOver(state) ? 'over' : 'playing',
     // playing again means they are back
     left: put(leftOf(timed), seat, null),
-    stamp: def.passive?.(move) ? stampOf(timed) : now,
+    stamp: def.passive?.(move, timed.state, state) ? stampOf(timed) : now,
     version: timed.version + 1,
   };
 }
@@ -413,7 +421,11 @@ export function rematch(
   if (n < def.minPlayers || (def.autoStart && n < def.maxPlayers)) {
     return { ...next, status: 'waiting', state: null };
   }
-  return { ...next, status: 'playing', state: def.restart(room.state, n, rng) };
+  return {
+    ...next,
+    status: 'playing',
+    state: def.restart(room.state, n, rng, room.options, now),
+  };
 }
 
 /** Takes a player out of the running game; the others carry on, or win. */
@@ -429,7 +441,7 @@ export function eliminate(
   out[seat] = true;
   const def = GAMES[room.game];
   const state = def.eliminate
-    ? def.eliminate(room.state, seat, rng)
+    ? def.eliminate(room.state, seat, rng, now)
     : room.state;
   const next: Room = {
     ...room,
@@ -521,9 +533,11 @@ function penalize(
  * to ask on every poll.
  */
 export function sweep(room: Room, now = Date.now(), rng?: () => number): Room {
-  if (room.status !== 'playing') return room;
+  return sweepSeats(runClock(room, now, rng), now, rng);
+}
 
-  let next = runClock(room, now, rng);
+function sweepSeats(room: Room, now: number, rng?: () => number): Room {
+  let next = room;
   if (next.status !== 'playing') return next;
   const tuning = roomTuning(next);
   const left = leftOf(room);
@@ -540,10 +554,18 @@ export function sweep(room: Room, now = Date.now(), rng?: () => number): Room {
   const waitSec =
     waiting && tuning.turnSeconds > 0 ? tuning.turnSeconds : waiting?.seconds;
   const deadline = stampOf(next) + (waitSec ?? 0) * 1000;
-  const due = GAMES[next.game].fixedTurnClock
-    ? now >= deadline
-    : now > deadline;
-  if (waiting && waitSec && due) {
+  if (waiting && waitSec && now >= deadline) {
+    const def = GAMES[next.game];
+    if (def.timeout) {
+      const state = def.timeout(next.state);
+      return {
+        ...next,
+        state,
+        status: def.isOver(state) ? 'over' : 'playing',
+        stamp: now,
+        version: next.version + 1,
+      };
+    }
     for (const seat of waiting.seats) {
       if (next.status !== 'playing') break;
       if (!outOf(next)[seat]) next = penalize(next, seat, rng, now);

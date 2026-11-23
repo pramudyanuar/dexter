@@ -74,7 +74,12 @@ export default function WerewolfLobby({ r }: { r: Api }) {
   const set = (patch: Partial<WerewolfConfig>) =>
     void r.setOptions({ ...cfg, ...patch, preset: patch.preset ?? 'custom' });
   const setPreset = (preset: WerewolfConfig['preset']) =>
-    void r.setOptions({ ...DEFAULT_WEREWOLF, ...presetConfig(preset), preset });
+    void r.setOptions({
+      ...DEFAULT_WEREWOLF,
+      ...presetConfig(preset),
+      maxPlayers: cfg.maxPlayers,
+      preset,
+    });
   const setRole = (role: Toggle, on: boolean) =>
     set({ roles: { ...cfg.roles, [role]: on } });
 
@@ -215,7 +220,7 @@ export default function WerewolfLobby({ r }: { r: Api }) {
             <Stepper
               label='Maximum players'
               value={cfg.maxPlayers}
-              min={MIN_PLAYERS}
+              min={Math.max(MIN_PLAYERS, seats.length)}
               max={20}
               disabled={locked}
               onChange={(v) => set({ maxPlayers: v })}

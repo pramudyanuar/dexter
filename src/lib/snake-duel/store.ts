@@ -503,8 +503,14 @@ export class DuelStore {
 }
 
 export function getDuelStore() {
+  if (process.env.SNAKE_DUEL_ENABLED !== '1') {
+    throw new DuelError(
+      'Snake Duel belum diaktifkan. Kamu masih bisa bermain Klasik atau Harian.',
+      503,
+    );
+  }
   const config = getRedisConfig();
-  if (!config || process.env.SNAKE_DUEL_ENABLED !== '1') return null;
+  if (!config) throw new DuelError(DUEL_UNAVAILABLE, 503);
   const namespace =
     process.env.SNAKE_DUEL_NAMESPACE ??
     (process.env.VERCEL_ENV === 'preview' ? 'preview' : 'prod');

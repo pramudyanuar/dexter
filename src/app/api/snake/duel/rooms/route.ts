@@ -11,11 +11,7 @@ import {
   NO_STORE,
 } from '@/lib/snake-duel/http';
 import { TOKEN_PATTERN } from '@/lib/snake-duel/protocol';
-import {
-  DUEL_UNAVAILABLE,
-  DuelError,
-  getDuelStore,
-} from '@/lib/snake-duel/store';
+import { DuelError, getDuelStore } from '@/lib/snake-duel/store';
 
 const player = {
   name: duelName,
@@ -27,9 +23,8 @@ const bodySchema = z.discriminatedUnion('action', [
 ]);
 
 export async function GET() {
-  const store = getDuelStore();
-  if (!store) return duelFailure(new DuelError(DUEL_UNAVAILABLE, 503));
   try {
+    const store = getDuelStore();
     const rooms = (await store.listRooms()).map(
       (room): PublicRoom & typeof room => ({
         ...room,
@@ -48,14 +43,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const store = getDuelStore();
-  if (!store) return duelFailure(new DuelError(DUEL_UNAVAILABLE, 503));
-  const parsed = bodySchema.safeParse(await readJson(request, 4096));
-  if (!parsed.success)
-    return duelFailure(new DuelError('Data pemain tidak valid.', 400));
-  const body = parsed.data;
-
   try {
+    const store = getDuelStore();
+    const parsed = bodySchema.safeParse(await readJson(request, 4096));
+    if (!parsed.success) throw new DuelError('Data pemain tidak valid.', 400);
+    const body = parsed.data;
     await checkAdmission(store, request);
     const code = body.action === 'join' ? normalizeCode(body.code) : null;
     if (code !== null && !CODE_PATTERN.test(code))

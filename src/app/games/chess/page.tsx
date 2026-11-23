@@ -55,6 +55,7 @@ function Chess() {
   const r = useRoom<ChessView>('chess');
   const [from, setFrom] = React.useState<[number, number] | null>(null);
   const [promoting, setPromoting] = React.useState<ChessMove | null>(null);
+  const [claimAt, setClaimAt] = React.useState<number | null>(null);
 
   return (
     <RoomGate
@@ -71,11 +72,13 @@ function Chess() {
         const myTurn = room.status === 'playing' && s.turn === you;
         const flip = you === 1;
         const mine: 'w' | 'b' = you === 0 ? 'w' : 'b';
+        const claiming = myTurn && claimAt === room.version;
+        const legal = claiming ? (s.drawMoves ?? []) : s.legal;
 
         const fromsWithMoves = new Set(
-          s.legal.map((m) => `${m.from[0]},${m.from[1]}`),
+          legal.map((m) => `${m.from[0]},${m.from[1]}`),
         );
-        const targets = from ? s.legal.filter((m) => same(m.from, from)) : [];
+        const targets = from ? legal.filter((m) => same(m.from, from)) : [];
 
         const click = (row: number, col: number) => {
           if (!myTurn || r.busy) return;
@@ -84,7 +87,11 @@ function Chess() {
           );
           if (options.length) {
             const m = options[0];
-            if (options.length > 1) {
+            if (claiming) {
+              r.move({ type: 'claim_draw', from: m.from, to: m.to });
+              setClaimAt(null);
+              setFrom(null);
+            } else if (options.length > 1) {
               setPromoting(m); // pawn reaches the last rank: ask what to become
             } else {
               r.move({ from: m.from, to: m.to });
@@ -144,6 +151,32 @@ function Chess() {
         return (
           <>
             {s.winner === you && <Confetti />}
+            {s.canClaimDraw && (
+              <button
+                type='button'
+                className='mb-2 self-center text-sm text-info hover:underline'
+                disabled={r.busy}
+                onClick={() => r.move({ type: 'claim_draw' })}
+              >
+                Klaim seri karena posisi berulang
+              </button>
+            )}
+            {!!s.drawMoves?.length && (
+              <button
+                type='button'
+                className='mb-2 self-center text-sm text-info hover:underline'
+                disabled={r.busy}
+                onClick={() => {
+                  setFrom(null);
+                  setPromoting(null);
+                  setClaimAt(claiming ? null : room.version);
+                }}
+              >
+                {claiming
+                  ? 'Batal klaim seri'
+                  : 'Pilih langkah untuk klaim seri'}
+              </button>
+            )}
             <div className='mb-1 flex min-h-6 items-center gap-0.5 text-xs text-mute'>
               <span className='mr-1'>lawan memakan</span>
               {taken(mine).map((p, i) => (

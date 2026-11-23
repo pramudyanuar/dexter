@@ -76,6 +76,17 @@ export interface KarambolState {
   queenOwner: number | null;
   shotSeq: number;
   lastShot: KarambolShotSummary | null;
+  dropped?: number[];
+}
+
+const activeSeats = (s: KarambolState) =>
+  Array.from({ length: s.players }, (_, seat) => seat).filter(
+    (seat) => !s.dropped?.includes(seat),
+  );
+
+function nextSeat(state: KarambolState, from: number) {
+  const seats = activeSeats(state);
+  return seats.find((seat) => seat > from) ?? seats[0] ?? from;
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -402,7 +413,8 @@ export function move(
 ): KarambolState {
   if (state.winner !== null)
     throw new RoomError('Permainan sudah selesai', 409);
-  if (seat !== state.turn) throw new RoomError('Bukan giliranmu', 409);
+  if (seat !== state.turn || state.dropped?.includes(seat))
+    throw new RoomError('Bukan giliranmu', 409);
 
   const m = raw as Partial<KarambolShotMove> | null;
   const posRaw = m?.pos ?? m?.x;
@@ -512,8 +524,9 @@ export function move(
 
   if (isFreeForAll) {
     if (whiteLeft === 0 && blackLeft === 0 && queenPending === null) {
-      let bestSeat = 0;
-      for (let i = 1; i < scores.length; i++) {
+      const [first, ...others] = activeSeats(state);
+      let bestSeat = first;
+      for (const i of others) {
         if (scores[i] > scores[bestSeat]) bestSeat = i;
       }
       winner = bestSeat;
@@ -524,22 +537,28 @@ export function move(
       (queenPending === null || teamOf(queenPending) !== 0)
     ) {
       winningTeam = 0;
-      winner = teamOf(seat) === 0 ? seat : 0;
+      winner =
+        teamOf(seat) === 0
+          ? seat
+          : (activeSeats(state).find((i) => teamOf(i) === 0) ?? null);
     } else if (
       blackLeft === 0 &&
       (queenPending === null || teamOf(queenPending) !== 1)
     ) {
       winningTeam = 1;
-      winner = teamOf(seat) === 1 ? seat : 1;
+      winner =
+        teamOf(seat) === 1
+          ? seat
+          : (activeSeats(state).find((i) => teamOf(i) === 1) ?? null);
     }
   }
 
   const keepTurn = winner === null && !sim.foul && (sankMine > 0 || sankQueen);
 
   return {
-    players: state.players,
+    ...state,
     pieces,
-    turn: keepTurn ? seat : (seat + 1) % state.players,
+    turn: keepTurn ? seat : nextSeat(state, seat),
     winner,
     winningTeam,
     scores,
@@ -570,6 +589,29 @@ export const karambolGame: GameDef<KarambolState> = {
   start: (players) => start(players),
   move: (state, seat, m) => move(state, seat, m),
   view: (state) => state,
+  eliminate(state, seat) {
+    if (state.winner !== null || state.dropped?.includes(seat)) return state;
+    const next = { ...state, dropped: [...(state.dropped ?? []), seat] };
+    const seats = activeSeats(next);
+    const remainingTeam = seats.every((i) => teamOf(i) === teamOf(seats[0]));
+    if (seats.length === 1 || (state.players === 4 && remainingTeam)) {
+      return {
+        ...next,
+        winner: seats[0],
+        winningTeam: state.players === 4 ? teamOf(seats[0]) : null,
+      };
+    }
+    if (next.queenPending === seat) {
+      const spot = findCenterSpot(next.pieces);
+      next.pieces = [
+        ...next.pieces,
+        { ...spot, id: nextPieceId(next.pieces), kind: 'queen' },
+      ];
+      next.queenPending = null;
+    }
+    if (state.turn === seat) next.turn = nextSeat(next, seat);
+    return next;
+  },
   waiting: (state) =>
     state.winner === null
       ? { seats: [state.turn], seconds: TURN_SECONDS }

@@ -8,7 +8,7 @@ import usePlayerName from '@/lib/usePlayerName';
 export default function SubmitScore({
   game,
   score,
-  meta,
+  replay,
   label = 'Skor',
   english,
   save,
@@ -16,7 +16,7 @@ export default function SubmitScore({
 }: {
   game: string;
   score: number;
-  meta?: string;
+  replay?: unknown;
   label?: string;
   /** Show the widget's own text in English. */
   english?: boolean;
@@ -31,9 +31,6 @@ export default function SubmitScore({
     null,
   );
   const [error, setError] = React.useState('');
-  const attempt = React.useRef<{ game: string; score: number; id?: string }>(
-    null,
-  );
 
   const alreadySent = submittedScore === score;
 
@@ -58,18 +55,13 @@ export default function SubmitScore({
   };
 
   async function saveClassic(name: string): Promise<number | null> {
-    if (attempt.current?.score !== score || attempt.current.game !== game) {
-      attempt.current = { game, score, id: globalThis.crypto?.randomUUID?.() };
-    }
     const res = await fetch('/api/leaderboard', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         game,
         name,
-        score,
-        meta,
-        submissionId: attempt.current.id,
+        replay,
       }),
     });
     const data = await res.json();

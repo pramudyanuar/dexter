@@ -6,6 +6,7 @@ import {
   DEFAULT_REMO,
   MODE_INFO,
   modeDefaults,
+  REMO_CLOCK,
   REMO_MODES,
   RemoConfig,
   sanitizeRemo,
@@ -163,7 +164,7 @@ export default function RemoLobby({ r }: { r: Api }) {
               ))}
             </div>
             <p className='mt-3 text-sm text-[var(--mute)]' aria-live='polite'>
-              {MODE_INFO[cfg.mode].blurb}
+              {MODE_INFO[cfg.mode].blurb} {cfg.handSize} cards per player.
             </p>
           </section>
 
@@ -260,8 +261,8 @@ export default function RemoLobby({ r }: { r: Api }) {
                 label='Turn clock (seconds)'
                 value={cfg.turnSeconds}
                 min={0}
-                max={300}
-                step={15}
+                max={REMO_CLOCK.max}
+                step={REMO_CLOCK.min}
                 zero='none'
                 disabled={locked}
                 onChange={(v) => set({ turnSeconds: v })}

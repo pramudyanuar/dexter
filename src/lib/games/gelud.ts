@@ -452,6 +452,8 @@ export function stepGelud(
 
 export interface GeludRoomState {
   winner: 0 | 1 | null;
+  match?: number;
+  reports?: [0 | 1 | null, 0 | 1 | null];
 }
 
 export const geludGame: GameDef<GeludRoomState> = {
@@ -459,15 +461,31 @@ export const geludGame: GameDef<GeludRoomState> = {
   minPlayers: 2,
   maxPlayers: 2,
   autoStart: true,
-  start: () => ({ winner: null }),
-  restart: () => ({ winner: null }),
-  move: (state, _seat, raw) => {
+  start: () => ({ winner: null, match: 0 }),
+  restart: (previous) => ({ winner: null, match: (previous.match ?? 0) + 1 }),
+  move: (state, seat, raw) => {
     if (state.winner !== null) return state;
-    const w = (raw as { winner?: unknown } | null)?.winner;
+    const report = raw as { winner?: unknown; match?: unknown } | null;
+    if (report?.match !== (state.match ?? 0))
+      throw new RoomError('Pertandingan sudah berganti', 409);
+    const w = report.winner;
     if (w !== 0 && w !== 1)
       throw new RoomError('Hasil pertandingan tidak valid', 400);
-    return { winner: w };
+    const reports: NonNullable<GeludRoomState['reports']> = [
+      state.reports?.[0] ?? null,
+      state.reports?.[1] ?? null,
+    ];
+    reports[seat] = w;
+    return {
+      ...state,
+      reports,
+      winner: reports[0] === reports[1] ? w : null,
+    };
   },
+  eliminate: (state, seat) => ({
+    ...state,
+    winner: seat === 0 ? 1 : 0,
+  }),
   view: (state) => state,
   voice: (state, seat) =>
     state.winner === null

@@ -51,14 +51,17 @@ export function nextSnakeDelay(score: number, elapsed: number, limit: number) {
   return Math.min(delayFor(score), limit - elapsed);
 }
 
-export function readSnakeReplay(value: unknown): SnakeReplay | null {
+export function readSnakeReplay(
+  value: unknown,
+  maxTicks = MAX_DAILY_TICKS,
+): SnakeReplay | null {
   if (!value || typeof value !== 'object') return null;
   const { ticks, turns } = value as Partial<SnakeReplay>;
   if (
     typeof ticks !== 'number' ||
     !Number.isInteger(ticks) ||
     ticks < 1 ||
-    ticks > MAX_DAILY_TICKS ||
+    ticks > maxTicks ||
     !Array.isArray(turns) ||
     turns.length > ticks
   ) {
@@ -82,13 +85,21 @@ export function readSnakeReplay(value: unknown): SnakeReplay | null {
 }
 
 export function replayDaily(day: string, replay: SnakeReplay): number | null {
-  const rng = seededRandom(challengeForDay(day).seed);
+  return replaySnake(challengeForDay(day).seed, replay, DAILY_DURATION_MS);
+}
+
+export function replaySnake(
+  seed: number,
+  replay: SnakeReplay,
+  limit = Infinity,
+): number | null {
+  const rng = seededRandom(seed);
   let state = initialSnake(rng);
   let elapsed = 0;
   let turnIndex = 0;
 
   for (let tick = 1; tick <= replay.ticks; tick++) {
-    if (state.result || elapsed >= DAILY_DURATION_MS) return null;
+    if (state.result || elapsed >= limit) return null;
     const move = replay.turns[turnIndex];
     if (move?.[0] === tick) {
       const dir = move[1];
@@ -97,9 +108,9 @@ export function replayDaily(day: string, replay: SnakeReplay): number | null {
       state = turned;
       turnIndex++;
     }
-    elapsed += nextSnakeDelay(state.score, elapsed, DAILY_DURATION_MS);
+    elapsed += nextSnakeDelay(state.score, elapsed, limit);
     state = step(state, rng);
   }
 
-  return state.result || elapsed >= DAILY_DURATION_MS ? state.score : null;
+  return state.result || elapsed >= limit ? state.score : null;
 }

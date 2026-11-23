@@ -7,6 +7,8 @@ import {
   modeDefaults,
   MODES,
   sanitizeConfig,
+  SEKATA_BLANK_CARDS,
+  SEKATA_LIMITS,
   SekataConfig,
   WordTag,
 } from '@/lib/games/sekata-config';
@@ -296,24 +298,21 @@ export default function SekataLobby({ r }: { r: Api }) {
             <Stepper
               label='Kartu awal per pemain'
               value={cfg.handSize}
-              min={4}
-              max={15}
+              {...SEKATA_LIMITS.handSize}
               disabled={locked}
               onChange={(v) => set({ handSize: v })}
             />
             <Stepper
               label='Kartu kuning di tengah'
               value={cfg.sharedYellow}
-              min={0}
-              max={6}
+              {...SEKATA_LIMITS.sharedYellow}
               disabled={locked}
               onChange={(v) => set({ sharedYellow: v })}
             />
             <Stepper
               label='Kartu hijau per pemain'
               value={cfg.greenPerPlayer}
-              min={0}
-              max={3}
+              {...SEKATA_LIMITS.greenPerPlayer}
               zero='tidak ada'
               disabled={locked}
               onChange={(v) => set({ greenPerPlayer: v })}
@@ -332,10 +331,10 @@ export default function SekataLobby({ r }: { r: Api }) {
               onChange={(v) => set({ greenConsumed: v })}
             />
             <Toggle
-              label='Tambahkan 3 kartu kosong (joker)'
-              on={cfg.blankCards === 3}
+              label={`Tambahkan ${SEKATA_BLANK_CARDS} kartu kosong (joker)`}
+              on={cfg.blankCards === SEKATA_BLANK_CARDS}
               disabled={locked}
-              onChange={(v) => set({ blankCards: v ? 3 : 0 })}
+              onChange={(v) => set({ blankCards: v ? SEKATA_BLANK_CARDS : 0 })}
             />
             <Toggle
               label='Boleh tukar kartu'
@@ -350,8 +349,7 @@ export default function SekataLobby({ r }: { r: Api }) {
             <Stepper
               label='Hukuman kata salah'
               value={cfg.penalty}
-              min={0}
-              max={3}
+              {...SEKATA_LIMITS.penalty}
               unit='kartu'
               zero='tanpa'
               disabled={locked}
@@ -360,8 +358,7 @@ export default function SekataLobby({ r }: { r: Api }) {
             <Stepper
               label='Minimal kartu per kata'
               value={cfg.minWordCards}
-              min={1}
-              max={4}
+              {...SEKATA_LIMITS.minWordCards}
               disabled={locked}
               onChange={(v) => set({ minWordCards: v })}
             />
@@ -416,8 +413,7 @@ export default function SekataLobby({ r }: { r: Api }) {
             <Stepper
               label='Batas waktu'
               value={cfg.timeLimit}
-              min={0}
-              max={900}
+              {...SEKATA_LIMITS.timeLimit}
               step={30}
               unit='dtk'
               zero='tanpa batas'

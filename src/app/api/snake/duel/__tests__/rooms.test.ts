@@ -10,6 +10,30 @@ jest.mock('@/lib/snake-duel/store', () => ({
   getDuelStore: jest.fn(),
 }));
 
+it('explains when Duel is disabled without trying to access storage', async () => {
+  const env = jest.replaceProperty(process, 'env', {
+    ...process.env,
+    SNAKE_DUEL_ENABLED: '0',
+  });
+  jest
+    .mocked(getDuelStore)
+    .mockImplementationOnce(
+      jest.requireActual<typeof import('@/lib/snake-duel/store')>(
+        '@/lib/snake-duel/store',
+      ).getDuelStore,
+    );
+  try {
+    const response = await GET();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error:
+        'Snake Duel belum diaktifkan. Kamu masih bisa bermain Klasik atau Harian.',
+    });
+  } finally {
+    env.restore();
+  }
+});
+
 it('creates a public duel and exposes it in the shared lobby format', async () => {
   const token = newToken();
   const session = { code: 'ABCDE', seat: 0, token };

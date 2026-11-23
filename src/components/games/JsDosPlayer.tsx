@@ -34,12 +34,14 @@ function loadScript(src: string): Promise<void> {
     const script = existing ?? document.createElement('script');
     script.src = src;
     script.async = true;
-    script.addEventListener('load', () => resolve(), { once: true });
-    script.addEventListener(
-      'error',
-      () => reject(new Error('Gagal memuat emulator js-dos')),
-      { once: true },
-    );
+    const fail = () => {
+      script.remove();
+      reject(new Error('Gagal memuat emulator js-dos'));
+    };
+    script.addEventListener('load', () => (window.Dos ? resolve() : fail()), {
+      once: true,
+    });
+    script.addEventListener('error', fail, { once: true });
     if (!existing) document.head.appendChild(script);
   });
 }
@@ -58,6 +60,7 @@ export default function JsDosPlayer({
     'loading',
   );
   const [errorMsg, setErrorMsg] = React.useState('');
+  const [attempt, setAttempt] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -94,7 +97,7 @@ export default function JsDosPlayer({
         void instance.stop();
       }
     };
-  }, [bundleUrl, title]);
+  }, [bundleUrl, title, attempt]);
 
   return (
     <div className='mx-auto flex w-full max-w-4xl flex-col gap-3'>
@@ -117,8 +120,18 @@ export default function JsDosPlayer({
           </div>
         )}
         {status === 'error' && (
-          <div className='absolute inset-0 z-10 flex items-center justify-center bg-black/90 p-6 text-center text-sm text-err'>
-            {errorMsg}
+          <div className='absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/90 p-6 text-center text-sm text-err'>
+            <p role='alert'>{errorMsg}</p>
+            <button
+              type='button'
+              className='rounded-lg border border-line px-3 py-2 text-ink'
+              onClick={() => {
+                setStatus('loading');
+                setAttempt((value) => value + 1);
+              }}
+            >
+              Coba lagi
+            </button>
           </div>
         )}
         <div ref={containerRef} className='size-full' />

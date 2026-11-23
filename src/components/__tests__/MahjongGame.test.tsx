@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 
 import MahjongGame from '@/components/games/mahjong/MahjongGame';
 
@@ -144,6 +144,7 @@ describe('Mahjong', () => {
       .sort();
     expect(after).toEqual(before);
     expect(screen.getByTestId('notice')).toHaveTextContent('shuffled');
+    expect(screen.getByTestId('notice')).not.toHaveTextContent('-100');
     expect(screen.getByRole('button', { name: /^Shuffle/ })).toHaveTextContent(
       '(2)',
     );
@@ -171,27 +172,14 @@ describe('Mahjong', () => {
   });
 
   it('clears a small board and shows the victory screen', async () => {
-    // an easy pyramid is the smallest of the ready-made layouts
     render(<MahjongGame />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Easy' }));
-    fireEvent.click(screen.getByRole('button', { name: 'PLAY' }));
-    expect(document.querySelectorAll('[data-tile]')).toHaveLength(112);
-    // play it out: always take any pair; undo and retry if it gets stuck
-    for (
-      let i = 0;
-      i < 400 && !screen.queryByRole('dialog', { name: 'Board cleared' });
-      i++
-    ) {
-      const pair = freePair();
-      if (pair) {
-        act(() => {
-          fireEvent.click(pair[0]);
-          fireEvent.click(pair[1]);
-        });
-      } else {
-        fireEvent.click(screen.getByRole('button', { name: /^Shuffle/ }));
-      }
-    }
+    fireEvent.click(await screen.findByRole('button', { name: /Custom/ }));
+    fireEvent.click(screen.getByLabelText('Row 1, column 1'));
+    fireEvent.click(screen.getByLabelText('Row 1, column 2'));
+    fireEvent.click(screen.getByRole('button', { name: 'PLAY THIS LAYOUT' }));
+    const [first, second] = freePair()!;
+    fireEvent.click(first);
+    fireEvent.click(second);
     const dialog = screen.getByRole('dialog', { name: 'Board cleared' });
     expect(within(dialog).getByText('Board cleared!')).toBeInTheDocument();
     for (const label of [
@@ -214,7 +202,7 @@ describe('Mahjong', () => {
     ).toHaveAttribute('href', '/games');
     // the best score is remembered
     expect(
-      JSON.parse(localStorage.getItem('mahjong-best')!)['pyramid:easy'].score,
+      JSON.parse(localStorage.getItem('mahjong-best')!)['custom:medium'].score,
     ).toBeGreaterThan(0);
   });
 

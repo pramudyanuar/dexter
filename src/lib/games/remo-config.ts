@@ -48,6 +48,8 @@ export const DEFAULT_REMO: RemoConfig = {
   rounds: 1,
 };
 
+export const REMO_CLOCK = { min: 15, max: 300 } as const;
+
 /** What choosing a mode switches on, before the host changes anything by hand. */
 export function modeDefaults(mode: RemoMode): Partial<RemoConfig> {
   switch (mode) {
@@ -90,7 +92,9 @@ export function sanitizeRemo(raw: unknown): RemoConfig {
     finish: r.finish === 'melded' ? 'melded' : 'discard',
     noSameDiscard: bool(r.noSameDiscard, base.noSameDiscard),
     turnSeconds:
-      r.turnSeconds === 0 ? 0 : int(r.turnSeconds, 15, 300, base.turnSeconds),
+      r.turnSeconds === 0
+        ? 0
+        : int(r.turnSeconds, REMO_CLOCK.min, REMO_CLOCK.max, base.turnSeconds),
     rounds: int(r.rounds, 1, 10, base.rounds),
   };
   // what a mode is, whatever the other settings say
@@ -106,7 +110,7 @@ export const MODE_INFO: Record<RemoMode, { title: string; blurb: string }> = {
   classic: {
     title: 'Classic Remo',
     blurb:
-      'Seven cards each. Draw, lay down sequences and sets, discard. First to empty their hand wins.',
+      'Draw, lay down sequences and sets, then discard. First to empty their hand wins.',
   },
   point: {
     title: 'Point Remo',

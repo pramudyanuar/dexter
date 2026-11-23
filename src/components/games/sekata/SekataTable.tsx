@@ -200,21 +200,6 @@ export default function SekataTable({ r, view }: { r: Api; view: SekataView }) {
     view.timeLeft === null ? null : Math.max(0, view.timeLeft - sinceReceived);
   const elapsed = view.elapsed + (view.over ? 0 : sinceReceived);
 
-  const moveRef = React.useRef(r.move);
-  React.useEffect(() => {
-    moveRef.current = r.move;
-  });
-  React.useEffect(() => {
-    if (view.timeLeft === null || view.over) return;
-    // whoever's clock runs out first calls time; the others' calls are harmless
-    const wait = view.timeLeft * 1000 + 500 + you * 350;
-    const timer = setTimeout(
-      () => void moveRef.current({ type: 'tick' }),
-      wait,
-    );
-    return () => clearTimeout(timer);
-  }, [r.receivedAt, view.timeLeft, view.over, you]);
-
   const live = Array.from({ length: view.players }, (_, i) => i).filter(
     (i) => !view.dropped.includes(i) && !view.places.includes(i),
   );

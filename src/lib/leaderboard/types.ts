@@ -1,4 +1,5 @@
-import { GAMES } from '@/constant/games';
+import type { Level } from '@/lib/games/minesweeper';
+import { LEVELS } from '@/lib/games/minesweeper';
 
 export interface LeaderboardEntry {
   id: string;
@@ -6,11 +7,21 @@ export interface LeaderboardEntry {
   score: number;
   meta?: string;
   at: number;
+  verified?: boolean;
 }
 
 export const MAX_LEADERBOARD_ENTRIES = 20;
 
-export const VALID_GAME_IDS = new Set(GAMES.map((g) => g.id));
+export const VALID_GAME_IDS = new Set([
+  '2048',
+  'minesweeper',
+  'snake',
+  'tetris',
+]);
+
+export function isMinesLevel(level: unknown): level is Level {
+  return typeof level === 'string' && Object.hasOwn(LEVELS, level);
+}
 
 export function isLowerBetter(gameId: string): boolean {
   return gameId === 'minesweeper';
@@ -30,7 +41,10 @@ export function sortEntries(
   const asc = isLowerBetter(gameId);
   return [...entries]
     .sort(
-      (a, b) => (asc ? a.score - b.score : b.score - a.score) || a.at - b.at,
+      (a, b) =>
+        Number(!!b.verified) - Number(!!a.verified) ||
+        (asc ? a.score - b.score : b.score - a.score) ||
+        a.at - b.at,
     )
     .slice(0, MAX_LEADERBOARD_ENTRIES);
 }

@@ -85,6 +85,77 @@ describe('the registry', () => {
   });
 });
 
+describe('room deadlines and settings', () => {
+  it('deals equal hands at the largest supported tables without exhausting the deck', () => {
+    const rng = () => 0;
+    for (const game of ['uno', 'unoflip', 'unomercy'] as const) {
+      const state = GAMES[game].start(8, rng, { handSize: 15 }) as {
+        hands: unknown[][];
+        discard: unknown[];
+      };
+      expect(state.discard[0]).toBeDefined();
+      expect(new Set(state.hands.map((hand) => hand.length)).size).toBe(1);
+      expect(state.hands.flat()).not.toContain(undefined);
+    }
+    const domino = GAMES.domino.start(4, rng, { handSize: 10 }) as {
+      hands: unknown[][];
+    };
+    expect(domino.hands.map((hand) => hand.length)).toEqual([7, 7, 7, 7]);
+  });
+
+  it('passes configured game options through a room rematch', () => {
+    const waiting = join(newRoom('quiz', 'ABCDE', A), null, B).room;
+    const room = start(
+      { ...waiting, options: { totalQuestions: 20 } },
+      A,
+      () => 0,
+    );
+    const next = rematch({ ...room, status: 'over' }, A, () => 0);
+    expect((next.state as { questions: unknown[] }).questions).toHaveLength(20);
+  });
+  it('applies the Connect 4 timeout before accepting a late move', () => {
+    const room = join(
+      newRoom('connect4', 'ABCDE', A, 0),
+      null,
+      B,
+      () => 0,
+      null,
+      0,
+    ).room;
+    const next = act(room, A, { col: 6 }, () => 0, 45_000);
+    expect(next.strikes?.[0]).toBe(1);
+    expect(next.state).toMatchObject({ turn: 1, moves: 1 });
+  });
+
+  it('gives all Quiz answers one deadline and scores missed answers as skips', () => {
+    const waiting = join(newRoom('quiz', 'ABCDE', A, 0), null, B).room;
+    const room = start(waiting, A, () => 0, 0);
+    const first = act(room, A, { q: 0, choice: 1 }, () => 0, 9_000);
+    expect(first.stamp).toBe(0);
+    const next = sweep(first, 15_000, () => 0);
+    expect(next.state).toMatchObject({ idx: 1, last: { answers: [1, -1] } });
+    expect(next.strikes?.slice(0, 2)).toEqual([0, 0]);
+  });
+
+  it('ends timed Sekata before accepting another action', () => {
+    let room = newRoom('sekata', 'ABCDE', A, 0);
+    room = join(join(room, null, B).room, null, C).room;
+    room = start(room, A, undefined, 0);
+    const timed = {
+      ...room,
+      state: { ...(room.state as object), deadline: 10 },
+    };
+    expect(act(timed, A, { type: 'stuck' }, undefined, 10).status).toBe('over');
+  });
+
+  it('rejects a Werewolf capacity below the occupied seats', () => {
+    let room = newRoom('werewolf', 'ABCDE', A);
+    for (const token of [B, C, D, E, 'token-f'])
+      room = join(room, null, token).room;
+    expect(() => setOptions(room, A, { maxPlayers: 5 })).toThrow(/kapasitas/i);
+  });
+});
+
 describe('a new room', () => {
   it('has one seat per player slot, with the creator in seat 0', () => {
     const room = newRoom('uno', 'ABCDE', A);

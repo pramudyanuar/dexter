@@ -4,10 +4,12 @@ export default function LeaderboardTable({
   game,
   entries,
   showMeta = true,
+  showVerification = false,
 }: {
   game: string;
   entries: LeaderboardEntry[];
   showMeta?: boolean;
+  showVerification?: boolean;
 }) {
   const unit = scoreUnit(game);
   return (
@@ -36,7 +38,14 @@ export default function LeaderboardTable({
                 <span className='text-[var(--mute)]'>#{idx + 1}</span>
               )}
             </td>
-            <td className='px-4 py-2.5 font-medium text-ink'>{entry.name}</td>
+            <td className='px-4 py-2.5 font-medium text-ink'>
+              {entry.name}
+              {showVerification && !entry.verified && (
+                <span className='block text-xs font-normal text-mute'>
+                  Skor lama · belum diverifikasi
+                </span>
+              )}
+            </td>
             {showMeta && (
               <td className='px-4 py-2.5 text-xs text-[var(--mute)]'>
                 {entry.meta ?? '-'}

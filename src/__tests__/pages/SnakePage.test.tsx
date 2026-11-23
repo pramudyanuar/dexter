@@ -12,7 +12,10 @@ describe('Snake Classic', () => {
     jest.useFakeTimers();
     localStorage.clear();
     jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-    jest.spyOn(Math, 'random').mockReturnValue(208.1 / 397);
+    jest.spyOn(crypto, 'getRandomValues').mockImplementation((values) => {
+      if (values instanceof Uint32Array) values[0] = 6;
+      return values;
+    });
   });
 
   afterEach(() => {

@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import {
+  COUNTUP_ROUNDS,
   DART_MODES,
   DartConfig,
   DEFAULT_DART,
@@ -193,7 +194,14 @@ export default function DartLobby({ r }: { r: Api }) {
               ))}
             </div>
             <p className='mt-3 text-sm text-[var(--mute)]' aria-live='polite'>
-              {MODE_INFO[cfg.mode].blurb}
+              {x01 ? (
+                <>
+                  Count down from {cfg.startScore} to exactly zero.{' '}
+                  {cfg.doubleOut && 'Finish on a double or the inner bull.'}
+                </>
+              ) : (
+                MODE_INFO[cfg.mode].blurb
+              )}
             </p>
             <div className='mt-2 divide-y divide-line'>
               {x01 && (
@@ -219,8 +227,7 @@ export default function DartLobby({ r }: { r: Api }) {
                 <Stepper
                   label='Rounds'
                   value={cfg.rounds}
-                  min={1}
-                  max={20}
+                  {...COUNTUP_ROUNDS}
                   disabled={locked}
                   onChange={(v) => set({ rounds: v })}
                 />
