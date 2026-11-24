@@ -32,6 +32,7 @@ function AdminMenu({
   onKick,
   code,
   onLeave,
+  inline,
 }: {
   room: RoomView;
   you: number;
@@ -40,6 +41,7 @@ function AdminMenu({
   /** The room code to copy, and the way out, kept here with the admin's tools */
   code?: string;
   onLeave?: () => void;
+  inline?: boolean;
 }) {
   const { copied, copy } = useCopy();
   const t = useText();
@@ -68,14 +70,17 @@ function AdminMenu({
   if (!seats.length && !code && !onLeave) return null;
 
   return (
-    <div ref={ref} className='fixed top-3 left-14 z-40'>
+    <div
+      ref={ref}
+      className={inline ? 'relative z-40' : 'fixed top-3 left-14 z-40'}
+    >
       <button
         type='button'
         onClick={() => setOpen((o) => !o)}
         aria-label={t.manage}
         aria-expanded={open}
         title={t.manage}
-        className={`flex size-8 items-center justify-center rounded-md border transition-colors ${
+        className={`flex ${inline ? 'size-11' : 'size-8'} items-center justify-center rounded-md border transition-colors ${
           open
             ? 'border-[var(--mute)] text-ink'
             : 'border-transparent text-[var(--mute)] hover:text-ink'
@@ -96,7 +101,9 @@ function AdminMenu({
         </svg>
       </button>
       {open && (
-        <div className='a-pop absolute top-full left-0 z-50 mt-2 w-72 origin-top-left rounded-lg border border-line-strong bg-card text-sm shadow-2xl'>
+        <div
+          className={`a-pop absolute top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-line-strong bg-card text-sm shadow-2xl ${inline ? 'left-1/2 -translate-x-1/2' : 'left-0 origin-top-left'}`}
+        >
           <p className='border-b border-line px-3 py-2 text-xs text-[var(--mute)]'>
             {t.youAdmin}
           </p>
@@ -237,6 +244,7 @@ export default function RoomNotice({
   code,
   onLeave,
   quiet,
+  inline,
 }: {
   room: RoomView | null;
   you: number;
@@ -251,6 +259,8 @@ export default function RoomNotice({
    * at all once the game is over (the result says it already).
    */
   quiet?: boolean;
+  /** Put host controls in the room bar when the game already shows the turn clock. */
+  inline?: boolean;
 }) {
   const t = useText();
   const lang = useLang();
@@ -321,7 +331,7 @@ export default function RoomNotice({
   // the turn clock, for whoever is being waited on
   let clock: React.ReactNode = null;
   const waiting = live ? room.waiting : null;
-  if (waiting && !room.out[you]) {
+  if (waiting && !inline && !room.out[you]) {
     const left = Math.max(0, waiting.remaining - elapsed);
     const mine = waiting.seats.includes(you);
     const urgent = left <= 10;
@@ -359,6 +369,7 @@ export default function RoomNotice({
         onKick={onKick}
         code={code}
         onLeave={onLeave}
+        inline={inline}
       />
     ) : null;
 

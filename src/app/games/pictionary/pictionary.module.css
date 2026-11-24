@@ -1,0 +1,586 @@
+.shell:global(.games-ui) {
+  --paper: #100e0e;
+  --surface: #191618;
+  --card: #191618;
+  --line: #393337;
+  --line-strong: #73655f;
+  --ink: #f4efe7;
+  --mute: #bbb0a8;
+  --accent: #f6be79;
+  --info: var(--accent);
+  --err: #f1a19a;
+  --correct: #a4deae;
+  background: var(--paper);
+}
+
+.shell > main {
+  max-width: 84rem;
+  padding: 0 1rem 2rem;
+}
+
+.shell :is(a, button, input, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.shell button:enabled {
+  cursor: pointer;
+}
+
+.masthead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0 0.875rem;
+}
+
+.back {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--mute);
+  font-size: 0.875rem;
+}
+
+.back:hover {
+  color: var(--ink);
+}
+
+.masthead h1 {
+  font-size: clamp(2.25rem, 4vw, 3.75rem);
+  font-weight: 760;
+  line-height: 1.05;
+  letter-spacing: -0.055em;
+}
+
+.lobby {
+  width: 100%;
+  max-width: 59rem;
+  margin-inline: auto;
+}
+
+.lobby > div:not(:has(aside)) {
+  display: block;
+  max-width: 32rem;
+  margin-inline: auto;
+}
+
+.lobby :is(input:not([type='checkbox']), button, summary) {
+  min-height: 2.75rem;
+}
+
+.workspace {
+  display: grid;
+  grid-template-areas: 'stage' 'guesses' 'chat' 'players';
+  gap: 1.25rem;
+}
+
+.stage {
+  grid-area: stage;
+  min-width: 0;
+}
+
+.roundHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: 1rem;
+  row-gap: 0.75rem;
+}
+
+.prompt {
+  min-width: 0;
+}
+
+.roundHeader[data-drawer='true'] .prompt {
+  min-height: 6.25rem;
+}
+
+.round {
+  margin-bottom: 0.375rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.caption {
+  color: var(--mute);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.word,
+.hint {
+  color: var(--ink);
+  font-size: clamp(1.125rem, 2.8vw, 1.75rem);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.375rem;
+}
+
+.choices button {
+  min-height: 2.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.choices button:hover {
+  border-color: var(--accent);
+}
+
+.choices button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--paper);
+}
+
+.timer {
+  display: grid;
+  justify-items: end;
+  white-space: nowrap;
+}
+
+.timer [role='timer'] {
+  font-family: var(--font-mono);
+  font-size: clamp(1.375rem, 3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.timer[data-urgent='true'] [role='timer'] {
+  color: var(--err);
+}
+
+.timerTrack {
+  grid-column: 1 / -1;
+  height: 0.25rem;
+  background: var(--line);
+}
+
+.timerTrack > div {
+  height: 100%;
+  background: var(--accent);
+}
+
+.timerTrack > div[data-urgent='true'] {
+  background: var(--err);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #fff;
+}
+
+.canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.toolbar {
+  display: grid;
+  gap: 0.375rem;
+  border-bottom: 1px solid var(--line);
+  padding-block: 0.5rem;
+}
+
+.toolRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem 0.75rem;
+}
+
+.toolRow + .toolRow {
+  border-top: 1px solid var(--line);
+  padding-top: 0.375rem;
+}
+
+.toolGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.tool {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  color: var(--mute);
+  touch-action: manipulation;
+}
+
+.tool:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+
+.tool[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.tool:disabled {
+  opacity: 0.38;
+}
+
+.swatch,
+.brush {
+  border-radius: 50%;
+}
+
+.swatch {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--line-strong);
+}
+
+.brush {
+  background: var(--ink);
+}
+
+.lastWord {
+  margin-top: 0.75rem;
+  color: var(--mute);
+  font-size: 0.8125rem;
+}
+
+.lastWord strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.panel {
+  min-width: 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+}
+
+.panelHead h2,
+.chat section > div:first-child > span:first-child {
+  font-size: 1.0625rem;
+  font-weight: 650;
+}
+
+.panelHead span {
+  color: var(--mute);
+  font-size: 0.75rem;
+}
+
+.players {
+  grid-area: players;
+}
+
+.scoreList li {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.625rem 0.25rem;
+}
+
+.scoreList li[data-drawing='true'] .initial {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+.initial {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.25rem;
+  background: var(--card);
+  font-weight: 650;
+}
+
+.playerName {
+  flex: 1;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.playerState,
+.solved {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+.playerState svg,
+.solved svg {
+  align-self: center;
+  flex: none;
+}
+
+.playerState {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.playerState[data-solved='true'],
+.solved {
+  color: var(--correct);
+}
+
+.score,
+.rankList strong {
+  font-family: var(--font-mono);
+}
+
+.guesses {
+  grid-area: guesses;
+}
+
+.guessForm {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.guessForm input {
+  min-width: 0;
+  min-height: 2.75rem;
+  flex: 1;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.25rem;
+  background: var(--card);
+  padding-inline: 0.625rem;
+  font-size: 1rem;
+}
+
+.guessForm input::placeholder {
+  color: var(--mute);
+}
+
+.guessForm button,
+.results > button {
+  min-height: 2.75rem;
+  border-radius: 0.25rem;
+  background: var(--accent);
+  padding-inline: 0.75rem;
+  color: var(--paper);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.guessForm button:disabled {
+  opacity: 0.45;
+}
+
+.guessForm button,
+.chat form button {
+  min-width: 5.75rem;
+}
+
+.inputError {
+  margin-block: 0.5rem;
+  color: var(--err);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.guessState {
+  min-height: 2.75rem;
+  align-content: center;
+  color: var(--mute);
+  font-size: 0.875rem;
+}
+
+.guessState.solved {
+  align-items: center;
+  color: var(--correct);
+}
+
+.feed {
+  max-height: 9rem;
+  overflow-y: auto;
+  margin-top: 0.625rem;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.feed li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.375rem 0;
+}
+
+.chat {
+  grid-area: chat;
+  min-width: 0;
+  height: 15rem;
+}
+
+.chat section {
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background: transparent;
+  animation: none;
+}
+
+.chat section > div:first-child {
+  border-bottom: 0;
+  padding: 0.75rem 0;
+}
+
+.chat form {
+  border-top: 0;
+  padding: 0;
+}
+
+.chat [role='alert'] {
+  order: 1;
+  padding: 0.5rem 0 0;
+}
+
+.chat [role='log'] {
+  order: 2;
+  margin-top: 0.625rem;
+  padding-inline: 0;
+}
+
+.chat form :is(input, button) {
+  min-height: 2.75rem;
+}
+
+.chat form input {
+  font-size: 1rem;
+}
+
+.chat form :focus-visible {
+  outline-offset: -2px;
+}
+
+.results {
+  width: 100%;
+  max-width: 32rem;
+  margin: 1.5rem auto;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 1.25rem;
+}
+
+.results h2 {
+  font-size: clamp(1.5rem, 4vw, 2.75rem);
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.rankList {
+  margin-block: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.rankList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.625rem 0;
+  overflow-wrap: anywhere;
+}
+
+.shell .results > button {
+  border: 0;
+  color: var(--paper);
+  text-decoration: none;
+}
+
+@media (min-width: 48rem) {
+  .shell > main {
+    padding-inline: 1.5rem;
+  }
+
+  .masthead {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 1.5rem;
+    padding-block: 1rem;
+  }
+
+  .workspace {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: 'stage stage' 'guesses chat' 'players players';
+  }
+}
+
+@media (min-width: 72rem) {
+  .workspace {
+    --board-width: clamp(40rem, calc((100dvh - 22rem) * 16 / 9), 58rem);
+    width: min(100%, calc(var(--board-width) + 13.25rem));
+    margin-inline: auto;
+    grid-template-columns: 12rem minmax(0, 1.15fr) minmax(0, 1fr);
+    grid-template-areas: 'players stage stage' 'players guesses chat';
+  }
+
+  .workspace:has(.toolbar) {
+    --board-width: clamp(38rem, calc((100dvh - 27rem) * 16 / 9), 58rem);
+  }
+}
+
+@media (min-width: 72rem) and (max-height: 52rem) and (pointer: fine) {
+  .toolRow + .toolRow .toolGroup {
+    gap: 0.125rem;
+  }
+
+  .toolRow + .toolRow .tool {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 32rem) {
+  .masthead {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    padding-block: 0.25rem;
+  }
+
+  .masthead h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 40rem) and (max-width: 71.99rem) and (max-height: 32rem) {
+  .workspace {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-areas: 'stage guesses' 'stage chat' 'players players';
+  }
+}
