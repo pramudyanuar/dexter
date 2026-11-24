@@ -110,8 +110,8 @@ The Snake page at `/games/snake` includes Classic, Harian, and a shared 1v1 Duel
 
 - Use Node 24 and the project's pnpm 12 pin. Set `ENABLE_EXPERIMENTAL_COREPACK=1` in Vercel so builds use the pinned package manager.
 - Enable Fluid Compute and connect a free Upstash Redis database to Preview. The Duel functions use Singapore (`sin1`), so select the Singapore primary region or update the function regions in `vercel.json` to match your database.
-- Set `SNAKE_DUEL_ENABLED=1` for environments that should offer Duel. `SNAKE_DUEL_MONTHLY_ROUNDS` defaults to 20, with up to two concurrent rounds. Vercel Preview uses a separate Duel namespace by default. Use separate Redis credentials for isolated Preview leaderboard data.
-- Test the WebSocket route in Vercel Preview or with `vercel dev`. Check room codes, public listing, matchmaking, and reconnect from two clients before enabling Duel in Production.
+- Duel reuses the same Redis settings as the other multiplayer games. It allows 20 rounds per month and up to two concurrent rounds. Vercel Preview uses a separate Duel namespace. Use separate Redis credentials for isolated Preview leaderboard data.
+- Test the WebSocket route in Vercel Preview or with `vercel dev`. Check room codes, public listing, matchmaking, and reconnect from two clients before deploying changes to Production.
 
 ## Projects using ts-nextjs-tailwind-starter
 

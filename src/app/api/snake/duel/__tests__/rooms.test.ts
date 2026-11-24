@@ -1,7 +1,11 @@
 /** @jest-environment node */
 
 import { newToken } from '@/lib/rooms/codes';
-import { DuelStore, getDuelStore } from '@/lib/snake-duel/store';
+import {
+  DUEL_UNAVAILABLE,
+  DuelStore,
+  getDuelStore,
+} from '@/lib/snake-duel/store';
 
 import { GET, POST } from '@/app/api/snake/duel/rooms/route';
 
@@ -10,25 +14,48 @@ jest.mock('@/lib/snake-duel/store', () => ({
   getDuelStore: jest.fn(),
 }));
 
-it('explains when Duel is disabled without trying to access storage', async () => {
+const realGetStore = jest.requireActual<
+  typeof import('@/lib/snake-duel/store')
+>('@/lib/snake-duel/store').getDuelStore;
+
+it('uses shared Redis and the Preview namespace even with obsolete Duel settings', async () => {
   const env = jest.replaceProperty(process, 'env', {
     ...process.env,
+    UPSTASH_REDIS_REST_URL: 'https://redis.example.test',
+    UPSTASH_REDIS_REST_TOKEN: 'test-token',
+    VERCEL_ENV: 'preview',
     SNAKE_DUEL_ENABLED: '0',
+    SNAKE_DUEL_MONTHLY_ROUNDS: '0',
+    SNAKE_DUEL_NAMESPACE: 'old',
   });
-  jest
-    .mocked(getDuelStore)
-    .mockImplementationOnce(
-      jest.requireActual<typeof import('@/lib/snake-duel/store')>(
-        '@/lib/snake-duel/store',
-      ).getDuelStore,
+  const redis = jest
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(Response.json({ result: [] }));
+  jest.mocked(getDuelStore).mockImplementationOnce(realGetStore);
+  try {
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ rooms: [] });
+    expect(redis).toHaveBeenCalledWith(
+      'https://redis.example.test',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('snake:duel:preview:lobby'),
+      }),
     );
+  } finally {
+    redis.mockRestore();
+    env.restore();
+  }
+});
+
+it('returns 503 when shared Redis is missing', async () => {
+  const env = jest.replaceProperty(process, 'env', { NODE_ENV: 'test' });
+  jest.mocked(getDuelStore).mockImplementationOnce(realGetStore);
   try {
     const response = await GET();
     expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({
-      error:
-        'Snake Duel belum diaktifkan. Kamu masih bisa bermain Klasik atau Harian.',
-    });
+    expect(await response.json()).toEqual({ error: DUEL_UNAVAILABLE });
   } finally {
     env.restore();
   }
