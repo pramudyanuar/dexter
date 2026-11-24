@@ -15,8 +15,16 @@ export const COLORS = [
   '#f5c518',
   '#ab4aba',
   '#ffffff',
+  '#f97316',
+  '#ec4899',
+  '#7c482b',
+  '#94a3b8',
+  '#0ea5a0',
+  '#142b63',
 ] as const;
-export const WIDTHS = [4, 9, 18] as const;
+export const ERASER = 6;
+export const WIDTHS = [4, 9, 18, 2, 32] as const;
+export const STROKE_BATCH_LIMIT = 400;
 
 const MAX_STROKES = 250;
 const MAX_POINTS = 6000;
@@ -50,6 +58,8 @@ export interface PictionaryState {
   /** Words already used this game */
   used: string[];
   strokes: Stroke[];
+  redo?: Stroke[];
+  drawingStarted?: boolean;
   guesses: GuessEntry[];
   solved: number[];
   scores: number[];
@@ -71,6 +81,7 @@ export interface PictionaryView {
   choices: [string, string] | null;
   hint: string;
   strokes: Stroke[];
+  canRedo: boolean;
   guesses: GuessEntry[];
   solved: number[];
   scores: number[];
@@ -156,6 +167,7 @@ function advance(
       ...s,
       round,
       strokes: [],
+      redo: [],
       solved: [],
       last,
       winners: left.filter((i) => s.scores[i] === top),
@@ -173,6 +185,8 @@ function advance(
     choices,
     used: [...s.used, word],
     strokes: [],
+    redo: [],
+    drawingStarted: false,
     guesses: [],
     solved: [],
     last,
@@ -198,6 +212,9 @@ export const pictionaryGame: GameDef<PictionaryState> = {
     const m = move as Record<string, unknown> | null;
     const type = m?.type;
 
+    if (m?.round !== undefined && m.round !== state.round)
+      throw new RoomError('Ronde sudah berganti', 409);
+
     if (type === 'next') {
       if (m?.round !== state.round)
         throw new RoomError('Ronde sudah berganti', 409);
@@ -220,10 +237,41 @@ export const pictionaryGame: GameDef<PictionaryState> = {
       return { ...state, word, used, choices: undefined };
     }
 
-    if (type === 'stroke' || type === 'clear') {
+    if (
+      type === 'stroke' ||
+      type === 'clear' ||
+      type === 'undo' ||
+      type === 'redo'
+    ) {
       if (seat !== state.drawer)
         throw new RoomError('Hanya penggambar yang bisa menggambar', 403);
-      if (type === 'clear') return { ...state, strokes: [] };
+      if (type === 'clear') {
+        return {
+          ...state,
+          drawingStarted: state.drawingStarted || state.strokes.length > 0,
+          strokes: [],
+          redo: [],
+        };
+      }
+      if (type === 'undo') {
+        const stroke = state.strokes.at(-1);
+        if (!stroke) return state;
+        return {
+          ...state,
+          drawingStarted: true,
+          strokes: state.strokes.slice(0, -1),
+          redo: [...(state.redo ?? []), stroke],
+        };
+      }
+      if (type === 'redo') {
+        const stroke = state.redo?.at(-1);
+        if (!stroke) return state;
+        return {
+          ...state,
+          strokes: [...state.strokes, stroke],
+          redo: state.redo?.slice(0, -1),
+        };
+      }
 
       const { id, pts, color, width } = m as {
         id?: unknown;
@@ -236,7 +284,7 @@ export const pictionaryGame: GameDef<PictionaryState> = {
         id.length > 24 ||
         !Array.isArray(pts) ||
         pts.length < 2 ||
-        pts.length > 400 ||
+        pts.length > STROKE_BATCH_LIMIT ||
         pts.length % 2 !== 0 ||
         !pts.every((n) => finite(n) && n >= 0 && n <= COORD_MAX) ||
         !Number.isInteger(color) ||
@@ -270,7 +318,13 @@ export const pictionaryGame: GameDef<PictionaryState> = {
         strokes.reduce((n, s) => n + s.pts.length, 0) > MAX_POINTS
       )
         throw new RoomError('Gambar terlalu rumit, hapus dulu', 409);
-      return { ...state, strokes, choices: undefined };
+      return {
+        ...state,
+        strokes,
+        choices: undefined,
+        drawingStarted: true,
+        redo: [],
+      };
     }
 
     if (type === 'guess') {
@@ -308,7 +362,7 @@ export const pictionaryGame: GameDef<PictionaryState> = {
   // only a drawer who has not started drawing is being waited for; a round that
   // is underway ends on its own clock
   waiting: (state) =>
-    !state.winners && state.strokes.length === 0
+    !state.winners && !state.drawingStarted && state.strokes.length === 0
       ? { seats: [state.drawer], seconds: 60 }
       : null,
 
@@ -367,6 +421,7 @@ export const pictionaryGame: GameDef<PictionaryState> = {
           : null,
       hint: over ? '' : hintFor(state.word),
       strokes: state.strokes,
+      canRedo: isDrawer && !over && Boolean(state.redo?.length),
       guesses: state.guesses,
       solved: state.solved,
       scores: state.scores,

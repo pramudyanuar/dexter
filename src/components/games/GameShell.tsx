@@ -18,6 +18,8 @@ export default function GameShell({
   xwide,
   fit,
   fullscreen,
+  className = '',
+  showBack = true,
 }: {
   /** The game's route name (e.g. `uno`); omit on the menu page. */
   name?: string;
@@ -37,6 +39,8 @@ export default function GameShell({
   fit?: boolean;
   /** Edge to edge with no back button: the game supplies its own chrome. */
   fullscreen?: boolean;
+  className?: string;
+  showBack?: boolean;
 }) {
   // pages pass the menu id (e.g. `chess`) or the route (`snake`)
   const game = name
@@ -47,9 +51,9 @@ export default function GameShell({
     <div
       className={`games-ui flex flex-col overflow-x-clip text-[15px] text-ink ${
         fullscreen ? 'h-dvh overflow-hidden overscroll-none' : 'min-h-dvh'
-      }`}
+      } ${className}`}
     >
-      {name && !fullscreen && (
+      {name && !fullscreen && showBack && (
         <Link
           href='/games'
           title='Kembali ke daftar game'

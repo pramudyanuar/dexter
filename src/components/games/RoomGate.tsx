@@ -327,12 +327,16 @@ export default function RoomGate<V>({
   blurb,
   barRight,
   guide,
+  lobbyHeading,
+  inlineNotice,
   children,
 }: {
   r: Room<V>;
   blurb: string;
   barRight?: React.ReactNode;
   guide?: React.ReactNode;
+  lobbyHeading?: string;
+  inlineNotice?: boolean;
   children: (ctx: {
     room: RoomView<V> & { state: V };
     you: number;
@@ -350,6 +354,8 @@ export default function RoomGate<V>({
         onCreate={r.create}
         onJoin={r.join}
         guide={guide}
+        compact={Boolean(lobbyHeading)}
+        heading={lobbyHeading}
       />
     );
   }
@@ -373,25 +379,39 @@ export default function RoomGate<V>({
     );
   }
 
+  const notice = (
+    <RoomNotice
+      room={room}
+      you={you}
+      receivedAt={r.receivedAt}
+      onKick={r.kick}
+      busy={r.busy}
+      inline={inlineNotice}
+    />
+  );
+
   return (
     <>
       <RoomBar
         code={r.session.code}
         share={false}
         onLeave={r.leave}
-        right={barRight ?? guide}
+        right={
+          inlineNotice ? (
+            <div className='flex items-center gap-2'>
+              {barRight ?? guide}
+              {notice}
+            </div>
+          ) : (
+            (barRight ?? guide)
+          )
+        }
       />
       {/* games for more players list everyone with their names already */}
       {room.capacity === 2 && (
         <PlayerStrip names={room.names} joined={room.joined} you={you} />
       )}
-      <RoomNotice
-        room={room}
-        you={you}
-        receivedAt={r.receivedAt}
-        onKick={r.kick}
-        busy={r.busy}
-      />
+      {!inlineNotice && notice}
       {children({
         room: room as RoomView<V> & { state: V },
         you,

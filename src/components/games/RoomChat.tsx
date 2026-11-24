@@ -40,6 +40,7 @@ function Chat({
   const [lines, setLines] = React.useState<ChatMsg[]>([]);
   const [seen, setSeen] = React.useState(0);
   const [text, setText] = React.useState('');
+  const [sending, setSending] = React.useState(false);
   /** Where your next line goes; null when you may not talk right now */
   const [channel, setChannel] = React.useState<string | null>('all');
   const [error, setError] = React.useState('');
@@ -49,6 +50,7 @@ function Chat({
   const lastId = React.useRef<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const inputId = React.useId();
 
   const fetchNew = React.useCallback(async () => {
     if (document.visibilityState !== 'visible') return;
@@ -120,9 +122,10 @@ function Chat({
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
     const body = text.trim();
-    if (!body) return;
-    setText('');
+    if (!body || sending || channel === null) return;
+    setSending(true);
     setError('');
+    if (inline) inputRef.current?.focus({ preventScroll: true });
     try {
       const res = await fetch(`/api/rooms/${code}/chat`, {
         method: 'POST',
@@ -131,17 +134,19 @@ function Chat({
           'x-player-token': token,
         },
         body: JSON.stringify({ text: body }),
+        signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setText(body);
         setError(data.error ?? t.sendFailed);
         return;
       }
+      setText((draft) => (draft === text ? '' : draft));
       void fetchNew();
     } catch {
-      setText(body);
       setError(t.sendFailed);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -174,7 +179,13 @@ function Chat({
           }}
         >
           <div className='flex items-center justify-between border-b border-line px-3 py-2 text-sm'>
-            <span className='font-medium'>{t.chat}</span>
+            <span className='font-medium'>
+              {inline && token ? (
+                <label htmlFor={inputId}>{t.chat}</label>
+              ) : (
+                t.chat
+              )}
+            </span>
             <span className='text-xs text-[var(--mute)]'>
               {t.room} {code}
             </span>
@@ -247,32 +258,43 @@ function Chat({
           </div>
 
           {error && (
-            <p className='px-3 pb-1 text-xs text-err' role='alert'>
+            <p
+              id={`${inputId}-error`}
+              className='px-3 pb-1 text-xs text-err'
+              role='alert'
+            >
               {error}
             </p>
           )}
           {token ? (
             <form
               onSubmit={send}
+              aria-busy={sending}
               className='flex gap-2 border-t border-line p-2'
             >
               <input
                 ref={inputRef}
+                id={inputId}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  setError('');
+                }}
                 maxLength={CHAT_MAX_LENGTH}
                 disabled={channel === null}
                 placeholder={channel === null ? t.muted : t.write}
                 aria-label={t.message}
+                aria-describedby={error ? `${inputId}-error` : undefined}
                 autoComplete='off'
+                enterKeyHint='send'
                 className='min-w-0 flex-1'
               />
               <button
                 type='submit'
-                disabled={!text.trim() || channel === null}
+                disabled={sending || !text.trim() || channel === null}
                 className='rounded-lg bg-ink px-3 text-sm font-medium text-paper transition-opacity disabled:opacity-40'
               >
-                {t.send}
+                {sending ? (lang === 'en' ? 'Sending…' : 'Mengirim…') : t.send}
               </button>
             </form>
           ) : (

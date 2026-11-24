@@ -36,6 +36,8 @@ export default function RoomLobby({
   initialPublic = true,
   requireName = false,
   actions,
+  compact = false,
+  heading,
 }: {
   blurb: string;
   busy: boolean;
@@ -52,6 +54,9 @@ export default function RoomLobby({
   initialPublic?: boolean;
   requireName?: boolean;
   actions?: (disabled: boolean) => React.ReactNode;
+  /** Text-only lobby for a page that already has a game title. */
+  compact?: boolean;
+  heading?: string;
 }) {
   const currentGame = useGameEntry();
   const game = entry ?? currentGame;
@@ -108,27 +113,35 @@ export default function RoomLobby({
   const showRoomList = rooms.length > 0 || Boolean(publicRoomsUrl);
   const unavailable = publicRooms === null && Boolean(listError);
   const disabled = busy || (requireName && !cleanName(name)) || unavailable;
+  const Heading = compact ? 'h2' : 'h1';
+  const panel = compact
+    ? 'border-t border-line-strong'
+    : 'overflow-hidden rounded-xl border border-line bg-surface/50';
+  const padding = compact ? 'py-4' : 'p-4';
+  const primary = compact ? 'min-h-11 bg-accent' : 'bg-ink';
 
   return (
     <div
       className={
-        showRoomList
-          ? 'relative left-1/2 grid w-[min(56rem,calc(100vw-2rem))] -translate-x-1/2 items-stretch gap-5 pb-6 md:grid-cols-2'
-          : 'mx-auto w-full max-w-md pb-6'
+        compact
+          ? 'grid w-full items-start gap-x-12 gap-y-6 md:grid-cols-[minmax(0,30rem)_minmax(14rem,1fr)]'
+          : showRoomList
+            ? 'relative left-1/2 grid w-[min(56rem,calc(100vw-2rem))] -translate-x-1/2 items-stretch gap-5 pb-6 md:grid-cols-2'
+            : 'mx-auto w-full max-w-md pb-6'
       }
     >
-      <div className='flex flex-col overflow-hidden rounded-xl border border-line bg-surface/50'>
+      <div className={`flex flex-col ${panel}`}>
         <section className='group'>
-          {game && (
+          {game && !compact && (
             <div className='aspect-[8/3] border-b border-line bg-[#0e1015]'>
               <GameArt id={game.id} />
             </div>
           )}
-          <div className='p-4'>
+          <div className={padding}>
             <div className='flex items-baseline justify-between gap-3'>
-              <h1 className='text-lg font-semibold tracking-tight'>
-                {game?.title ?? 'Main online'}
-              </h1>
+              <Heading className='text-lg font-semibold tracking-tight'>
+                {heading ?? game?.title ?? 'Main online'}
+              </Heading>
               {game && (
                 <span className='shrink-0 text-xs text-[var(--mute)]'>
                   {game.players} pemain
@@ -165,7 +178,7 @@ export default function RoomLobby({
           </div>
         </section>
 
-        <div className='flex flex-1 flex-col border-t border-line p-4'>
+        <div className={`flex flex-1 flex-col border-t border-line ${padding}`}>
           <label className='block'>
             <span className='mb-1.5 flex items-baseline justify-between text-sm'>
               Namamu
@@ -194,7 +207,7 @@ export default function RoomLobby({
                 className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-50 ${
                   invited
                     ? 'border border-line-strong text-ink hover:border-[var(--mute)]'
-                    : 'bg-ink text-paper hover:opacity-90'
+                    : `${primary} text-paper hover:opacity-90`
                 }`}
               >
                 Buat room baru
@@ -240,7 +253,7 @@ export default function RoomLobby({
                 disabled={disabled || !invited}
                 className={`shrink-0 rounded-lg px-5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-40 ${
                   invited
-                    ? 'bg-ink text-paper hover:opacity-90'
+                    ? `${primary} text-paper hover:opacity-90`
                     : 'border border-line-strong text-ink'
                 }`}
               >
@@ -262,7 +275,7 @@ export default function RoomLobby({
       </div>
 
       {showRoomList && (
-        <aside className='flex flex-col rounded-xl border border-line bg-surface/50 p-4'>
+        <aside className={`flex flex-col ${panel} ${padding}`}>
           <div className='mb-3 flex items-center justify-between border-b border-line pb-3'>
             <div className='flex items-center gap-2'>
               <h2 className='text-sm font-semibold text-ink'>Room terbuka</h2>

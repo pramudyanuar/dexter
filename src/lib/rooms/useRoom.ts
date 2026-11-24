@@ -186,13 +186,22 @@ export function useRoom<V>(game: GameId) {
       window.history.replaceState(null, '', window.location.pathname);
     });
 
+  const commit = async (
+    action: string,
+    extra: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) => {
+    if (!session) throw new Error('Room sudah ditutup.');
+    const data = await callRoom(`/api/rooms/${session.code}`, {
+      body: { action, token: session.token, ...extra },
+      signal,
+    });
+    if (!signal?.aborted) adopt(data.room);
+  };
+
   const act = (action: string, extra: Record<string, unknown> = {}) =>
     run(async () => {
-      if (!session) return;
-      const data = await callRoom(`/api/rooms/${session.code}`, {
-        body: { action, token: session.token, ...extra },
-      });
-      adopt(data.room);
+      if (session) await commit(action, extra);
     });
 
   const effectiveSession: RoomSession | null =
@@ -227,6 +236,9 @@ export function useRoom<V>(game: GameId) {
     /** Host removes a waiting player by seat. */
     kick: (seat: number) => act('kick', { seat }),
     move: (move: unknown) => act('move', { move }),
+    /** Let a game's input keep its draft and display errors next to the control. */
+    moveOrThrow: (move: unknown, signal?: AbortSignal) =>
+      commit('move', { move }, signal),
     /** Changes your name, also in the room you are in */
     rename: (next: string) => {
       setName(next);

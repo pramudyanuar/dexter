@@ -76,6 +76,45 @@ describe('pictionary', () => {
     bad({ width: -1 });
   });
 
+  it('shares undo and redo without reopening the drawer clock or exposing history', () => {
+    const stroke = {
+      type: 'stroke',
+      id: 'first',
+      color: 12,
+      width: 4,
+      pts: [1, 2, 10, 20],
+    };
+    const move = (state: PictionaryState, action: object) =>
+      pictionaryGame.move(state, 0, {
+        round: state.round,
+        ...action,
+      }) as PictionaryState;
+
+    let state = move(start(), stroke);
+    state = move(state, { ...stroke, pts: [30, 40] });
+    expect(() => pictionaryGame.move(state, 1, { type: 'undo' })).toThrow(
+      /penggambar/i,
+    );
+    expect(() => move(state, { type: 'undo', round: 1 })).toThrow(/berganti/i);
+    state = move(state, { type: 'undo' });
+    expect(state.strokes).toEqual([]);
+    expect(pictionaryGame.waiting!(state)).toBeNull();
+    expect((pictionaryGame.view(state, 0) as PictionaryView).canRedo).toBe(
+      true,
+    );
+    expect((pictionaryGame.view(state, 1) as PictionaryView).canRedo).toBe(
+      false,
+    );
+    state = move(state, { type: 'redo' });
+    expect(state.strokes[0].pts).toEqual([1, 2, 10, 20, 30, 40]);
+    state = move(state, { type: 'undo' });
+    state = move(state, { ...stroke, id: 'second' });
+    expect(move(state, { type: 'redo' })).toBe(state);
+    state = move(state, { type: 'clear' });
+    expect(pictionaryGame.waiting!(state)).toBeNull();
+    expect(state.strokes).toEqual([]);
+  });
+
   it('scores correct guesses without echoing the word, and ends the round when all solved', () => {
     let s = start(3);
     const word = s.word;

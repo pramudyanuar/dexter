@@ -1,185 +1,296 @@
 'use client';
 
+import { ArrowLeft, Check, Pencil } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 
-import {
-  COLORS,
-  COORD_MAX,
-  PictionaryView,
-  ROUND_SECONDS,
-  Stroke,
-  WIDTHS,
-} from '@/lib/games/pictionary';
+import styles from '@/app/games/pictionary/pictionary.module.css';
+
+import { PictionaryView, ROUND_SECONDS } from '@/lib/games/pictionary';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
 import Confetti from '@/components/games/Confetti';
-import Countdown from '@/components/games/Countdown';
+import { useRemainingMs } from '@/components/games/Countdown';
 import GameShell from '@/components/games/GameShell';
 import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
+import RoomGate, {
+  Rematch,
+  seatLabel,
+  seatTitle,
+} from '@/components/games/RoomGate';
 
-const W = 960;
-const H = 540;
-const CHUNK = 400; // numbers per request, matches the server limit
+import DrawingBoard from '@/app/games/pictionary/DrawingBoard';
 
-interface Batch {
-  id: string;
-  color: number;
-  width: number;
-  pts: number[];
-}
+type GameRoom = ReturnType<typeof useRoom<PictionaryView>>;
 
-function paint(canvas: HTMLCanvasElement | null, strokes: Stroke[]) {
-  const ctx = canvas?.getContext('2d');
-  if (!ctx) return;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  for (const s of strokes) {
-    ctx.strokeStyle = ctx.fillStyle = COLORS[s.color];
-    ctx.lineWidth = WIDTHS[s.width] * (W / COORD_MAX) * 1.2;
-    const at = (i: number) => [
-      (s.pts[i] / COORD_MAX) * W,
-      (s.pts[i + 1] / COORD_MAX) * H,
-    ];
-    if (s.pts.length <= 2) {
-      const [x, y] = at(0);
-      ctx.beginPath();
-      ctx.arc(x, y, ctx.lineWidth / 2, 0, Math.PI * 2);
-      ctx.fill();
-      continue;
-    }
-    ctx.beginPath();
-    ctx.moveTo(...(at(0) as [number, number]));
-    for (let i = 2; i < s.pts.length; i += 2)
-      ctx.lineTo(...(at(i) as [number, number]));
-    ctx.stroke();
-  }
-}
-
-function Canvas({
-  strokes,
-  canDraw,
-  color,
-  width,
-  onSend,
-  clearToken,
+function RoundHeader({
+  v,
+  you,
+  r,
 }: {
-  strokes: Stroke[];
-  canDraw: boolean;
-  color: number;
-  width: number;
-  onSend: (batch: Batch) => Promise<void>;
-  /** Changes when the drawer clears the board */
-  clearToken: number;
+  v: PictionaryView;
+  you: number;
+  r: GameRoom;
 }) {
-  const ref = React.useRef<HTMLCanvasElement>(null);
-  // the drawer paints from what they drew locally, so lines never lag behind the pen
-  const local = React.useRef<Stroke[]>(strokes);
-  const queue = React.useRef<Batch[]>([]);
-  const sending = React.useRef(false);
-  const current = React.useRef<Stroke | null>(null);
-
-  React.useEffect(() => {
-    if (!canDraw) paint(ref.current, strokes);
-  }, [canDraw, strokes]);
-
-  React.useEffect(() => {
-    if (clearToken > 0) {
-      local.current = [];
-      queue.current = [];
-      paint(ref.current, []);
-    }
-  }, [clearToken]);
-
-  React.useEffect(() => {
-    if (canDraw) paint(ref.current, local.current);
-  }, [canDraw]);
-
-  const flush = React.useCallback(async () => {
-    if (sending.current) return;
-    sending.current = true;
-    try {
-      while (queue.current.length) {
-        const batch = queue.current[0];
-        const take = batch.pts.slice(0, CHUNK);
-        const rest = batch.pts.slice(CHUNK);
-        if (rest.length) queue.current[0] = { ...batch, pts: rest };
-        else queue.current.shift();
-        if (take.length >= 2) await onSend({ ...batch, pts: take });
-      }
-    } finally {
-      sending.current = false;
-    }
-  }, [onSend]);
-
-  // while drawing, send what has accumulated a few times per second
-  React.useEffect(() => {
-    if (!canDraw) return;
-    const timer = setInterval(() => void flush(), 300);
-    return () => clearInterval(timer);
-  }, [canDraw, flush]);
-
-  const point = (e: React.PointerEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clamp = (n: number) =>
-      Math.min(COORD_MAX, Math.max(0, Math.round(n)));
-    return [
-      clamp(((e.clientX - rect.left) / rect.width) * COORD_MAX),
-      clamp(((e.clientY - rect.top) / rect.height) * COORD_MAX),
-    ];
-  };
-
-  const down = (e: React.PointerEvent) => {
-    if (!canDraw) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const [x, y] = point(e);
-    const id = Math.random().toString(36).slice(2, 10);
-    const stroke: Stroke = { id, color, width, pts: [x, y] };
-    current.current = stroke;
-    local.current = [...local.current, stroke];
-    queue.current.push({ id, color, width, pts: [x, y] });
-    paint(ref.current, local.current);
-  };
-
-  const move = (e: React.PointerEvent) => {
-    const stroke = current.current;
-    if (!canDraw || !stroke) return;
-    const [x, y] = point(e);
-    const n = stroke.pts.length;
-    if (Math.hypot(x - stroke.pts[n - 2], y - stroke.pts[n - 1]) < 3) return;
-    stroke.pts.push(x, y);
-    // the batch for this stroke may already have been sent; the server joins
-    // later points to the same stroke by id
-    const tail = queue.current[queue.current.length - 1];
-    if (tail?.id === stroke.id) tail.pts.push(x, y);
-    else queue.current.push({ id: stroke.id, color, width, pts: [x, y] });
-    paint(ref.current, local.current);
-  };
-
-  const up = () => {
-    if (!current.current) return;
-    current.current = null;
-    void flush();
-  };
+  const seconds = r.room?.waiting?.seconds ?? ROUND_SECONDS;
+  const deadline =
+    r.receivedAt +
+    Math.min(v.remainingMs, (r.room?.waiting?.remaining ?? Infinity) * 1000);
+  const leftMs = useRemainingMs(deadline);
+  const left = Math.ceil(leftMs / 1000);
+  const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  const isDrawer = v.drawer === you;
+  const choices = isDrawer && v.strokes.length === 0 ? v.choices : null;
 
   return (
-    <canvas
-      ref={ref}
-      width={W}
-      height={H}
-      aria-label='Kanvas gambar'
-      data-testid='canvas'
-      onPointerDown={down}
-      onPointerMove={move}
-      onPointerUp={up}
-      onPointerCancel={up}
-      className={`mx-auto aspect-video max-h-full w-full touch-none rounded-lg border-2 border-line bg-white shadow-md ${
-        canDraw ? 'cursor-crosshair' : ''
-      }`}
-    />
+    <header className={styles.roundHeader} data-drawer={isDrawer}>
+      <div className={styles.prompt}>
+        <p className={styles.round}>
+          Ronde {v.round + 1} / {v.rounds}
+        </p>
+        {choices ? (
+          <>
+            <p className={styles.caption}>Pilih kata untuk digambar</p>
+            <div
+              className={styles.choices}
+              role='group'
+              aria-label='Pilihan kata'
+            >
+              {choices.map((word) => (
+                <button
+                  key={word}
+                  type='button'
+                  aria-pressed={v.word === word}
+                  onClick={() => r.move({ type: 'pick_word', word })}
+                >
+                  {word}
+                </button>
+              ))}
+              <span hidden data-testid='word'>
+                {v.word}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className={styles.caption}>
+              {isDrawer
+                ? 'Gambarmu'
+                : `${seatLabel(v.drawer, you, r.room?.names)} sedang menggambar`}
+            </p>
+            <p
+              className={isDrawer ? styles.word : styles.hint}
+              data-testid={isDrawer ? 'word' : 'hint'}
+            >
+              {isDrawer ? v.word : v.hint}
+            </p>
+          </>
+        )}
+      </div>
+      <div
+        className={styles.timer}
+        data-urgent={left <= 3}
+        data-testid='countdown'
+      >
+        <span className={styles.caption}>Sisa waktu</span>
+        <span role='timer' aria-label={`${left} detik tersisa`}>
+          {clock}
+        </span>
+      </div>
+      <div className={styles.timerTrack} aria-hidden='true'>
+        <div
+          data-urgent={left <= 3}
+          style={{ width: `${Math.min(100, leftMs / (seconds * 10))}%` }}
+        />
+      </div>
+    </header>
+  );
+}
+
+function PlayerScores({
+  v,
+  you,
+  names,
+}: {
+  v: PictionaryView;
+  you: number;
+  names: (string | null)[] | undefined;
+}) {
+  return (
+    <section
+      className={`${styles.players} ${styles.panel}`}
+      aria-labelledby='pictionary-players'
+    >
+      <div className={styles.panelHead}>
+        <h2 id='pictionary-players'>Pemain</h2>
+        <span>Poin</span>
+      </div>
+      <ul aria-label='Skor pemain' className={styles.scoreList}>
+        {v.scores.map((score, seat) => {
+          const label = seatTitle(seat, you, names);
+          const drawing = seat === v.drawer;
+          const solved = v.solved.includes(seat);
+          return (
+            <li key={seat} data-seat={seat} data-drawing={drawing}>
+              <span className={styles.initial} aria-hidden='true'>
+                {label.slice(0, 1).toUpperCase()}
+              </span>
+              <div className={styles.playerName}>
+                <p>{label}</p>
+                {(drawing || solved) && (
+                  <span className={styles.playerState} data-solved={solved}>
+                    {drawing ? (
+                      <Pencil size={12} aria-hidden='true' />
+                    ) : (
+                      <Check size={12} aria-hidden='true' />
+                    )}
+                    {drawing ? 'Menggambar' : 'Benar'}
+                  </span>
+                )}
+              </div>
+              <strong className={styles.score}>{score}</strong>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function GuessPanel({
+  v,
+  you,
+  r,
+}: {
+  v: PictionaryView;
+  you: number;
+  r: GameRoom;
+}) {
+  const [text, setText] = React.useState('');
+  const [sending, setSending] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const log = React.useRef<HTMLUListElement>(null);
+  const input = React.useRef<HTMLInputElement>(null);
+  const isDrawer = v.drawer === you;
+  const solvedMe = v.solved.includes(you);
+  const latest = v.guesses.at(-1);
+
+  React.useEffect(() => {
+    if (log.current) log.current.scrollTop = log.current.scrollHeight;
+  }, [v.round, v.guesses.length, latest?.text, latest?.seat]);
+
+  return (
+    <section
+      className={`${styles.guesses} ${styles.panel}`}
+      aria-labelledby='pictionary-guesses'
+    >
+      <div className={styles.panelHead}>
+        <h2 id='pictionary-guesses'>
+          {isDrawer || solvedMe ? (
+            'Tebakan'
+          ) : (
+            <label htmlFor='pictionary-guess'>Tebakan</label>
+          )}
+        </h2>
+      </div>
+      {isDrawer ? (
+        <p className={styles.guessState}>Pemain lain menebak gambarmu.</p>
+      ) : solvedMe ? (
+        <p role='status' className={`${styles.guessState} ${styles.solved}`}>
+          <Check size={16} aria-hidden='true' /> Tebakanmu benar!
+        </p>
+      ) : (
+        <form
+          className={styles.guessForm}
+          aria-busy={sending}
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const guess = text.trim();
+            if (!guess || sending) return;
+            input.current?.focus({ preventScroll: true });
+            setSending(true);
+            setError('');
+            try {
+              await r.moveOrThrow(
+                { type: 'guess', text: guess, round: v.round },
+                AbortSignal.timeout(8000),
+              );
+              setText((current) => (current === text ? '' : current));
+            } catch (error) {
+              setError(
+                error instanceof Error && error.name !== 'TimeoutError'
+                  ? error.message
+                  : 'Tebakan gagal dikirim.',
+              );
+            } finally {
+              setSending(false);
+            }
+          }}
+        >
+          <input
+            ref={input}
+            id='pictionary-guess'
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setError('');
+            }}
+            placeholder='Tebak kata dari gambar'
+            maxLength={40}
+            autoComplete='off'
+            autoCorrect='off'
+            enterKeyHint='send'
+            spellCheck={false}
+            aria-describedby={error ? 'pictionary-guess-error' : undefined}
+          />
+          <button type='submit' disabled={sending || !text.trim()}>
+            {sending ? 'Mengirim…' : 'Tebak'}
+          </button>
+        </form>
+      )}
+      {error && (
+        <p
+          id='pictionary-guess-error'
+          role='alert'
+          className={styles.inputError}
+        >
+          {error} Coba kirim lagi.
+        </p>
+      )}
+      <ul
+        ref={log}
+        className={styles.feed}
+        role='log'
+        aria-label='Riwayat tebakan'
+        data-testid='guesses'
+      >
+        {!v.guesses.length && (
+          <li className={styles.caption}>Belum ada tebakan.</li>
+        )}
+        {v.guesses.slice(-16).map((g, i) => (
+          <li key={`${i}-${g.seat}-${g.text}`}>
+            {g.correct ? (
+              <span className={styles.solved}>
+                <Check size={16} aria-hidden='true' />{' '}
+                {seatLabel(g.seat, you, r.room?.names)} menebak dengan benar!
+              </span>
+            ) : (
+              <>
+                <span className={styles.caption}>
+                  {seatLabel(g.seat, you, r.room?.names)}
+                  {' · '}
+                </span>
+                {g.text}
+                {g.seat === you && (
+                  <span className={styles.caption}> · Belum tepat</span>
+                )}
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -190,359 +301,69 @@ function PlayArea({
 }: {
   v: PictionaryView;
   you: number;
-  r: ReturnType<typeof useRoom<PictionaryView>>;
+  r: GameRoom;
 }) {
-  const [color, setColor] = React.useState(0);
-  const [width, setWidth] = React.useState(1);
-  const [clearToken, setClearToken] = React.useState(0);
-  const [text, setText] = React.useState('');
   const isDrawer = v.drawer === you;
-  const done = v.winners !== null;
-  const solvedMe = v.solved.includes(you);
 
-  const send = React.useCallback(
-    (batch: Batch) => r.move({ type: 'stroke', ...batch }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [r.session?.code, r.session?.token],
-  );
-
-  if (done) {
+  if (v.winners) {
     const ranking = v.scores
       .map((score, seat) => ({ score, seat }))
       .sort((a, b) => b.score - a.score);
-    const won = v.winners!.includes(you);
+    const won = v.winners.includes(you);
     return (
-      <div className='a-pop text-center'>
+      <section className={styles.results} aria-labelledby='pictionary-results'>
         {won && <Confetti />}
-        <p className='mb-3 text-lg'>
-          {won ? (
-            <span className='text-accent'>
-              {v.winners!.length > 1 ? 'Kamu seri di puncak!' : 'Kamu juara!'}
-            </span>
-          ) : (
-            <span className='text-err'>
-              {v
-                .winners!.map((w) => seatLabel(w, you, r.room?.names))
-                .join(' & ')}{' '}
-              juara.
-            </span>
-          )}
-        </p>
+        <p className={styles.round}>Hasil akhir</p>
+        <h2 id='pictionary-results'>
+          {won
+            ? v.winners.length > 1
+              ? 'Kamu seri di puncak!'
+              : 'Kamu juara!'
+            : `${v.winners.map((seat) => seatLabel(seat, you, r.room?.names)).join(' & ')} juara.`}
+        </h2>
         {v.last && (
-          <p className='mb-3 text-xs text-mute'>Kata terakhir: {v.last.word}</p>
+          <p className={styles.caption}>Kata terakhir · {v.last.word}</p>
         )}
-        <ol className='mx-auto max-w-xs divide-y divide-line border-y border-line text-sm'>
+        <ol className={styles.rankList}>
           {ranking.map(({ seat, score }, i) => (
-            <li
-              key={seat}
-              className='a-slide-in flex justify-between py-1.5'
-              style={{ animationDelay: `${i * 120}ms` }}
-            >
+            <li key={seat}>
               <span>
-                {i + 1}. {seatLabel(seat, you, r.room?.names)}
+                {i + 1}. {seatTitle(seat, you, r.room?.names)}
               </span>
-              <span>{score}</span>
+              <strong>{score}</strong>
             </li>
           ))}
         </ol>
         <Rematch r={r} />
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className='mx-auto grid h-[calc(100dvh-10.5rem)] min-h-[420px] w-full max-w-[1600px] grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden px-1 sm:px-3 md:grid-cols-[240px_minmax(0,1fr)] md:grid-rows-1 lg:grid-cols-[260px_minmax(0,1fr)]'>
-      {/* Left sidebar: Players list (Gartic.io style) */}
-      <aside className='flex max-h-28 flex-col overflow-hidden rounded-xl border border-line bg-card/80 p-2 md:h-full md:max-h-none'>
-        <div className='mb-1.5 flex shrink-0 items-center justify-between px-1 text-[11px] font-bold tracking-wider text-mute uppercase'>
-          <span>Pemain</span>
-          <span>{v.scores.length}</span>
-        </div>
-        <ul
-          className='grid flex-1 grid-cols-2 gap-1.5 overflow-y-auto md:grid-cols-1 md:content-start'
-          aria-label='Skor'
-        >
-          {v.scores.map((score, seat) => {
-            const label = seatLabel(seat, you, r.room?.names);
-            const active = seat === v.drawer;
-            const solved = v.solved.includes(seat);
-            return (
-              <li
-                key={seat}
-                data-seat={seat}
-                className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-xs transition-colors ${
-                  active
-                    ? 'a-glow border-accent bg-accent/10'
-                    : solved
-                      ? 'border-accent/40 bg-accent/5'
-                      : 'border-line bg-paper/40'
-                }`}
-              >
-                <span
-                  className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    active ? 'bg-accent text-paper' : 'bg-line text-ink'
-                  }`}
-                >
-                  {label.slice(0, 1).toUpperCase()}
-                </span>
-                <div className='min-w-0 flex-1'>
-                  <p className='truncate font-medium text-ink'>{label}</p>
-                  <p key={score} className='a-pop text-[11px] text-mute'>
-                    {score} pts
-                  </p>
-                </div>
-                {active && (
-                  <span title='Sedang menggambar' className='shrink-0 text-sm'>
-                    ✏️
-                  </span>
-                )}
-                {!active && solved && (
-                  <span
-                    title='Berhasil menebak'
-                    className='a-pop shrink-0 text-sm font-bold text-accent'
-                  >
-                    ✓
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </aside>
-
-      {/* Right main column: Header + Canvas + Split Answers/Chat */}
-      <div className='flex h-full min-h-0 min-w-0 flex-col gap-2.5'>
-        <div
-          key={`info-${v.round}`}
-          className='a-slide-up flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-card/80 px-3.5 py-2'
-        >
-          <p className='text-xs text-mute'>
-            Ronde <span className='font-semibold text-ink'>{v.round + 1}</span>{' '}
-            dari {v.rounds}
-            {v.last && (
-              <>
-                {' '}
-                · kata tadi: <span className='text-ink'>{v.last.word}</span>
-              </>
-            )}
+    <div className={styles.workspace}>
+      <section className={styles.stage} aria-label='Ronde permainan'>
+        <RoundHeader v={v} you={you} r={r} />
+        <DrawingBoard
+          key={v.round}
+          strokes={v.strokes}
+          canDraw={isDrawer}
+          canRedo={v.canRedo}
+          onMove={(move, signal) =>
+            r.moveOrThrow({ ...move, round: v.round }, signal)
+          }
+        />
+        {v.last && (
+          <p className={styles.lastWord}>
+            Kata sebelumnya · <strong>{v.last.word}</strong>
           </p>
-          {isDrawer ? (
-            <div className='flex flex-wrap items-center gap-2'>
-              {v.choices && v.choices.length === 2 ? (
-                <div className='flex flex-wrap items-center gap-1.5'>
-                  <span className='text-xs text-mute'>Pilih kata:</span>
-                  {v.choices.map((opt) => (
-                    <button
-                      key={opt}
-                      type='button'
-                      onClick={() => r.move({ type: 'pick_word', word: opt })}
-                      className={`rounded-lg border px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
-                        v.word === opt
-                          ? 'border-accent bg-accent text-paper'
-                          : 'border-line bg-paper/60 text-ink hover:border-accent/60'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                  <b className='sr-only' data-testid='word'>
-                    {v.word}
-                  </b>
-                </div>
-              ) : (
-                <p className='text-sm'>
-                  Gambar:{' '}
-                  <b
-                    className='text-lg tracking-wide text-accent uppercase'
-                    data-testid='word'
-                  >
-                    {v.word}
-                  </b>
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className='text-sm'>
-              {seatLabel(v.drawer, you, r.room?.names)} menggambar:{' '}
-              <b
-                className='font-mono text-lg tracking-widest text-ink'
-                data-testid='hint'
-              >
-                {v.hint}
-              </b>
-            </p>
-          )}
-        </div>
+        )}
+      </section>
 
-        {/* Canvas + integrated timer bar + drawer tools */}
-        <div className='flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-card/80 p-2'>
-          <div className='flex min-h-0 flex-1 items-center justify-center'>
-            <Canvas
-              key={`canvas-${v.round}`}
-              strokes={v.strokes}
-              canDraw={isDrawer}
-              color={color}
-              width={width}
-              onSend={send}
-              clearToken={clearToken}
-            />
-          </div>
-          <div className='mt-2 shrink-0'>
-            <Countdown
-              seconds={r.room?.waiting?.seconds ?? ROUND_SECONDS}
-              deadline={
-                r.receivedAt +
-                Math.min(
-                  v.remainingMs,
-                  (r.room?.waiting?.remaining ?? Infinity) * 1000,
-                )
-              }
-              className='mb-3'
-            />
-          </div>
-
-          {isDrawer && (
-            <div className='a-slide-up mt-2 flex shrink-0 flex-wrap items-center justify-center gap-2.5 border-t border-line pt-2'>
-              <div
-                className='flex flex-wrap gap-1.5'
-                role='group'
-                aria-label='Warna'
-              >
-                {COLORS.map((c, i) => (
-                  <button
-                    key={c}
-                    type='button'
-                    aria-label={`Warna ${i + 1}`}
-                    aria-pressed={color === i}
-                    onClick={() => setColor(i)}
-                    className={`size-7 rounded-full border-2 border-line transition-transform ${
-                      color === i
-                        ? 'scale-115 ring-2 ring-ink'
-                        : 'hover:scale-110'
-                    }`}
-                    style={{ background: c }}
-                  />
-                ))}
-              </div>
-              <div
-                className='flex items-center gap-1.5'
-                role='group'
-                aria-label='Tebal garis'
-              >
-                {WIDTHS.map((w, i) => (
-                  <button
-                    key={w}
-                    type='button'
-                    aria-label={`Tebal ${i + 1}`}
-                    aria-pressed={width === i}
-                    onClick={() => setWidth(i)}
-                    className={`flex size-8 items-center justify-center rounded-md border ${
-                      width === i ? 'border-accent bg-accent/10' : 'border-line'
-                    }`}
-                  >
-                    <span
-                      className='rounded-full bg-ink'
-                      style={{ width: 4 + i * 4, height: 4 + i * 4 }}
-                    />
-                  </button>
-                ))}
-              </div>
-              <button
-                type='button'
-                onClick={() => {
-                  setClearToken((n) => n + 1);
-                  r.move({ type: 'clear' });
-                }}
-                className='text-xs text-info hover:underline'
-              >
-                hapus
-              </button>
-              <button
-                type='button'
-                onClick={() => r.move({ type: 'next', round: v.round })}
-                className='text-xs text-mute hover:text-err'
-              >
-                lewati kata
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Bottom split: ANSWERS (left) + CHAT (right) */}
-        <div className='grid h-44 shrink-0 gap-2.5 sm:h-48 sm:grid-cols-2'>
-          <section className='flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-card'>
-            <div className='flex items-center justify-between border-b border-line px-3 py-2 text-xs font-bold tracking-wider text-ink uppercase'>
-              <span>Tebakan</span>
-              <span className='text-[11px] font-normal text-mute'>Answers</span>
-            </div>
-            <ul
-              className='flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs'
-              aria-label='Tebakan'
-              data-testid='guesses'
-            >
-              {v.guesses.slice(-16).map((g, i) => (
-                <li key={`${i}-${g.seat}-${g.text}`} className='a-slide-in'>
-                  {g.correct ? (
-                    <span className='font-semibold text-accent'>
-                      ✓ {seatLabel(g.seat, you, r.room?.names)} menebak dengan
-                      benar!
-                    </span>
-                  ) : (
-                    <span className='text-mute'>
-                      {seatLabel(g.seat, you, r.room?.names)}:{' '}
-                      <span className='text-ink'>{g.text}</span>
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className='border-t border-line p-2'>
-              {isDrawer ? (
-                <p className='py-1 text-center text-xs text-mute'>
-                  Kamu sedang menggambar
-                </p>
-              ) : solvedMe ? (
-                <p className='a-pop py-1 text-center text-xs font-medium text-accent'>
-                  Tebakanmu benar! Tunggu yang lain…
-                </p>
-              ) : (
-                <form
-                  className='flex items-center gap-2'
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!text.trim() || solvedMe) return;
-                    r.move({ type: 'guess', text });
-                    setText('');
-                  }}
-                >
-                  <input
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder='Tebakanmu…'
-                    aria-label='Tebakan'
-                    maxLength={40}
-                    autoComplete='off'
-                    autoCorrect='off'
-                    spellCheck={false}
-                    className='min-w-0 flex-1 rounded-lg border border-line bg-paper/60 px-2.5 py-1.5 text-xs placeholder:text-mute focus:border-accent focus:outline-none'
-                  />
-                  <button
-                    type='submit'
-                    disabled={!text.trim()}
-                    className='rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-paper disabled:opacity-40'
-                  >
-                    Tebak
-                  </button>
-                </form>
-              )}
-            </div>
-          </section>
-
-          <div className='h-full min-h-0'>
-            <RoomChat game='pictionary' names={r.room?.names} inline />
-          </div>
-        </div>
+      <GuessPanel key={v.round} v={v} you={you} r={r} />
+      <div className={styles.chat}>
+        <RoomChat game='pictionary' names={r.room?.names} inline />
       </div>
+      <PlayerScores v={v} you={you} names={r.room?.names} />
     </div>
   );
 }
@@ -551,12 +372,16 @@ function Pictionary() {
   const r = useRoom<PictionaryView>('pictionary');
 
   return (
-    <RoomGate
-      r={r}
-      blurb='# Pictionary untuk 2 sampai 6 pemain. Bergantian menggambar kata rahasia, yang lain menebak secepatnya. Yang lebih cepat dapat poin lebih banyak.'
-    >
-      {({ room, you }) => <PlayArea v={room.state} you={you} r={r} />}
-    </RoomGate>
+    <div className={r.session ? undefined : styles.lobby}>
+      <RoomGate
+        r={r}
+        lobbyHeading='Buat atau gabung room'
+        inlineNotice
+        blurb='Bergantian menggambar kata rahasia. Tebak lebih cepat untuk mendapat lebih banyak poin.'
+      >
+        {({ room, you }) => <PlayArea v={room.state} you={you} r={r} />}
+      </RoomGate>
+    </div>
   );
 }
 
@@ -564,7 +389,14 @@ export default function PictionaryPage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='pictionary' fluid>
+    <GameShell name='pictionary' fit className={styles.shell} showBack={false}>
+      <header className={styles.masthead}>
+        <Link href='/games' className={styles.back}>
+          <ArrowLeft size={16} aria-hidden='true' />
+          Semua game
+        </Link>
+        <h1>Pictionary</h1>
+      </header>
       {mounted ? <Pictionary /> : null}
     </GameShell>
   );
