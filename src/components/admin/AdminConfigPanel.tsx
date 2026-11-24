@@ -3,7 +3,16 @@
 import * as React from 'react';
 
 import { COUNTUP_ROUNDS } from '@/lib/games/dart-config';
+import {
+  DECISION_LIMITS,
+  DECISION_SECONDS,
+} from '@/lib/games/hk-mahjong/rules';
 import { CAMPAIGN, MONKEY_CUSTOM_LIMITS } from '@/lib/games/monkeys-config';
+import {
+  ROUND_LIMITS,
+  ROUND_SECONDS,
+  TURNS_EACH,
+} from '@/lib/games/pictionary';
 import { REMO_CLOCK } from '@/lib/games/remo-config';
 import { SEKATA_BLANK_CARDS, SEKATA_LIMITS } from '@/lib/games/sekata-config';
 import {
@@ -240,7 +249,7 @@ export default function AdminConfigPanel({
             >
               <NumberField
                 label='Batas Waktu Giliran'
-                hint='detik (0 = default game)'
+                hint='detik (0 = default game). Game dengan timer sendiri memakai pengaturannya.'
                 value={config.room.turnSeconds}
                 min={0}
                 max={300}
@@ -749,9 +758,27 @@ export default function AdminConfigPanel({
             </ConfigCard>
 
             <ConfigCard
+              title='Mahjong Hong Kong'
+              badge='mahjong-hk'
+              description='Berlaku untuk giliran dan klaim di room baru.'
+            >
+              <NumberField
+                label='Waktu Giliran dan Klaim'
+                hint='detik'
+                value={config['mahjong-hk'].decisionSeconds}
+                min={DECISION_LIMITS.min}
+                max={DECISION_LIMITS.max}
+                fallback={DECISION_SECONDS}
+                onChange={(decisionSeconds) =>
+                  update('mahjong-hk', { decisionSeconds })
+                }
+              />
+            </ConfigCard>
+
+            <ConfigCard
               title='Pictionary'
               badge='pictionary'
-              description='Jumlah giliran menggambar per pemain.'
+              description='Giliran menggambar dan durasi ronde untuk room baru.'
             >
               <NumberField
                 label='Giliran Gambar / Pemain'
@@ -759,8 +786,19 @@ export default function AdminConfigPanel({
                 value={config.pictionary.turnsEach}
                 min={1}
                 max={5}
-                fallback={2}
+                fallback={TURNS_EACH}
                 onChange={(turnsEach) => update('pictionary', { turnsEach })}
+              />
+              <NumberField
+                label='Durasi Ronde'
+                hint='detik. Penggambar punya paling lama 60 detik untuk mulai.'
+                value={config.pictionary.roundSeconds}
+                min={ROUND_LIMITS.min}
+                max={ROUND_LIMITS.max}
+                fallback={ROUND_SECONDS}
+                onChange={(roundSeconds) =>
+                  update('pictionary', { roundSeconds })
+                }
               />
             </ConfigCard>
           </div>

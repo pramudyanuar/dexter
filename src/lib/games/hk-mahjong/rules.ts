@@ -1,7 +1,8 @@
 import { WIND_NAMES } from '@/lib/games/hk-mahjong/score';
 
 /** Each discard decision and each shared claim window has its own deadline. */
-export const DECISION_SECONDS = 20;
+export const DECISION_SECONDS = 25;
+export const DECISION_LIMITS = { min: 10, max: 120 };
 
 export function tileLabel(tile: number) {
   if (tile < 27)

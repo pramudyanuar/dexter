@@ -454,7 +454,12 @@ export interface GeludRoomState {
   winner: 0 | 1 | null;
   match?: number;
   reports?: [0 | 1 | null, 0 | 1 | null];
+  hostRun?: string;
+  hostReloaded?: true;
 }
+
+const geludIsOver = (state: GeludRoomState) =>
+  state.winner !== null || state.hostReloaded === true;
 
 export const geludGame: GameDef<GeludRoomState> = {
   id: 'gelud',
@@ -464,10 +469,26 @@ export const geludGame: GameDef<GeludRoomState> = {
   start: () => ({ winner: null, match: 0 }),
   restart: (previous) => ({ winner: null, match: (previous.match ?? 0) + 1 }),
   move: (state, seat, raw) => {
-    if (state.winner !== null) return state;
-    const report = raw as { winner?: unknown; match?: unknown } | null;
+    if (geludIsOver(state)) return state;
+    const report = raw as {
+      winner?: unknown;
+      match?: unknown;
+      hostRun?: unknown;
+    } | null;
     if (report?.match !== (state.match ?? 0))
       throw new RoomError('Pertandingan sudah berganti', 409);
+    if (report.hostRun !== undefined) {
+      if (seat !== 0)
+        throw new RoomError('Hanya host yang menjalankan pertandingan', 403);
+      if (
+        typeof report.hostRun !== 'string' ||
+        !/^[a-f0-9]{32}$/.test(report.hostRun)
+      )
+        throw new RoomError('Sesi host tidak valid', 400);
+      if (!state.hostRun) return { ...state, hostRun: report.hostRun };
+      if (state.hostRun === report.hostRun) return state;
+      return { ...state, hostReloaded: true, reports: undefined };
+    }
     const w = report.winner;
     if (w !== 0 && w !== 1)
       throw new RoomError('Hasil pertandingan tidak valid', 400);
@@ -488,8 +509,8 @@ export const geludGame: GameDef<GeludRoomState> = {
   }),
   view: (state) => state,
   voice: (state, seat) =>
-    state.winner === null
+    !geludIsOver(state)
       ? { peer: 1 - seat, dir: seat === 0 ? 'send' : 'receive' }
       : null,
-  isOver: (state) => state.winner !== null,
+  isOver: geludIsOver,
 };

@@ -6,6 +6,7 @@ import { RoomError } from '@/lib/rooms/types';
 /** Rounds each player draws in one game. */
 export const TURNS_EACH = 2;
 export const ROUND_SECONDS = 80;
+export const ROUND_LIMITS = { min: 15, max: 300 };
 export const COORD_MAX = 1000;
 export const COLORS = [
   '#1f2328',
@@ -50,6 +51,7 @@ export interface PictionaryState {
   /** Index of the current round, 0-based */
   round: number;
   rounds: number;
+  roundSeconds?: number;
   deadline?: number;
   drawer: number;
   word: string;
@@ -73,6 +75,7 @@ export interface PictionaryView {
   players: number;
   round: number;
   rounds: number;
+  roundSeconds: number;
   remainingMs: number;
   drawer: number;
   /** The word for the drawer, otherwise a hint like "_ _ _ _" */
@@ -121,6 +124,7 @@ function fresh(
 ): PictionaryState {
   const opts = (options && typeof options === 'object' ? options : {}) as {
     turnsEach?: number;
+    roundSeconds?: number;
   };
   const turnsEach =
     typeof opts.turnsEach === 'number' &&
@@ -128,6 +132,13 @@ function fresh(
     opts.turnsEach <= 5
       ? Math.round(opts.turnsEach)
       : TURNS_EACH;
+  const roundSeconds =
+    typeof opts.roundSeconds === 'number' && Number.isFinite(opts.roundSeconds)
+      ? Math.min(
+          ROUND_LIMITS.max,
+          Math.max(ROUND_LIMITS.min, Math.round(opts.roundSeconds)),
+        )
+      : ROUND_SECONDS;
   const shuffled = shuffle([...WORDS], rng);
   const choices: [string, string] = [shuffled[0], shuffled[1] ?? shuffled[0]];
   const first = choices[0];
@@ -135,7 +146,8 @@ function fresh(
     players,
     round: 0,
     rounds: players * turnsEach,
-    deadline: now + ROUND_SECONDS * 1000,
+    roundSeconds,
+    deadline: now + roundSeconds * 1000,
     drawer: 0,
     word: first,
     choices,
@@ -178,7 +190,7 @@ function advance(
   return {
     ...s,
     round,
-    deadline: now + ROUND_SECONDS * 1000,
+    deadline: now + (s.roundSeconds ?? ROUND_SECONDS) * 1000,
     // players still in the game take turns drawing
     drawer: activeSeats(s)[round % activeSeats(s).length],
     word,
@@ -363,7 +375,10 @@ export const pictionaryGame: GameDef<PictionaryState> = {
   // is underway ends on its own clock
   waiting: (state) =>
     !state.winners && !state.drawingStarted && state.strokes.length === 0
-      ? { seats: [state.drawer], seconds: 60 }
+      ? {
+          seats: [state.drawer],
+          seconds: Math.min(60, state.roundSeconds ?? ROUND_SECONDS),
+        }
       : null,
 
   autoMove: (state) => ({ type: 'next', round: state.round }),
@@ -371,7 +386,10 @@ export const pictionaryGame: GameDef<PictionaryState> = {
   tick(state, now, rng = Math.random) {
     if (state.winners) return null;
     if (state.deadline === undefined)
-      return { ...state, deadline: now + ROUND_SECONDS * 1000 };
+      return {
+        ...state,
+        deadline: now + (state.roundSeconds ?? ROUND_SECONDS) * 1000,
+      };
     return now >= state.deadline ? advance(state, rng, now) : null;
   },
 
@@ -405,13 +423,15 @@ export const pictionaryGame: GameDef<PictionaryState> = {
     const now = ctx?.now ?? Date.now();
     const isDrawer = seat === state.drawer;
     const over = state.winners !== null;
+    const roundSeconds = state.roundSeconds ?? ROUND_SECONDS;
     return {
       players: state.players,
       round: state.round,
       rounds: state.rounds,
+      roundSeconds,
       remainingMs: Math.max(
         0,
-        (state.deadline ?? now + ROUND_SECONDS * 1000) - now,
+        (state.deadline ?? now + roundSeconds * 1000) - now,
       ),
       drawer: state.drawer,
       word: isDrawer && !over ? state.word : null,

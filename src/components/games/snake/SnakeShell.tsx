@@ -1,4 +1,7 @@
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+
+import styles from '@/components/games/snake/snake.module.css';
 
 import GameShell from '@/components/games/GameShell';
 
@@ -16,20 +19,22 @@ export default function SnakeShell({
   children: React.ReactNode;
 }) {
   return (
-    <GameShell name='snake' fit>
-      <div className='mx-auto w-full max-w-md space-y-4 pb-4'>
-        <header className='space-y-3'>
-          <h1 className='text-xl font-semibold'>Snake</h1>
-          <nav
-            aria-label='Mode Snake'
-            className='grid grid-cols-3 rounded-lg border border-line bg-card p-1 text-sm'
-          >
+    <GameShell name='snake' fit className={styles.shell} showBack={false}>
+      <div className={styles.layout}>
+        <div className={styles.backBar}>
+          <Link href='/games' className={styles.backLink}>
+            <ArrowLeft size={16} aria-hidden='true' />
+            Semua game
+          </Link>
+        </div>
+        <header className={styles.header}>
+          <h1 className={styles.title}>Snake</h1>
+          <nav aria-label='Mode Snake' className={styles.modes}>
             {modes.map(({ id, label, href }) => (
               <Link
                 key={id}
                 href={href}
                 aria-current={mode === id ? 'page' : undefined}
-                className={`rounded-md px-3 py-2.5 text-center font-medium ${mode === id ? 'bg-ink text-paper' : 'text-mute hover:text-ink'}`}
               >
                 {label}
               </Link>

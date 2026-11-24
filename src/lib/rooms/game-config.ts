@@ -1,5 +1,14 @@
 import { COUNTUP_ROUNDS } from '@/lib/games/dart-config';
+import {
+  DECISION_LIMITS,
+  DECISION_SECONDS,
+} from '@/lib/games/hk-mahjong/rules';
 import { CAMPAIGN, MONKEY_CUSTOM_LIMITS } from '@/lib/games/monkeys-config';
+import {
+  ROUND_LIMITS,
+  ROUND_SECONDS,
+  TURNS_EACH,
+} from '@/lib/games/pictionary';
 import { REMO_CLOCK } from '@/lib/games/remo-config';
 import { SEKATA_BLANK_CARDS, SEKATA_LIMITS } from '@/lib/games/sekata-config';
 import { UNO_HAND_SIZE, UNO_MERCY_LIMIT } from '@/lib/games/uno-rules';
@@ -47,8 +56,12 @@ export interface GameConfig {
   quiz: {
     totalQuestions: number;
   };
+  'mahjong-hk': {
+    decisionSeconds: number;
+  };
   pictionary: {
     turnsEach: number;
+    roundSeconds: number;
   };
   sekata: {
     mode:
@@ -156,8 +169,12 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   quiz: {
     totalQuestions: 10,
   },
+  'mahjong-hk': {
+    decisionSeconds: DECISION_SECONDS,
+  },
   pictionary: {
-    turnsEach: 2,
+    turnsEach: TURNS_EACH,
+    roundSeconds: ROUND_SECONDS,
   },
   sekata: {
     mode: 'classic',
@@ -394,12 +411,26 @@ export function sanitizeGameConfig(raw: unknown): GameConfig {
         DEFAULT_GAME_CONFIG.quiz.totalQuestions,
       ),
     },
+    'mahjong-hk': {
+      decisionSeconds: clampInt(
+        obj['mahjong-hk']?.decisionSeconds,
+        DECISION_LIMITS.min,
+        DECISION_LIMITS.max,
+        DECISION_SECONDS,
+      ),
+    },
     pictionary: {
       turnsEach: clampInt(
         obj.pictionary?.turnsEach,
         1,
         5,
         DEFAULT_GAME_CONFIG.pictionary.turnsEach,
+      ),
+      roundSeconds: clampInt(
+        obj.pictionary?.roundSeconds,
+        ROUND_LIMITS.min,
+        ROUND_LIMITS.max,
+        ROUND_SECONDS,
       ),
     },
     sekata: {

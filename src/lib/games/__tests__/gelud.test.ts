@@ -16,6 +16,22 @@ const idle: FighterInput = {
 };
 
 describe('gelud fighting engine', () => {
+  it('ends a live match when a new host page tries to start it again', () => {
+    const started = geludGame.start(2);
+    const open = { match: 0, hostRun: 'a'.repeat(32) };
+    expect(() => geludGame.move(started, 1, open)).toThrow();
+    const live = geludGame.move(started, 0, open);
+    expect(geludGame.move(live, 0, open)).toBe(live);
+    const reloaded = geludGame.move(live, 0, {
+      match: 0,
+      hostRun: 'b'.repeat(32),
+    });
+    expect(reloaded).toMatchObject({ winner: null, hostReloaded: true });
+    expect(geludGame.isOver(reloaded)).toBe(true);
+    expect(geludGame.voice!(reloaded, 1)).toBeNull();
+    expect(geludGame.restart(reloaded, 2)).toEqual({ match: 1, winner: null });
+  });
+
   it('requires both seats to agree and rejects a report from a previous match', () => {
     const room = geludGame.start(2);
     const pending = geludGame.move(room, 1, { match: 0, winner: 0 });

@@ -1,4 +1,7 @@
-import { DECISION_SECONDS } from '@/lib/games/hk-mahjong/rules';
+import {
+  DECISION_LIMITS,
+  DECISION_SECONDS,
+} from '@/lib/games/hk-mahjong/rules';
 import {
   type Meld,
   meldTiles,
@@ -51,6 +54,7 @@ export interface TableState {
   offer: Offer | null;
   result: Result | null;
   revision: number;
+  decisionSeconds?: number;
   lastDiscard: { seat: number; tile: number } | null;
 }
 const seats = [0, 1, 2, 3];
@@ -83,6 +87,7 @@ function draw(s: TableState, seat: number, replacement = false) {
 function deal(
   rng: () => number,
   dealer: number,
+  decisionSeconds = DECISION_SECONDS,
   rotation = 0,
   number = 1,
   scores = zeros(),
@@ -112,6 +117,7 @@ function deal(
     offer: null,
     result: null,
     revision,
+    decisionSeconds,
     lastDiscard: null,
   };
   const order = seats.map((i) => (i + dealer) % 4);
@@ -289,7 +295,7 @@ function openOffer(s: TableState, tile: number, rob: boolean, now: number) {
     tile,
     from: s.turn,
     rob,
-    until: now + DECISION_SECONDS * 1000,
+    until: now + (s.decisionSeconds ?? DECISION_SECONDS) * 1000,
     replies: [null, null, null, null],
   };
   if (!seats.some((i) => options(s, i).length)) resolveOffer(s);
@@ -321,6 +327,7 @@ function move(
     return deal(
       rng,
       (state.dealer + rotate) % 4,
+      state.decisionSeconds,
       state.rotation + rotate,
       state.number + 1,
       state.scores,
@@ -362,6 +369,7 @@ export function tableView(s: TableState, seat: number | null) {
     scores: s.scores,
     lastDiscard: s.result ? null : s.lastDiscard,
     revision: s.revision,
+    decisionSeconds: s.decisionSeconds ?? DECISION_SECONDS,
     result: s.result,
     finished: finished(s),
     drawn: seat === s.turn && !s.result ? s.drawn : null,
@@ -385,10 +393,19 @@ export function tableView(s: TableState, seat: number | null) {
 }
 export type TableView = ReturnType<typeof tableView>;
 
-function newMatch(players: number, rng = cryptoRng()) {
+function newMatch(players: number, rng = cryptoRng(), options?: unknown) {
   if (players !== 4)
     throw new RoomError('Meja Mahjong membutuhkan empat pemain.');
-  return deal(rng, Math.floor(rng() * 4));
+  const seconds = (options as { decisionSeconds?: unknown } | null)
+    ?.decisionSeconds;
+  const decisionSeconds =
+    typeof seconds === 'number' && Number.isFinite(seconds)
+      ? Math.min(
+          DECISION_LIMITS.max,
+          Math.max(DECISION_LIMITS.min, Math.round(seconds)),
+        )
+      : DECISION_SECONDS;
+  return deal(rng, Math.floor(rng() * 4), decisionSeconds);
 }
 
 export const hkMahjongGame: GameDef<TableState> = {
@@ -397,13 +414,18 @@ export const hkMahjongGame: GameDef<TableState> = {
   maxPlayers: 4,
   autoStart: true,
   start: newMatch,
-  restart: (s, n, rng) => ({ ...newMatch(n, rng), revision: s.revision + 1 }),
+  restart: (s, n, rng, options) => ({
+    ...newMatch(n, rng, options),
+    revision: s.revision + 1,
+  }),
   move: (s, seat, input, rng, ctx) => move(s, seat, input, rng, ctx?.now),
   view: tableView,
   isOver: finished,
   fixedTurnClock: true,
   waiting: (s) =>
-    s.offer || s.result ? null : { seats: [s.turn], seconds: DECISION_SECONDS },
+    s.offer || s.result
+      ? null
+      : { seats: [s.turn], seconds: s.decisionSeconds ?? DECISION_SECONDS },
   autoMove: (s, seat) =>
     seat === s.turn && !s.offer && !s.result
       ? {

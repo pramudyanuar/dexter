@@ -8,6 +8,10 @@ import {
 } from '@/lib/snake-duel/store';
 
 import { GET, POST } from '@/app/api/snake/duel/rooms/route';
+import {
+  GET as getSignal,
+  POST as sendSignal,
+} from '@/app/api/snake/duel/signal/route';
 
 jest.mock('@/lib/snake-duel/store', () => ({
   ...jest.requireActual('@/lib/snake-duel/store'),
@@ -40,13 +44,57 @@ it('uses shared Redis and the Preview namespace even with obsolete Duel settings
       'https://redis.example.test',
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('snake:duel:preview:lobby'),
+        body: expect.stringContaining('snake:duel:rtc:preview:lobby'),
       }),
     );
   } finally {
     redis.mockRestore();
     env.restore();
   }
+});
+
+it('requires a seat token and passes only WebRTC setup data to the signaling store', async () => {
+  const url = 'http://localhost/api/snake/duel/signal?room=ABCDE&seat=0';
+  expect((await getSignal(new Request(url))).status).toBe(400);
+
+  const token = newToken();
+  const headers = { 'x-player-token': token };
+  const guest = newToken();
+  const output = { names: ['Satu', 'Dua'], guest, signal: null };
+  const exchangeSignal = jest.fn().mockResolvedValue(output);
+  jest
+    .mocked(getDuelStore)
+    .mockReturnValue({ exchangeSignal } as unknown as DuelStore);
+  const data = { guest, attempt: newToken(), sdp: 'v=0\r\n' };
+  const send = (value: unknown) =>
+    sendSignal(
+      new Request(url, {
+        headers,
+        method: 'POST',
+        body: JSON.stringify(value),
+      }),
+    );
+
+  expect((await send({ type: 'turn', dir: 'left' })).status).toBe(400);
+  const sent = await send(data);
+  expect(sent.status).toBe(200);
+  expect(sent.headers.get('Cache-Control')).toBe('no-store');
+  expect(await sent.json()).toEqual(output);
+  expect(exchangeSignal).toHaveBeenCalledWith(
+    { code: 'ABCDE', seat: 0, token },
+    data,
+  );
+  expect((await send({ paired: guest })).status).toBe(200);
+  expect(exchangeSignal).toHaveBeenLastCalledWith(
+    { code: 'ABCDE', seat: 0, token },
+    { paired: guest },
+  );
+  expect((await getSignal(new Request(url, { headers }))).status).toBe(200);
+  expect(exchangeSignal).toHaveBeenLastCalledWith({
+    code: 'ABCDE',
+    seat: 0,
+    token,
+  });
 });
 
 it('returns 503 when shared Redis is missing', async () => {

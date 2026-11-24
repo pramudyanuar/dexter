@@ -28,7 +28,7 @@ export interface ArenaSnake {
 
 export interface ArenaResult {
   winner: Seat | null;
-  reason: 'collision' | 'time' | 'full' | 'forfeit' | 'cancelled';
+  reason: 'collision' | 'time' | 'full';
 }
 
 export interface ArenaView {
@@ -72,8 +72,7 @@ export function initialArena(seed: number): Arena {
   };
 }
 
-export function stepArena(arena: Arena, input: Pair<Dir | null>): Arena {
-  if (arena.result) return arena;
+export function projectArenaStep(arena: ArenaView, input: Pair<Dir | null>) {
   const moves = pairOf((seat) => {
     const player = arena.snakes[seat];
     const requested = input[seat];
@@ -113,8 +112,14 @@ export function stepArena(arena: Arena, input: Pair<Dir | null>): Arena {
       ? player
       : { dir, snake: [head, ...body], score: player.score + Number(ate) };
   });
-  const tick = arena.tick + 1;
   const eaten = SEATS.some((seat) => moves[seat].ate && !dead[seat]);
+  return { snakes, dead, eaten };
+}
+
+export function stepArena(arena: Arena, input: Pair<Dir | null>): Arena {
+  if (arena.result) return arena;
+  const { snakes, dead, eaten } = projectArenaStep(arena, input);
+  const tick = arena.tick + 1;
   const [randomState, roll] = eaten
     ? nextRandom(arena.randomState)
     : [arena.randomState, 0];

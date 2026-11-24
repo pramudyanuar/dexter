@@ -106,12 +106,12 @@ This starter is using [conventional commits](https://www.conventionalcommits.org
 
 ## Snake on Vercel
 
-The Snake page at `/games/snake` includes Classic, Harian, and a shared 1v1 Duel arena. Classic and Harian play in the browser. Public scores and Duel rooms use Upstash Redis.
+The Snake page at `/games/snake` includes Classic, Harian, and a shared 1v1 Duel arena. Duel uses Upstash Redis for room codes, public rooms, matchmaking, and WebRTC setup. The host browser runs the match over a WebRTC data channel, and the duel ends when either player leaves.
 
 - Use Node 24 and the project's pnpm 12 pin. Set `ENABLE_EXPERIMENTAL_COREPACK=1` in Vercel so builds use the pinned package manager.
-- Enable Fluid Compute and connect a free Upstash Redis database to Preview. The Duel functions use Singapore (`sin1`), so select the Singapore primary region or update the function regions in `vercel.json` to match your database.
-- Duel reuses the same Redis settings as the other multiplayer games. It allows 20 rounds per month and up to two concurrent rounds. Vercel Preview uses a separate Duel namespace. Use separate Redis credentials for isolated Preview leaderboard data.
-- Test the WebSocket route in Vercel Preview or with `vercel dev`. Check room codes, public listing, matchmaking, and reconnect from two clients before deploying changes to Production.
+- Duel reuses the other multiplayer games' Redis settings. Its setup endpoints run in Singapore (`sin1`) and use a separate Redis namespace in Vercel Preview.
+- For networks that block direct WebRTC traffic, configure the optional TURN relay in `.env.example`.
+- Test room links, matchmaking, a round, and leaving from two browsers before deploying to Production.
 
 ## Projects using ts-nextjs-tailwind-starter
 

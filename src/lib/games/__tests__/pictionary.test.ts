@@ -9,6 +9,17 @@ const start = (players = 3) =>
   pictionaryGame.start(players, () => 0) as PictionaryState;
 
 describe('pictionary', () => {
+  it('uses the room duration for the first round and subsequent rounds', () => {
+    const state = pictionaryGame.start(2, () => 0, { roundSeconds: 35 }, 1000);
+    expect(state.deadline).toBe(36_000);
+    expect(pictionaryGame.tick!(state, 35_999)).toBeNull();
+    const next = pictionaryGame.tick!(state, 36_000, () => 0)!;
+    expect(next).toMatchObject({ round: 1, deadline: 71_000 });
+    expect(
+      pictionaryGame.view(next, 1, { host: 0, now: 37_000 }),
+    ).toMatchObject({ roundSeconds: 35, remainingMs: 34_000 });
+  });
+
   it('has no duplicate words', () => {
     expect(new Set(WORDS).size).toBe(WORDS.length);
   });

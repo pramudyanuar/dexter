@@ -458,7 +458,12 @@ export function eliminate(
 }
 
 /** Plays for a seat until the game stops waiting for it (or nothing can be played). */
-function autoplay(room: Room, seat: number, rng?: () => number): unknown {
+function autoplay(
+  room: Room,
+  seat: number,
+  now: number,
+  rng?: () => number,
+): unknown {
   const def = GAMES[room.game];
   let state = room.state;
   for (let i = 0; i < 4; i++) {
@@ -467,7 +472,7 @@ function autoplay(room: Room, seat: number, rng?: () => number): unknown {
     const move = def.autoMove?.(state, seat, rng);
     if (move == null) break;
     try {
-      state = def.move(state, seat, move, rng);
+      state = def.move(state, seat, move, rng, { host: hostOf(room), now });
     } catch {
       break;
     }
@@ -515,7 +520,7 @@ function penalize(
     return eliminate(marked, seat, rng, now, 'idle');
 
   const def = GAMES[room.game];
-  const state = autoplay(room, seat, rng);
+  const state = autoplay(room, seat, now, rng);
   return {
     ...marked,
     state,

@@ -276,6 +276,7 @@ export default function DrawingBoard({
 
   return (
     <div
+      className={styles.drawingBoard}
       onKeyDown={(event) => {
         if (!canDraw || confirmClear || !(event.ctrlKey || event.metaKey))
           return;

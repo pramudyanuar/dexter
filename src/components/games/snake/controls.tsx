@@ -72,7 +72,7 @@ export function SnakePad({
   disabled?: boolean;
 }) {
   return (
-    <div className='mx-auto grid w-40 grid-cols-3 gap-1.5 md:pointer-fine:hidden'>
+    <div className='mx-auto grid w-[10.75rem] grid-cols-3 gap-2 pointer-fine:hidden'>
       {arrows.map(([dir, label, symbol, placement]) => (
         <button
           key={dir}
@@ -80,7 +80,7 @@ export function SnakePad({
           aria-label={label}
           disabled={disabled}
           onClick={() => onDirection(dir)}
-          className={`min-h-11 rounded-md border border-line bg-card text-lg active:bg-accent/20 disabled:opacity-40 ${placement}`}
+          className={`min-h-11 cursor-pointer touch-manipulation border border-line-strong bg-card font-mono text-lg active:border-accent active:text-accent disabled:cursor-default disabled:opacity-40 ${placement}`}
         >
           {symbol}
         </button>

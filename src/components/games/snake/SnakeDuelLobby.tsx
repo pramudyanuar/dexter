@@ -19,7 +19,7 @@ import RoomLobby from '@/components/games/RoomLobby';
 
 const lobbyEntry = { id: 'snake', title: 'Snake Duel', players: '2' };
 const button =
-  'rounded-lg border border-line-strong px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-40';
+  'min-h-11 rounded-lg border border-line-strong px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-40';
 
 type TicketResponse = DuelTicket | { status: 'expired' | 'cancelled' };
 type SearchTicket = { id: string; expiresAt: number };
@@ -156,7 +156,8 @@ export default function SnakeDuelLobby({
   return (
     <RoomLobby
       entry={lobbyEntry}
-      blurb='Duel ular 1 lawan 1 real-time. Cari lawan otomatis atau buat room untuk main bareng teman.'
+      blurb='Cari lawan atau buat room untuk main berdua.'
+      compact
       name={name}
       onName={setName}
       busy={busy || Boolean(ticket)}

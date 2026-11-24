@@ -112,6 +112,46 @@ describe('useRoom: coming back to a room', () => {
     expect(localStorage.getItem('room-session-chess')).toBeNull();
   });
 
+  it('ignores a delayed move response after joining a different room', async () => {
+    const oldRoom = { ...view, game: 'pictionary', status: 'playing' };
+    const newRoom = { ...view, code: 'FGHJK', game: 'pictionary' };
+    const reply = (data: unknown) =>
+      ({ ok: true, json: async () => data }) as Response;
+    let finishMove!: (response: Response) => void;
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      const body = JSON.parse((init?.body as string) ?? '{}');
+      if (body.action === 'join') {
+        return reply({
+          token: url,
+          you: 1,
+          room: url.endsWith(oldRoom.code) ? oldRoom : newRoom,
+        });
+      }
+      if (body.action === 'move')
+        return new Promise<Response>((resolve) => {
+          finishMove = resolve;
+        });
+      return reply({ changed: false });
+    }) as unknown as typeof fetch;
+    const { result } = renderHook(() => useRoom('pictionary'));
+
+    await act(async () => result.current.join(oldRoom.code));
+    const move = result.current.moveOrThrow({
+      type: 'guess',
+      text: 'bird',
+      round: 0,
+    });
+    act(() => result.current.leave());
+    await act(async () => result.current.join(newRoom.code));
+    await act(async () => {
+      finishMove(reply({ room: { ...oldRoom, version: 3 } }));
+      await move;
+    });
+
+    expect(result.current.session?.code).toBe(newRoom.code);
+    expect(result.current.room).toEqual(newRoom);
+  });
+
   it('does not keep calling the server just to say it is here', async () => {
     jest.useFakeTimers();
     try {

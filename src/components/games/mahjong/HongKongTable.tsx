@@ -50,9 +50,13 @@ function Wall({
     );
   });
 }
-function ClaimClock({ until }: { until: number }) {
+function DecisionClock({ until, claim }: { until: number; claim: boolean }) {
   const remaining = useRemainingMs(until);
-  return <small>{Math.ceil(remaining / 1000)} dtk untuk klaim</small>;
+  return (
+    <small>
+      {Math.ceil(remaining / 1000)} dtk untuk {claim ? 'klaim' : 'giliran'}
+    </small>
+  );
 }
 function Tile({ tile }: { tile: number }) {
   return (
@@ -78,12 +82,14 @@ export default function HongKongTable({
   you,
   names,
   busy,
+  turnDeadline,
   onPlay,
 }: {
   v: TableView;
   you: number;
   names: (string | null)[];
   busy: boolean;
+  turnDeadline?: number | null;
   onPlay: (move: Play & { revision: number }) => void;
 }) {
   const [pick, setPick] = React.useState<{
@@ -107,6 +113,7 @@ export default function HongKongTable({
     hand.push(v.drawn);
   }
   const result = v.result;
+  const deadline = v.offer?.until ?? turnDeadline;
   const status = result
     ? result.kind === 'win'
       ? `${label(result.seat!)} menang`
@@ -209,8 +216,12 @@ export default function HongKongTable({
                 {label(v.offer.from)} · {v.wall} tersisa
               </small>
             )}
-            {v.offer && (
-              <ClaimClock key={v.offer.until} until={v.offer.until} />
+            {deadline != null && (
+              <DecisionClock
+                key={deadline}
+                until={deadline}
+                claim={Boolean(v.offer)}
+              />
             )}
           </div>
         </div>

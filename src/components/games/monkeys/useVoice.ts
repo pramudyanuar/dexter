@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 
+import { iceServers } from '@/lib/rooms/ice-servers';
 import type { Signal } from '@/lib/rooms/types';
 
 /**
@@ -32,22 +33,6 @@ export interface VoiceInfo {
 const POLL_MS = 700;
 const HELLO_MS = 2500;
 const LOST_AFTER_MS = 4000;
-
-function iceServers(): RTCIceServer[] {
-  const servers: RTCIceServer[] = [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  ];
-  // a relay for networks that block direct calls, when the site has one
-  const url = process.env.NEXT_PUBLIC_TURN_URL;
-  if (url) {
-    servers.push({
-      urls: url.split(','),
-      username: process.env.NEXT_PUBLIC_TURN_USER,
-      credential: process.env.NEXT_PUBLIC_TURN_PASSWORD,
-    });
-  }
-  return servers;
-}
 
 export interface Voice {
   status: VoiceStatus;

@@ -39,6 +39,9 @@ function TableRoom() {
                 you={you}
                 names={room.names}
                 busy={r.busy}
+                turnDeadline={
+                  room.waiting && r.receivedAt + room.waiting.remaining * 1000
+                }
                 onPlay={r.move}
               />
               {room.status === 'over' && !r.spectating && <Rematch r={r} />}
@@ -51,6 +54,11 @@ function TableRoom() {
           onDismiss={() => setReading(false)}
           playing={r.room?.status === 'playing' && !state?.result}
           myTurn={!!state?.actions.length}
+          decisionSeconds={
+            state?.decisionSeconds ??
+            (r.room?.options as { decisionSeconds?: number } | null)
+              ?.decisionSeconds
+          }
         />
       )}
       <RoomChat game='mahjong-hk' />

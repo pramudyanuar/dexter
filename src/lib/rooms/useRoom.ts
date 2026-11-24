@@ -41,6 +41,7 @@ export function useRoom<V>(game: GameId) {
   const [busy, setBusy] = React.useState(false);
   const [spectateCode, setSpectateCode] = React.useState('');
   const version = React.useRef(0);
+  const generation = React.useRef(0);
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -62,6 +63,7 @@ export function useRoom<V>(game: GameId) {
 
   const leave = React.useCallback(
     (message = '') => {
+      generation.current++;
       setSession(null);
       setSpectateCode('');
       setRoom(null);
@@ -82,6 +84,7 @@ export function useRoom<V>(game: GameId) {
   React.useEffect(() => {
     if (!code || (!token && !spectating)) return;
     let stopped = false;
+    const opened = generation.current;
 
     const poll = async () => {
       if (stopped || document.visibilityState !== 'visible') return;
@@ -92,8 +95,10 @@ export function useRoom<V>(game: GameId) {
         const data = await callRoom(`/api/rooms/${code}?${qs}`, {
           token,
         });
-        if (!stopped && data.changed) adopt(data.room);
+        if (!stopped && generation.current === opened && data.changed)
+          adopt(data.room);
       } catch (err) {
+        if (stopped || generation.current !== opened) return;
         if ((err as { status?: number }).status === 404) {
           if (code) forgetSeat(game, code);
           leave('Room sudah kedaluwarsa atau tidak ada lagi.');
@@ -165,6 +170,7 @@ export function useRoom<V>(game: GameId) {
         body: { game, name, isPublic },
       });
       rememberSeat(game, data.code, data);
+      generation.current++;
       version.current = 0;
       setSession({ code: data.code, token: data.token, you: data.you });
       adopt(data.room);
@@ -180,6 +186,7 @@ export function useRoom<V>(game: GameId) {
       });
       if (data.room.game !== game) throw new Error('Kode ini untuk game lain');
       rememberSeat(game, target, data);
+      generation.current++;
       version.current = 0;
       setSession({ code: target, token: data.token, you: data.you });
       adopt(data.room);
@@ -192,11 +199,16 @@ export function useRoom<V>(game: GameId) {
     signal?: AbortSignal,
   ) => {
     if (!session) throw new Error('Room sudah ditutup.');
-    const data = await callRoom(`/api/rooms/${session.code}`, {
-      body: { action, token: session.token, ...extra },
-      signal,
-    });
-    if (!signal?.aborted) adopt(data.room);
+    const opened = generation.current;
+    try {
+      const data = await callRoom(`/api/rooms/${session.code}`, {
+        body: { action, token: session.token, ...extra },
+        signal,
+      });
+      if (!signal?.aborted && generation.current === opened) adopt(data.room);
+    } catch (error) {
+      if (generation.current === opened) throw error;
+    }
   };
 
   const act = (action: string, extra: Record<string, unknown> = {}) =>
