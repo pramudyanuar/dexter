@@ -1,4 +1,10 @@
 import {
+  BUG_DRAFT_TTL,
+  BUG_REPORT_KEEP,
+  type BugReport,
+  type BugSnapshot,
+} from '@/lib/rooms/bug-reports';
+import {
   CHAT_KEEP,
   ChatMsg,
   Room,
@@ -24,6 +30,10 @@ export interface RoomStore {
   /** Call set-up messages between seats, oldest first (short-lived) */
   signalList(code: string): Promise<Signal[]>;
   signalAdd(code: string, signal: Signal): Promise<void>;
+  saveBugDraft(key: string, snapshot: BugSnapshot): Promise<void>;
+  getBugDraft(key: string): Promise<BugSnapshot | 'submitted' | null>;
+  submitBugReport(key: string, report: BugReport): Promise<boolean>;
+  listBugReports(): Promise<BugReport[]>;
   /** Lists all active room codes. */
   listCodes(): Promise<string[]>;
   /** Permanently deletes a room and its associated chat/signal keys. */
@@ -33,6 +43,17 @@ export interface RoomStore {
 const key = (code: string) => `room:${code}`;
 const chatKey = (code: string) => `room:${code}:chat`;
 const signalKey = (code: string) => `room:${code}:rtc`;
+const bugDraftKey = (key: string) => `bug-reports:draft:${key}`;
+const bugInboxKey = 'bug-reports:inbox';
+
+const SUBMIT_BUG_REPORT = `
+local draft = redis.call('GET', KEYS[1])
+if not draft then return 0 end
+if draft == 'submitted' then return 1 end
+redis.call('LPUSH', KEYS[2], ARGV[1])
+redis.call('LTRIM', KEYS[2], 0, ARGV[2])
+redis.call('SET', KEYS[1], 'submitted', 'KEEPTTL')
+return 1`;
 
 /** Compare-and-set done atomically in Redis (Lua): only overwrite the version we read. */
 const SAVE_IF = `
@@ -139,6 +160,45 @@ class RedisStore implements RoomStore {
     await this.command(['EXPIRE', signalKey(code), TTL_SECONDS]);
   }
 
+  async saveBugDraft(key: string, snapshot: BugSnapshot) {
+    await this.command([
+      'SET',
+      bugDraftKey(key),
+      JSON.stringify(snapshot),
+      'EX',
+      BUG_DRAFT_TTL,
+    ]);
+  }
+
+  async getBugDraft(key: string) {
+    const raw = await this.command(['GET', bugDraftKey(key)]);
+    if (raw === 'submitted') return 'submitted' as const;
+    return raw ? (JSON.parse(raw) as BugSnapshot) : null;
+  }
+
+  async submitBugReport(key: string, report: BugReport) {
+    const result = await this.command([
+      'EVAL',
+      SUBMIT_BUG_REPORT,
+      2,
+      bugDraftKey(key),
+      bugInboxKey,
+      JSON.stringify(report),
+      BUG_REPORT_KEEP - 1,
+    ]);
+    return result === 1;
+  }
+
+  async listBugReports() {
+    const lines = (await this.command([
+      'LRANGE',
+      bugInboxKey,
+      0,
+      BUG_REPORT_KEEP - 1,
+    ])) as string[] | null;
+    return (lines ?? []).map((line) => JSON.parse(line) as BugReport);
+  }
+
   async listCodes(): Promise<string[]> {
     const codes = new Set<string>();
     let cursor = '0';
@@ -174,6 +234,11 @@ class MemoryStore implements RoomStore {
   private rooms: Map<string, { room: Room; expires: number }>;
   private chats: Map<string, { lines: ChatMsg[]; expires: number }>;
   private signals: Map<string, { lines: Signal[]; expires: number }>;
+  private bugDrafts: Map<
+    string,
+    { snapshot: BugSnapshot | 'submitted'; expires: number }
+  >;
+  private bugReports: BugReport[];
 
   constructor() {
     // survive hot reloads in dev
@@ -181,10 +246,14 @@ class MemoryStore implements RoomStore {
       __rooms?: MemoryStore['rooms'];
       __chats?: MemoryStore['chats'];
       __signals?: MemoryStore['signals'];
+      __bugDrafts?: MemoryStore['bugDrafts'];
+      __bugReports?: MemoryStore['bugReports'];
     };
     this.rooms = g.__rooms ??= new Map();
     this.chats = g.__chats ??= new Map();
     this.signals = g.__signals ??= new Map();
+    this.bugDrafts = g.__bugDrafts ??= new Map();
+    this.bugReports = g.__bugReports ??= [];
   }
 
   async saveIf(room: Room, expectedVersion: number) {
@@ -226,6 +295,38 @@ class MemoryStore implements RoomStore {
       lines,
       expires: Date.now() + TTL_SECONDS * 1000,
     });
+  }
+
+  async saveBugDraft(key: string, snapshot: BugSnapshot) {
+    const now = Date.now();
+    for (const [id, draft] of this.bugDrafts) {
+      if (draft.expires <= now) this.bugDrafts.delete(id);
+    }
+    this.bugDrafts.set(key, {
+      snapshot: structuredClone(snapshot),
+      expires: now + BUG_DRAFT_TTL * 1000,
+    });
+  }
+
+  async getBugDraft(key: string) {
+    const draft = this.bugDrafts.get(key);
+    return draft && draft.expires > Date.now()
+      ? structuredClone(draft.snapshot)
+      : null;
+  }
+
+  async submitBugReport(key: string, report: BugReport) {
+    const draft = this.bugDrafts.get(key);
+    if (!draft || draft.expires <= Date.now()) return false;
+    if (draft.snapshot === 'submitted') return true;
+    this.bugReports.unshift(structuredClone(report));
+    this.bugReports.length = Math.min(this.bugReports.length, BUG_REPORT_KEEP);
+    draft.snapshot = 'submitted';
+    return true;
+  }
+
+  async listBugReports() {
+    return structuredClone(this.bugReports);
   }
 
   private read(code: string) {

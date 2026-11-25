@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 
-import SnakePage from '@/app/games/snake/page';
+import SnakePage from '@/app/games/snake/classic/page';
 
 jest.mock('@/components/games/GameShell', () => ({
   __esModule: true,
@@ -34,6 +34,16 @@ describe('Snake Classic', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Lanjut' }));
     act(() => jest.advanceTimersByTime(2000));
     expect(screen.getByText('Game over. Skor 1.')).toBeInTheDocument();
+  });
+
+  it('marks Classic as active and links back to the Snake mode menu', () => {
+    render(<SnakePage />);
+    expect(
+      screen.getByRole('link', { name: 'Classic', current: 'page' }),
+    ).toHaveAttribute('href', '/games/snake/classic');
+    expect(
+      screen.getByRole('link', { name: 'Pilih mode Snake' }),
+    ).toHaveAttribute('href', '/games/snake');
   });
 
   it('leaves normal typing and Enter available to the score form', () => {

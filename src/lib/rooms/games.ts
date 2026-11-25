@@ -11,6 +11,7 @@ import { karambolGame } from '@/lib/games/karambol';
 import { diceGame } from '@/lib/games/liarsdice';
 import { monkeysGame } from '@/lib/games/monkeys';
 import { pictionaryGame } from '@/lib/games/pictionary';
+import { pokerGame } from '@/lib/games/poker';
 import { quizGame } from '@/lib/games/quiz';
 import { remoGame } from '@/lib/games/remo';
 import { sekataGame } from '@/lib/games/sekata';
@@ -41,6 +42,7 @@ export const GAMES: Record<GameId, GameDef> = {
   'mahjong-hk': hkMahjongGame as GameDef,
   quiz: quizGame as GameDef,
   pictionary: pictionaryGame as GameDef,
+  poker: pokerGame as GameDef,
   karambol: karambolGame as GameDef,
   gelud: geludGame as GameDef,
 };

@@ -1,8 +1,14 @@
 'use client';
 
+import { Sticker } from 'lucide-react';
 import * as React from 'react';
 
 import { normalizeCode } from '@/lib/rooms/code-format';
+import {
+  getRoomSticker,
+  ROOM_STICKERS,
+  type RoomSticker,
+} from '@/lib/rooms/stickers';
 import { CHAT_MAX_LENGTH, ChatMsg, GameId } from '@/lib/rooms/types';
 import type { RoomSession } from '@/lib/rooms/useRoom';
 import useStoredState from '@/lib/useStoredState';
@@ -18,6 +24,20 @@ const time = (at: number, locale: string) =>
     hour: '2-digit',
     minute: '2-digit',
   });
+
+function StickerArt({ sticker }: { sticker: RoomSticker }) {
+  const lang = useLang();
+  return (
+    <span className='inline-flex flex-col items-center px-1 py-1 text-center leading-none'>
+      <span aria-hidden='true' className='text-[2.25em] drop-shadow-sm'>
+        {sticker.art}
+      </span>
+      <span className='-mt-0.5 rotate-[-6deg] rounded-full bg-ink px-2 py-1 font-black whitespace-nowrap text-paper shadow-sm'>
+        {sticker.label[lang]}
+      </span>
+    </span>
+  );
+}
 
 function Chat({
   session,
@@ -41,6 +61,8 @@ function Chat({
   const [seen, setSeen] = React.useState(0);
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [stickerQuery, setStickerQuery] = React.useState('');
   /** Where your next line goes; null when you may not talk right now */
   const [channel, setChannel] = React.useState<string | null>('all');
   const [error, setError] = React.useState('');
@@ -50,7 +72,17 @@ function Chat({
   const lastId = React.useRef<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const pickerButtonRef = React.useRef<HTMLButtonElement>(null);
+  const stickerSearchRef = React.useRef<HTMLInputElement>(null);
   const inputId = React.useId();
+  const pickerId = `${inputId}-stickers`;
+  const showPicker = pickerOpen && channel !== null;
+  const searchWords = stickerQuery.trim().toLowerCase().split(/\s+/);
+  const visibleStickers = ROOM_STICKERS.filter((sticker) => {
+    const searchable =
+      `${sticker.art} ${sticker.id} ${sticker.label.id} ${sticker.label.en} ${sticker.keywords}`.toLowerCase();
+    return searchWords.every((word) => searchable.includes(word));
+  });
 
   const fetchNew = React.useCallback(async () => {
     if (document.visibilityState !== 'visible') return;
@@ -109,6 +141,10 @@ function Chat({
     if (openByHand) inputRef.current?.focus();
   }, [openByHand]);
 
+  React.useEffect(() => {
+    if (open && showPicker) stickerSearchRef.current?.focus();
+  }, [open, showPicker]);
+
   const unread = open
     ? 0
     : lines.slice(seen).filter((l) => l.seat !== you).length;
@@ -116,16 +152,21 @@ function Chat({
   const toggle = () => {
     setSeen(lines.length);
     setOpen((o) => !o);
+    setPickerOpen(false);
+    setStickerQuery('');
     setError('');
   };
 
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const body = text.trim();
-    if (!body || sending || channel === null) return;
+  const closePicker = () => {
+    setPickerOpen(false);
+    setStickerQuery('');
+    pickerButtonRef.current?.focus();
+  };
+
+  const send = async (body: { text: string } | { stickerId: string }) => {
+    if (sending || channel === null) return false;
     setSending(true);
     setError('');
-    if (inline) inputRef.current?.focus({ preventScroll: true });
     try {
       const res = await fetch(`/api/rooms/${code}/chat`, {
         method: 'POST',
@@ -133,21 +174,31 @@ function Chat({
           'Content-Type': 'application/json',
           'x-player-token': token,
         },
-        body: JSON.stringify({ text: body }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? t.sendFailed);
-        return;
+        return false;
       }
-      setText((draft) => (draft === text ? '' : draft));
       void fetchNew();
+      return true;
     } catch {
       setError(t.sendFailed);
+      return false;
     } finally {
       setSending(false);
     }
+  };
+
+  const sendText = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = text.trim();
+    if (!body || sending || channel === null) return;
+    if (inline) inputRef.current?.focus({ preventScroll: true });
+    if (await send({ text: body }))
+      setText((draft) => (draft === text ? '' : draft));
   };
 
   return (
@@ -175,7 +226,14 @@ function Chat({
           onKeyDown={(e) => {
             // keep typing here from triggering game shortcuts
             e.stopPropagation();
-            if (e.key === 'Escape' && !wide && !inline) toggle();
+            if (e.key === 'Escape') {
+              if (showPicker) {
+                e.preventDefault();
+                closePicker();
+              } else if (!wide && !inline) {
+                toggle();
+              }
+            }
           }}
         >
           <div className='flex items-center justify-between border-b border-line px-3 py-2 text-sm'>
@@ -195,7 +253,7 @@ function Chat({
             ref={listRef}
             role='log'
             aria-live='polite'
-            className='flex-1 space-y-2 overflow-y-auto px-3 py-2'
+            className='min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2'
           >
             {lines.length === 0 && (
               <p className='pt-6 text-center text-xs text-[var(--mute)]'>
@@ -205,6 +263,7 @@ function Chat({
             {lines.map((l) => {
               const isAdmin = l.seat === -1;
               const mine = l.seat === you;
+              const sticker = getRoomSticker(l.stickerId);
               if (isAdmin) {
                 return (
                   <div
@@ -243,19 +302,74 @@ function Chat({
                       </span>
                     )}
                   </span>
-                  <span
-                    className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
-                      mine
-                        ? 'rounded-br-md bg-accent/20'
-                        : 'rounded-bl-md bg-surface'
-                    }`}
-                  >
-                    {l.text}
-                  </span>
+                  {sticker ? (
+                    <span
+                      role='img'
+                      aria-label={sticker.label[lang]}
+                      className='text-lg'
+                    >
+                      <StickerArt sticker={sticker} />
+                    </span>
+                  ) : (
+                    <span
+                      className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
+                        mine
+                          ? 'rounded-br-md bg-accent/20'
+                          : 'rounded-bl-md bg-surface'
+                      }`}
+                    >
+                      {l.text}
+                    </span>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {token && showPicker && (
+            <div
+              id={pickerId}
+              role='region'
+              aria-label={t.stickers}
+              className='flex max-h-[55%] min-h-0 flex-col gap-2 overflow-y-auto border-t border-line p-2'
+            >
+              <input
+                ref={stickerSearchRef}
+                type='search'
+                aria-label={t.searchStickers}
+                placeholder={t.searchStickers}
+                value={stickerQuery}
+                onChange={(e) => setStickerQuery(e.target.value)}
+                className='w-full shrink-0 text-sm'
+              />
+              {visibleStickers.length ? (
+                <div className='grid grid-cols-4 gap-1'>
+                  {visibleStickers.map((sticker) => (
+                    <button
+                      key={sticker.id}
+                      type='button'
+                      disabled={sending}
+                      aria-label={t.sendSticker(sticker.label[lang])}
+                      onClick={async () => {
+                        if (await send({ stickerId: sticker.id }))
+                          closePicker();
+                      }}
+                      className='rounded-lg py-1 text-[10px] hover:bg-surface disabled:opacity-50'
+                    >
+                      <StickerArt sticker={sticker} />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p
+                  role='status'
+                  className='py-2 text-center text-xs text-[var(--mute)]'
+                >
+                  {t.noStickers}
+                </p>
+              )}
+            </div>
+          )}
 
           {error && (
             <p
@@ -268,10 +382,26 @@ function Chat({
           )}
           {token ? (
             <form
-              onSubmit={send}
+              onSubmit={sendText}
               aria-busy={sending}
-              className='flex gap-2 border-t border-line p-2'
+              className='flex shrink-0 gap-2 border-t border-line p-2'
             >
+              <button
+                ref={pickerButtonRef}
+                type='button'
+                aria-label={t.stickers}
+                title={t.stickers}
+                aria-expanded={showPicker}
+                aria-controls={showPicker ? pickerId : undefined}
+                disabled={channel === null}
+                onClick={() => {
+                  if (showPicker) closePicker();
+                  else setPickerOpen(true);
+                }}
+                className='rounded-lg border border-line px-2 hover:bg-surface disabled:opacity-40 aria-expanded:bg-surface'
+              >
+                <Sticker size={18} aria-hidden='true' />
+              </button>
               <input
                 ref={inputRef}
                 id={inputId}

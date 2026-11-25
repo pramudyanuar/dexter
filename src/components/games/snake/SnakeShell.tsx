@@ -6,7 +6,7 @@ import styles from '@/components/games/snake/snake.module.css';
 import GameShell from '@/components/games/GameShell';
 
 const modes = [
-  { id: 'classic', label: 'Classic', href: '/games/snake' },
+  { id: 'classic', label: 'Classic', href: '/games/snake/classic' },
   { id: 'daily', label: 'Harian', href: '/games/snake/daily' },
   { id: 'duel', label: 'Duel', href: '/games/snake/duel' },
 ] as const;
@@ -22,9 +22,9 @@ export default function SnakeShell({
     <GameShell name='snake' fit className={styles.shell} showBack={false}>
       <div className={styles.layout}>
         <div className={styles.backBar}>
-          <Link href='/games' className={styles.backLink}>
+          <Link href='/games/snake' className={styles.backLink}>
             <ArrowLeft size={16} aria-hidden='true' />
-            Semua game
+            Pilih mode Snake
           </Link>
         </div>
         <header className={styles.header}>

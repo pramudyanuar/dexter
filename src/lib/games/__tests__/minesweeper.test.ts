@@ -20,6 +20,20 @@ const at = (g: ReturnType<typeof fromLayout>, x: number, y: number) =>
   g.cells[y * g.width + x];
 
 describe('placing mines', () => {
+  it('ignores out-of-bounds coordinates even when their index is on the board', () => {
+    const game = fromLayout(['*..', '...', '..*']);
+    for (const [x, y] of [
+      [3, 0],
+      [-1, 1],
+      [0, 3],
+      [0.5, 1],
+    ]) {
+      expect(reveal(game, x, y)).toBe(game);
+      expect(toggleFlag(game, x, y)).toBe(game);
+      expect(chord(game, x, y)).toBe(game);
+    }
+  });
+
   it('starts with no mines and places them on the first reveal', () => {
     const g = newGame('mudah');
     expect(g.status).toBe('ready');

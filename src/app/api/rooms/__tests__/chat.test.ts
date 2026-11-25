@@ -23,15 +23,17 @@ afterEach(() => {
 });
 
 const ctx = (code: string) => ({ params: Promise.resolve({ code }) });
-const say = (code: string, token: string | null, text: unknown) =>
+const send = (code: string, token: string | null, body: unknown) =>
   POST(
     new Request(`http://x/api/rooms/${code}/chat`, {
       method: 'POST',
       headers: token ? { 'x-player-token': token } : {},
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(body),
     }),
     ctx(code),
   );
+const say = (code: string, token: string | null, text: unknown) =>
+  send(code, token, { text });
 const read = (code: string, after?: string) =>
   GET(
     new Request(
@@ -107,6 +109,20 @@ describe('chat', () => {
     expect((await (await read(code, last)).json()).messages).toEqual([]);
     // an unknown id (trimmed away) gets everything again
     expect((await (await read(code, 'nope')).json()).messages).toHaveLength(3);
+  });
+
+  it('delivers catalog stickers and rejects unknown or repeated stickers', async () => {
+    const { code, A } = await room();
+    expect((await send(code, A, { stickerId: 'unknown' })).status).toBe(400);
+    expect((await send(code, null, { stickerId: 'gg' })).status).toBe(403);
+    expect((await send(code, A, { stickerId: 'gg' })).status).toBe(200);
+    expect((await send(code, A, { stickerId: 'gg' })).status).toBe(429);
+    expect((await send(code, A, { stickerId: 'lol' })).status).toBe(200);
+    const { messages } = await (await read(code)).json();
+    expect(messages.map((m: { stickerId: string }) => m.stickerId)).toEqual([
+      'gg',
+      'lol',
+    ]);
   });
 
   it('only lets seated players talk', async () => {
@@ -268,14 +284,27 @@ describe('chat in a game with private channels (Werewolf)', () => {
     const seer = roles.indexOf('seer');
     const villager = roles.indexOf('villager');
     await sendAs(code, tokens[wolf], 'take the baker');
+    expect((await send(code, tokens[wolf], { stickerId: 'gg' })).status).toBe(
+      200,
+    );
+    expect(
+      (await send(code, tokens[villager], { stickerId: 'lol' })).status,
+    ).toBe(403);
     const wolfView = await (await readAs(code, tokens[wolf])).json();
     expect(wolfView.messages.map((m: { text: string }) => m.text)).toContain(
       'take the baker',
     );
     expect(wolfView.channel).toBe('wolves');
+    expect(wolfView.messages).toContainEqual(
+      expect.objectContaining({
+        stickerId: 'gg',
+        channel: 'wolves',
+      }),
+    );
     for (const who of [seer, villager]) {
       const body = await (await readAs(code, tokens[who])).json();
       expect(JSON.stringify(body)).not.toContain('take the baker');
+      expect(body.messages).toEqual([]);
       expect(body.channel).toBeNull();
     }
     // someone who is not sitting at the table sees nothing private either

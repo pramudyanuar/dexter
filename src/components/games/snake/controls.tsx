@@ -26,22 +26,27 @@ export function isInteractive(target: EventTarget | null) {
   );
 }
 
+export function shouldIgnoreGameKey(event: KeyboardEvent) {
+  const { key, target } = event;
+  return (
+    event.defaultPrevented ||
+    event.isComposing ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    (target instanceof Element &&
+      Boolean(target.closest('input, textarea, select, [contenteditable]'))) ||
+    ((key === 'Enter' || key === ' ') && isInteractive(target))
+  );
+}
+
 export function useSnakeKeys(
   turn: (dir: Dir) => boolean,
   pause?: () => boolean,
   restart?: () => boolean,
 ) {
   const handleKey = React.useEffectEvent((event: KeyboardEvent) => {
-    if (
-      event.defaultPrevented ||
-      event.isComposing ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.altKey ||
-      isInteractive(event.target)
-    ) {
-      return;
-    }
+    if (shouldIgnoreGameKey(event)) return;
     const dir = KEYS[event.key.toLowerCase()];
     if (dir && !event.repeat && turn(dir)) event.preventDefault();
     if (event.key === ' ' && !event.repeat && pause?.()) event.preventDefault();

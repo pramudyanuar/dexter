@@ -232,8 +232,7 @@ function Toast({
 /**
  * What every player should know about the table: who is on their way out (and
  * how long they have to come back), whose turn is about to run out, missed-turn
- * warnings, who left or was removed, who the admin is now, and for the admin a
- * way to remove someone.
+ * warnings, who left or was removed, and for the admin a way to remove someone.
  */
 export default function RoomNotice({
   room,
@@ -265,7 +264,7 @@ export default function RoomNotice({
   const t = useText();
   const lang = useLang();
   const live = room?.status === 'playing';
-  const now = useTick(!!live || !!room?.hostNotice);
+  const now = useTick(live);
   if (!room || room.status === 'waiting') return null;
 
   const elapsed = Math.floor((now - receivedAt) / 1000);
@@ -307,15 +306,6 @@ export default function RoomNotice({
         text: t.leaving(nameOf(a.seat), left),
       });
     }
-  }
-
-  if (room.hostNotice - elapsed > 0 && room.joined[room.host]) {
-    lines.push({
-      key: `host-${room.host}`,
-      tone: 'mute',
-      autoClose: 8000,
-      text: t.nowAdmin(room.host === you ? null : nameOf(room.host)),
-    });
   }
 
   const strikes = room.strikes[you] ?? 0;

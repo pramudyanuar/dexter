@@ -60,6 +60,25 @@ async function startedRoom(game = 'connect4') {
   return { code: a.code as string, A: a.token as string, B: b.token as string };
 }
 
+it('plays poker through the room API while keeping opponent cards private', async () => {
+  const { code, A, B } = await startedRoom('poker');
+  const start = await post(code, { action: 'start', token: A });
+  expect(start.status).toBe(200);
+  const { room } = await start.json();
+  expect(room.state.players[0].cards).toHaveLength(2);
+  expect(room.state.players[1].cards).toEqual([]);
+  const { room: other } = await (await poll(code, 0, B)).json();
+  expect(other.state.players[0].cards).toEqual([]);
+  expect(other.state.players[1].cards).toHaveLength(2);
+
+  const action = { hand: 1, turnNumber: 0 };
+  expect((await move(code, B, { ...action, type: 'check' })).status).toBe(409);
+  expect((await move(code, A, { ...action, type: 'call' })).status).toBe(200);
+  const flop = await move(code, B, { ...action, turnNumber: 1, type: 'check' });
+  expect(flop.status).toBe(200);
+  expect((await flop.json()).room.state.board).toHaveLength(3);
+});
+
 describe('admin defaults in a new game', () => {
   it('uses the saved Mahjong and Pictionary timers in rooms created afterward', async () => {
     const settings = await saveConfig(
@@ -164,7 +183,7 @@ describe('creating', () => {
     expect((await (await make(game)).json()).room.game).toBe(game);
   });
 
-  it.each([null, '', 'poker', 5, '__proto__', 'toString'])(
+  it.each([null, '', 'poker-invalid', 5, '__proto__', 'toString'])(
     'refuses the game %p',
     async (game) => {
       expect((await make(game)).status).toBe(400);

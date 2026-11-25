@@ -112,45 +112,48 @@ describe('useRoom: coming back to a room', () => {
     expect(localStorage.getItem('room-session-chess')).toBeNull();
   });
 
-  it('ignores a delayed move response after joining a different room', async () => {
-    const oldRoom = { ...view, game: 'pictionary', status: 'playing' };
-    const newRoom = { ...view, code: 'FGHJK', game: 'pictionary' };
-    const reply = (data: unknown) =>
-      ({ ok: true, json: async () => data }) as Response;
-    let finishMove!: (response: Response) => void;
-    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
-      const body = JSON.parse((init?.body as string) ?? '{}');
-      if (body.action === 'join') {
-        return reply({
-          token: url,
-          you: 1,
-          room: url.endsWith(oldRoom.code) ? oldRoom : newRoom,
-        });
-      }
-      if (body.action === 'move')
-        return new Promise<Response>((resolve) => {
-          finishMove = resolve;
-        });
-      return reply({ changed: false });
-    }) as unknown as typeof fetch;
-    const { result } = renderHook(() => useRoom('pictionary'));
+  it.each([200, 409])(
+    'ignores a delayed move response (%i) after switching rooms',
+    async (status) => {
+      const oldRoom = { ...view, game: 'pictionary', status: 'playing' };
+      const newRoom = { ...view, code: 'FGHJK', game: 'pictionary' };
+      const reply = (data: unknown, status = 200) =>
+        ({ ok: status === 200, status, json: async () => data }) as Response;
+      let finishMove!: (response: Response) => void;
+      global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+        const body = JSON.parse((init?.body as string) ?? '{}');
+        if (body.action === 'join') {
+          return reply({
+            token: url,
+            you: 1,
+            room: url.endsWith(oldRoom.code) ? oldRoom : newRoom,
+          });
+        }
+        if (body.action === 'move')
+          return new Promise<Response>((resolve) => {
+            finishMove = resolve;
+          });
+        return reply({ changed: false });
+      }) as unknown as typeof fetch;
+      const { result } = renderHook(() => useRoom('pictionary'));
 
-    await act(async () => result.current.join(oldRoom.code));
-    const move = result.current.moveOrThrow({
-      type: 'guess',
-      text: 'bird',
-      round: 0,
-    });
-    act(() => result.current.leave());
-    await act(async () => result.current.join(newRoom.code));
-    await act(async () => {
-      finishMove(reply({ room: { ...oldRoom, version: 3 } }));
-      await move;
-    });
+      await act(async () => result.current.join(oldRoom.code));
+      const move = result.current.moveOrThrow({
+        type: 'guess',
+        text: 'bird',
+        round: 0,
+      });
+      act(() => result.current.leave());
+      await act(async () => result.current.join(newRoom.code));
+      await act(async () => {
+        finishMove(reply({ room: { ...oldRoom, version: 3 } }, status));
+        await move;
+      });
 
-    expect(result.current.session?.code).toBe(newRoom.code);
-    expect(result.current.room).toEqual(newRoom);
-  });
+      expect(result.current.session?.code).toBe(newRoom.code);
+      expect(result.current.room).toEqual(newRoom);
+    },
+  );
 
   it('does not keep calling the server just to say it is here', async () => {
     jest.useFakeTimers();
@@ -279,5 +282,72 @@ describe('useRoom: coming back to a room', () => {
     await act(async () => result.current.create());
     // the room says we sit in seat 1 now, not the 2 we were handed
     await waitFor(() => expect(result.current.session?.you).toBe(1));
+  });
+
+  it('returns to the lobby when an admin removes your seat', async () => {
+    sessionStorage.setItem(
+      'room-session-chess',
+      JSON.stringify({ code: 'ABCDE', token: 'old-token', you: 1 }),
+    );
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        changed: true,
+        room: { ...view, version: 2, seat: null },
+      }),
+    })) as unknown as typeof fetch;
+    const { result } = renderHook(() => useRoom('chess'));
+    await waitFor(() => expect(result.current.error).toMatch(/Kursimu/));
+    expect(result.current.session).toBeNull();
+    expect(result.current.room).toBeNull();
+  });
+
+  it('ignores an old poll failure and move response after switching rooms', async () => {
+    sessionStorage.setItem(
+      'room-session-chess',
+      JSON.stringify({ code: 'ABCDE', token: 'old-token', you: 0 }),
+    );
+    const reply = (data: unknown, status = 200) => ({
+      ok: status === 200,
+      status,
+      json: async () => data,
+    });
+    const poll = Promise.withResolvers<ReturnType<typeof reply>>();
+    const move = Promise.withResolvers<ReturnType<typeof reply>>();
+    const fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/rooms')
+        return reply({
+          code: 'FGHJK',
+          token: 'new-token',
+          you: 0,
+          room: { ...view, code: 'FGHJK', seat: 0 },
+        });
+      if (url.startsWith('/api/rooms/ABCDE?')) return poll.promise;
+      if (JSON.parse(String(init?.body ?? '{}')).action === 'move')
+        return move.promise;
+      return reply({ changed: false });
+    });
+    global.fetch = fetch as unknown as typeof global.fetch;
+    const { result } = renderHook(() => useRoom('chess'));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/rooms/ABCDE?'),
+        expect.anything(),
+      ),
+    );
+    let pendingMove: Promise<void>;
+    act(() => {
+      pendingMove = result.current.moveOrThrow({});
+    });
+    act(() => result.current.leave());
+    await act(async () => result.current.create());
+    await act(async () => {
+      poll.resolve(reply({}, 404));
+      move.resolve(reply({ room: { ...view, version: 99, seat: 0 } }));
+      await pendingMove;
+    });
+    expect(result.current.session?.code).toBe('FGHJK');
+    expect(result.current.room?.code).toBe('FGHJK');
+    expect(result.current.error).toBe('');
   });
 });

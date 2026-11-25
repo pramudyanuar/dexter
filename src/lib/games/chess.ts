@@ -274,13 +274,20 @@ export function legalMoves(state: ChessState, seat: number): ChessMove[] {
 }
 
 function insufficient(board: Board) {
-  const rest = board
-    .flat()
-    .filter((p): p is Piece => !!p && p[1] !== 'K')
-    .map((p) => p[1]);
+  const rest = board.flatMap((row, r) =>
+    row.flatMap((piece, c) =>
+      piece && piece[1] !== 'K'
+        ? [{ kind: piece[1], squareColor: (r + c) % 2 }]
+        : [],
+    ),
+  );
   return (
     rest.length === 0 ||
-    (rest.length === 1 && (rest[0] === 'B' || rest[0] === 'N'))
+    (rest.length === 1 && rest[0].kind === 'N') ||
+    rest.every(
+      ({ kind, squareColor }) =>
+        kind === 'B' && squareColor === rest[0].squareColor,
+    )
   );
 }
 
