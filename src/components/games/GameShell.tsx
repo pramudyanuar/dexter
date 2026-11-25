@@ -3,6 +3,7 @@ import * as React from 'react';
 
 import DocumentTitle from '@/components/games/DocumentTitle';
 import FitBox from '@/components/games/FitBox';
+import GameBugReport from '@/components/games/GameBugReport';
 import RememberGame from '@/components/games/RememberGame';
 import Splash from '@/components/games/Splash';
 
@@ -65,6 +66,7 @@ export default function GameShell({
       )}
 
       {game && <RememberGame id={game.id} />}
+      {name && <GameBugReport game={name} />}
       <DocumentTitle title={game?.title ?? 'Games'} />
       {game && <Splash id={game.id} title={game.title} />}
 

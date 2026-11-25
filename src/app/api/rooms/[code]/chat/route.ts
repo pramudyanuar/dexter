@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/codes';
 import { chatPolicy, seatOf } from '@/lib/rooms/engine';
 import { createLimiter } from '@/lib/rooms/rate-limit';
+import { getRoomSticker } from '@/lib/rooms/stickers';
 import { getRoomStore } from '@/lib/rooms/store';
 import { CHAT_MAX_LENGTH, ChatMsg } from '@/lib/rooms/types';
 
@@ -62,11 +63,15 @@ export async function POST(req: Request, { params }: Context) {
   if (!CODE_PATTERN.test(code)) return bad('Kode room tidak valid', 400);
 
   const body = await req.json().catch(() => null);
-  const text =
+  const sticker = getRoomSticker(body?.stickerId);
+  if (body?.stickerId !== undefined && !sticker)
+    return bad('Stiker tidak tersedia', 400);
+
+  const typedText =
     typeof body?.text === 'string'
       ? body.text.replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX_LENGTH)
       : '';
-  if (!text) return bad('Pesan kosong', 400);
+  if (!sticker && !typedText) return bad('Pesan kosong', 400);
 
   try {
     const room = await store.get(code);
@@ -87,7 +92,12 @@ export async function POST(req: Request, { params }: Context) {
     const recent = (await store.chatList(code)).slice(-6);
     if (
       recent.some(
-        (l) => l.seat === seat && l.text === text && Date.now() - l.at < 8000,
+        (l) =>
+          l.seat === seat &&
+          Date.now() - l.at < 8000 &&
+          (sticker
+            ? l.stickerId === sticker.id
+            : !l.stickerId && l.text === typedText),
       )
     ) {
       return bad('Pesan yang sama baru saja dikirim', 429);
@@ -97,7 +107,8 @@ export async function POST(req: Request, { params }: Context) {
       // time first so ids sort by arrival; the suffix keeps simultaneous lines apart
       id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       seat,
-      text,
+      text: sticker ? `${sticker.art} ${sticker.label.id}` : typedText,
+      ...(sticker ? { stickerId: sticker.id } : {}),
       at: Date.now(),
       ...(policy.send === 'all' ? {} : { channel: policy.send }),
     };

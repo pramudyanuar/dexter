@@ -32,6 +32,19 @@ export type Level = keyof typeof LEVELS;
 const idx = (g: Pick<MinesGame, 'width'>, x: number, y: number) =>
   y * g.width + x;
 
+function cellAt(game: MinesGame, x: number, y: number) {
+  if (
+    !Number.isInteger(x) ||
+    !Number.isInteger(y) ||
+    x < 0 ||
+    x >= game.width ||
+    y < 0 ||
+    y >= game.height
+  )
+    return undefined;
+  return game.cells[idx(game, x, y)];
+}
+
 function neighbours(
   g: Pick<MinesGame, 'width' | 'height'>,
   x: number,
@@ -127,8 +140,7 @@ export function reveal(
   rng: () => number = Math.random,
 ): MinesGame {
   if (game.status === 'won' || game.status === 'lost') return game;
-  const first = game.cells[idx(game, x, y)];
-  if (first.state !== 'hidden') return game;
+  if (cellAt(game, x, y)?.state !== 'hidden') return game;
 
   const g = clone(game);
   if (g.status === 'ready') {
@@ -161,8 +173,8 @@ export function reveal(
 
 export function toggleFlag(game: MinesGame, x: number, y: number): MinesGame {
   if (game.status === 'won' || game.status === 'lost') return game;
-  const cell = game.cells[idx(game, x, y)];
-  if (cell.state === 'open') return game;
+  const cell = cellAt(game, x, y);
+  if (!cell || cell.state === 'open') return game;
 
   const g = clone(game);
   const target = g.cells[idx(g, x, y)];
@@ -184,8 +196,8 @@ export function chord(
   rng: () => number = Math.random,
 ): MinesGame {
   if (game.status !== 'playing') return game;
-  const cell = game.cells[idx(game, x, y)];
-  if (cell.state !== 'open' || cell.adjacent === 0) return game;
+  const cell = cellAt(game, x, y);
+  if (cell?.state !== 'open' || cell.adjacent === 0) return game;
 
   const around = neighbours(game, x, y);
   const flagged = around.filter(

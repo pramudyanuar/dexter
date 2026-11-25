@@ -53,6 +53,19 @@ describe('Wordle page', () => {
     expect(tiles(1)[0].getAttribute('data-state')).toBe('empty');
   });
 
+  it('does not submit a guess when Enter activates the language button', async () => {
+    render(<WordlePage />);
+    await screen.findByRole('grid');
+    for (const key of 'rumah') fireEvent.keyDown(window, { key });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'English' }), {
+      key: 'Enter',
+    });
+    expect(JSON.parse(sessionStorage.getItem('wordle-game')!).guesses).toEqual(
+      [],
+    );
+    expect(localStorage.getItem('wordle-stats')).toBeNull();
+  });
+
   it('rejects a string that is not a word, without using a guess', async () => {
     render(<WordlePage />);
     await screen.findByRole('grid');

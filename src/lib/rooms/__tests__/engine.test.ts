@@ -83,6 +83,36 @@ describe('the registry', () => {
       expect(isGameId(bad)).toBe(false);
     }
   });
+
+  it.each(Object.values(GAMES).map(({ id }) => id))(
+    '%s can start a room and render every seat and spectator',
+    (game) => {
+      const now = 10_000;
+      const rng = () => 0.42;
+      const { minPlayers, maxPlayers, autoStart } = GAMES[game];
+      const tokens = Array.from(
+        { length: autoStart ? maxPlayers : minPlayers },
+        (_, seat) => `token-${seat}`,
+      );
+      let room = newRoom(game, 'ABCDE', tokens[0], now);
+      for (const token of tokens.slice(1))
+        room = join(room, null, token, rng, null, now).room;
+      if (!autoStart) room = start(room, tokens[0], rng, now);
+      expect(room.status).toBe('playing');
+      const current = sweep(room, now + 1, rng);
+      tokens.forEach((token, seat) =>
+        expect(toView(current, token, now + 1)).toMatchObject({
+          game,
+          seat,
+          state: expect.any(Object),
+        }),
+      );
+      expect(toView(current, null, now + 1)).toMatchObject({
+        game,
+        seat: null,
+      });
+    },
+  );
 });
 
 describe('room deadlines and settings', () => {

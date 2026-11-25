@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 
-import SnakePage from '@/app/games/snake/page';
+import SnakePage from '@/app/games/snake/classic/page';
 
 jest.mock('@/components/games/GameShell', () => ({
   __esModule: true,

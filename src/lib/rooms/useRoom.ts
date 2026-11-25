@@ -41,6 +41,7 @@ export function useRoom<V>(game: GameId) {
   const [busy, setBusy] = React.useState(false);
   const [spectateCode, setSpectateCode] = React.useState('');
   const version = React.useRef(0);
+  const roomEpoch = React.useRef(0);
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -62,6 +63,7 @@ export function useRoom<V>(game: GameId) {
 
   const leave = React.useCallback(
     (message = '') => {
+      roomEpoch.current++;
       setSession(null);
       setSpectateCode('');
       setRoom(null);
@@ -81,19 +83,33 @@ export function useRoom<V>(game: GameId) {
 
   React.useEffect(() => {
     if (!code || (!token && !spectating)) return;
-    let stopped = false;
+    const lifetime = new AbortController();
+    const epoch = roomEpoch.current;
+    const active = () =>
+      !lifetime.signal.aborted && epoch === roomEpoch.current;
+    let polling = false;
 
     const poll = async () => {
-      if (stopped || document.visibilityState !== 'visible') return;
+      if (polling || !active() || document.visibilityState !== 'visible')
+        return;
+      polling = true;
       try {
         const qs = spectating
           ? `v=${version.current}&spectate=1`
           : `v=${version.current}`;
         const data = await callRoom(`/api/rooms/${code}?${qs}`, {
           token,
+          signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(8000)]),
         });
-        if (!stopped && data.changed) adopt(data.room);
+        if (!active() || !data.changed || data.room.version < version.current)
+          return;
+        if (!spectating && data.room.seat === null) {
+          leave('Kursimu sudah tidak tersedia di room ini.');
+          return;
+        }
+        adopt(data.room);
       } catch (err) {
+        if (!active()) return;
         if ((err as { status?: number }).status === 404) {
           if (code) forgetSeat(game, code);
           leave('Room sudah kedaluwarsa atau tidak ada lagi.');
@@ -101,6 +117,8 @@ export function useRoom<V>(game: GameId) {
           leave('Login admin diperlukan untuk spectate.');
         }
         // other errors (a dropped connection): try again on the next tick
+      } finally {
+        polling = false;
       }
     };
 
@@ -108,7 +126,7 @@ export function useRoom<V>(game: GameId) {
     const timer = setInterval(poll, POLL_MS);
     document.addEventListener('visibilitychange', poll);
     return () => {
-      stopped = true;
+      lifetime.abort();
       clearTimeout(first);
       clearInterval(timer);
       document.removeEventListener('visibilitychange', poll);
@@ -148,12 +166,14 @@ export function useRoom<V>(game: GameId) {
   }, [seatNow, session, setSession, game]);
 
   const run = async (fn: () => Promise<void>) => {
+    const epoch = roomEpoch.current;
     setBusy(true);
     setError('');
     try {
       await fn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
+      if (epoch === roomEpoch.current)
+        setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
       setBusy(false);
     }
@@ -161,9 +181,12 @@ export function useRoom<V>(game: GameId) {
 
   const create = (isPublic = true) =>
     run(async () => {
+      const epoch = roomEpoch.current;
       const data = await callRoom('/api/rooms', {
         body: { game, name, isPublic },
       });
+      if (epoch !== roomEpoch.current) return;
+      roomEpoch.current++;
       rememberSeat(game, data.code, data);
       version.current = 0;
       setSession({ code: data.code, token: data.token, you: data.you });
@@ -172,15 +195,21 @@ export function useRoom<V>(game: GameId) {
 
   const join = (input: string) =>
     run(async () => {
+      const epoch = roomEpoch.current;
       const target = normalizeCode(input);
       // coming back to a room you were already in gives you the same seat
       const before = await recallSeat(game, target);
+      if (epoch !== roomEpoch.current) return;
       const data = await callRoom(`/api/rooms/${target}`, {
         body: { action: 'join', game, name, token: before?.token },
       });
+      if (epoch !== roomEpoch.current) return;
       if (data.room.game !== game) throw new Error('Kode ini untuk game lain');
+      if (session?.code !== target || session.token !== data.token) {
+        roomEpoch.current++;
+        version.current = 0;
+      }
       rememberSeat(game, target, data);
-      version.current = 0;
       setSession({ code: target, token: data.token, you: data.you });
       adopt(data.room);
       window.history.replaceState(null, '', window.location.pathname);
@@ -192,11 +221,12 @@ export function useRoom<V>(game: GameId) {
     signal?: AbortSignal,
   ) => {
     if (!session) throw new Error('Room sudah ditutup.');
+    const epoch = roomEpoch.current;
     const data = await callRoom(`/api/rooms/${session.code}`, {
       body: { action, token: session.token, ...extra },
       signal,
     });
-    if (!signal?.aborted) adopt(data.room);
+    if (!signal?.aborted && epoch === roomEpoch.current) adopt(data.room);
   };
 
   const act = (action: string, extra: Record<string, unknown> = {}) =>

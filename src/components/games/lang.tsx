@@ -26,8 +26,6 @@ const text = {
     },
     leaving: (name: string, n: number) =>
       `${name} keluar. Dikeluarkan dari permainan dalam ${n} detik kalau tidak kembali.`,
-    nowAdmin: (name: string | null) =>
-      name ? `${name} sekarang admin room.` : 'Kamu sekarang admin room.',
     strike: (n: number, max: number) =>
       `Peringatan ${n}/${max}: kamu terlalu lama tidak bergerak. Di ${max} kali kamu dikeluarkan.`,
     yourClock: (n: number) => `Giliranmu habis dalam ${n} detik`,
@@ -52,6 +50,10 @@ const text = {
     deadOnly: 'arwah',
     send: 'Kirim',
     message: 'Pesan',
+    stickers: 'Stiker',
+    searchStickers: 'Cari stiker…',
+    noStickers: 'Stiker tidak ditemukan.',
+    sendSticker: (label: string) => `Kirim stiker ${label}`,
     openChat: 'Buka chat',
     closeChat: 'Tutup chat',
     chatNew: (n: number) => `Chat, ${n} pesan baru`,
@@ -76,8 +78,6 @@ const text = {
     },
     leaving: (name: string, n: number) =>
       `${name} left. Removed from the game in ${n}s unless they come back.`,
-    nowAdmin: (name: string | null) =>
-      name ? `${name} is now the room admin.` : 'You are now the room admin.',
     strike: (n: number, max: number) =>
       `Warning ${n}/${max}: you took too long to move. At ${max} you are removed.`,
     yourClock: (n: number) => `Your turn ends in ${n}s`,
@@ -102,6 +102,10 @@ const text = {
     deadOnly: 'the dead',
     send: 'Send',
     message: 'Message',
+    stickers: 'Stickers',
+    searchStickers: 'Search stickers…',
+    noStickers: 'No stickers found.',
+    sendSticker: (label: string) => `Send sticker ${label}`,
     openChat: 'Open chat',
     closeChat: 'Close chat',
     chatNew: (n: number) => `Chat, ${n} new`,

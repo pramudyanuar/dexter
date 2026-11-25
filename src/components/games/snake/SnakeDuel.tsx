@@ -30,11 +30,13 @@ export default function SnakeDuel({ invite }: { invite: string }) {
   }
 
   return session ? (
-    <SnakeDuelRoom
-      key={session.token}
-      session={session}
-      onExit={() => select(null)}
-    />
+    <div className='mx-auto w-full max-w-md pb-4'>
+      <SnakeDuelRoom
+        key={session.token}
+        session={session}
+        onExit={() => select(null)}
+      />
+    </div>
   ) : (
     <SnakeDuelLobby invite={selected === null ? '' : invite} onEnter={select} />
   );

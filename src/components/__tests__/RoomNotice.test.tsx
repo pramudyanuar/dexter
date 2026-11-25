@@ -95,14 +95,17 @@ describe('RoomNotice', () => {
     expect(screen.queryByTestId('turn-clock')).not.toBeInTheDocument();
   });
 
-  it('announces a new admin for a few seconds', () => {
-    show({ host: 1, hostNotice: 8 });
-    expect(screen.getByText('Budi sekarang admin room.')).toBeInTheDocument();
+  it('stays silent when another player becomes admin', () => {
+    const { container } = show({ host: 1, hostNotice: 8 });
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it('tells you when you are the new admin', () => {
+  it('shows admin controls without a pop-up when you become admin', () => {
     show({ host: 0, hostNotice: 8 }, { onKick: jest.fn() });
-    expect(screen.getByText('Kamu sekarang admin room.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Kelola pemain' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('counts down your turn and turns urgent near the end', () => {

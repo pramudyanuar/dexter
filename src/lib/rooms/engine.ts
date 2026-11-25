@@ -292,6 +292,17 @@ export function act(
   rng?: () => number,
   now = Date.now(),
 ): Room {
+  return resolveMove(room, token, move, rng, now).room;
+}
+
+/** Advance the authoritative clock even if it makes the submitted move stale. */
+export function resolveMove(
+  room: Room,
+  token: unknown,
+  move: unknown,
+  rng?: () => number,
+  now = Date.now(),
+): { room: Room; applied: boolean } {
   const seat = seatOf(room, token);
   if (seat === null) throw new RoomError('Kamu bukan pemain di room ini', 403);
   if (outOf(room)[seat])
@@ -310,19 +321,22 @@ export function act(
     (def.fixedTurnClock && timed !== room) ||
     timed.status !== 'playing'
   )
-    return timed;
+    return { room: timed, applied: false };
   const state = def.move(timed.state, seat, move, rng, {
     host: hostOf(room),
     now,
   });
   return {
-    ...timed,
-    state,
-    status: def.isOver(state) ? 'over' : 'playing',
-    // playing again means they are back
-    left: put(leftOf(timed), seat, null),
-    stamp: def.passive?.(move, timed.state, state) ? stampOf(timed) : now,
-    version: timed.version + 1,
+    applied: true,
+    room: {
+      ...timed,
+      state,
+      status: def.isOver(state) ? 'over' : 'playing',
+      // playing again means they are back
+      left: put(leftOf(timed), seat, null),
+      stamp: def.passive?.(move, timed.state, state) ? stampOf(timed) : now,
+      version: timed.version + 1,
+    },
   };
 }
 

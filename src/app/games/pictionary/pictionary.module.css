@@ -15,7 +15,6 @@
 
 .shell > main {
   max-width: 84rem;
-  padding: 0 1rem 2rem;
 }
 
 .shell :is(a, button, input, summary):focus-visible {
@@ -25,52 +24,6 @@
 
 .shell button:enabled {
   cursor: pointer;
-}
-
-.masthead {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.125rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--line);
-  padding: 0.5rem 0 0.875rem;
-}
-
-.back {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--mute);
-  font-size: 0.875rem;
-}
-
-.back:hover {
-  color: var(--ink);
-}
-
-.masthead h1 {
-  font-size: clamp(2.25rem, 4vw, 3.75rem);
-  font-weight: 760;
-  line-height: 1.05;
-  letter-spacing: -0.055em;
-}
-
-.lobby {
-  width: 100%;
-  max-width: 59rem;
-  margin-inline: auto;
-}
-
-.lobby > div:not(:has(aside)) {
-  display: block;
-  max-width: 32rem;
-  margin-inline: auto;
-}
-
-.lobby :is(input:not([type='checkbox']), button, summary) {
-  min-height: 2.75rem;
 }
 
 .workspace {
@@ -526,13 +479,6 @@
     padding-inline: 1.5rem;
   }
 
-  .masthead {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 1.5rem;
-    padding-block: 1rem;
-  }
-
   .workspace {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: 'stage stage' 'guesses chat' 'players players';
@@ -561,20 +507,6 @@
   .toolRow + .toolRow .tool {
     width: 2rem;
     height: 2rem;
-  }
-}
-
-@media (orientation: landscape) and (max-height: 32rem) {
-  .masthead {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 1rem;
-    margin-bottom: 0.5rem;
-    padding-block: 0.25rem;
-  }
-
-  .masthead h1 {
-    font-size: 2rem;
   }
 }
 
