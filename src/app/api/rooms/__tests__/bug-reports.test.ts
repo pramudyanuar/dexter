@@ -6,6 +6,7 @@ import {
 import { getRoomStore } from '@/lib/rooms/store';
 
 import { GET as inbox } from '@/app/api/admin/bug-reports/route';
+import { DELETE, GET, PATCH } from '@/app/api/admin/game-bugs/route';
 import { POST as report } from '@/app/api/rooms/[code]/bug-reports/route';
 import { POST as create } from '@/app/api/rooms/route';
 
@@ -35,7 +36,7 @@ async function createRoom() {
     new Request('http://test/api/rooms', {
       method: 'POST',
       headers: { 'x-forwarded-for': `10.11.12.${++ip}` },
-      body: JSON.stringify({ game: 'connect4' }),
+      body: JSON.stringify({ game: 'connect4', name: 'Budi' }),
     }),
   );
   expect(response.status).toBe(200);
@@ -92,10 +93,46 @@ it('keeps the captured room version after the game changes and the room is delet
   expect(data.reports[0]).toMatchObject({
     id,
     description: 'Papan tidak merespons.',
+    playerName: 'Budi',
     browser: 'test browser',
     room: { code, version: room.version, status: room.status, seat: 0 },
   });
   expect(JSON.stringify(data)).not.toContain(token);
+
+  const url = 'http://test/api/admin/game-bugs?source=room';
+  const headers = {
+    cookie: `${ADMIN_COOKIE_NAME}=${createAdminCookieValue()}`,
+  };
+  const getPage = async () => (await GET(new Request(url, { headers }))).json();
+  const page = await getPage();
+  expect(page).toMatchObject({
+    hasMore: false,
+    reports: [
+      { id, done: false, playerName: 'Budi', snapshot: data.reports[0] },
+    ],
+  });
+  const target = `${url}&id=${id}&at=${page.reports[0].at}`;
+  const patch = (done: boolean) =>
+    PATCH(
+      new Request(target, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ done }),
+      }),
+    );
+  expect((await DELETE(new Request(target, { method: 'DELETE' }))).status).toBe(
+    401,
+  );
+  expect((await patch(true)).status).toBe(204);
+  expect((await getPage()).reports[0].done).toBe(true);
+  expect((await patch(false)).status).toBe(204);
+  expect(await getPage()).toEqual(page);
+  expect(
+    (await DELETE(new Request(target, { method: 'DELETE', headers }))).status,
+  ).toBe(204);
+  expect(await getPage()).toEqual({ hasMore: false, reports: [] });
+  expect((await send(code, token, submit)).status).toBe(200);
+  expect(await (await list()).json()).toEqual({ reports: [] });
 });
 
 it('restricts capture and submission to the player who opened the report', async () => {

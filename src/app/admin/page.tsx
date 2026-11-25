@@ -150,6 +150,7 @@ function AdminDashboard({
   );
 
   React.useEffect(() => {
+    if (tab === 'bugs') return;
     const first = setTimeout(() => {
       loadRooms(false);
     }, 0);
@@ -164,7 +165,7 @@ function AdminDashboard({
       clearTimeout(first);
       clearInterval(timer);
     };
-  }, [autoRefresh, loadRooms, loadDetail, selectedCode]);
+  }, [autoRefresh, loadRooms, loadDetail, selectedCode, tab]);
 
   React.useEffect(() => {
     if (!selectedCode) return;
@@ -329,24 +330,28 @@ function AdminDashboard({
           </div>
 
           <div className='flex items-center gap-3 text-xs'>
-            <label className='flex items-center gap-1.5 text-[var(--mute)]'>
-              <input
-                type='checkbox'
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-              />
-              Auto-refresh (5d)
-            </label>
-            <button
-              type='button'
-              onClick={() => {
-                loadRooms(false);
-                if (selectedCode) loadDetail(selectedCode);
-              }}
-              className='rounded-lg border border-line-strong px-2.5 py-1 text-ink hover:border-accent'
-            >
-              {loading ? 'Memuat...' : 'Segarkan'}
-            </button>
+            {tab !== 'bugs' && (
+              <>
+                <label className='flex items-center gap-1.5 text-[var(--mute)]'>
+                  <input
+                    type='checkbox'
+                    checked={autoRefresh}
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                  />
+                  Auto-refresh (5d)
+                </label>
+                <button
+                  type='button'
+                  onClick={() => {
+                    loadRooms(false);
+                    if (selectedCode) loadDetail(selectedCode);
+                  }}
+                  className='rounded-lg border border-line-strong px-2.5 py-1 text-ink hover:border-accent'
+                >
+                  {loading ? 'Memuat...' : 'Segarkan'}
+                </button>
+              </>
+            )}
             <Link href='/games' className='text-[var(--mute)] hover:text-ink'>
               Games
             </Link>
@@ -364,7 +369,7 @@ function AdminDashboard({
       </header>
 
       <main className='mx-auto flex w-full max-w-7xl flex-1 flex-col gap-5 px-4 py-6'>
-        {error && (
+        {tab !== 'bugs' && error && (
           <div
             role='alert'
             className='rounded-xl border border-err/40 bg-err/10 px-4 py-2.5 text-sm text-err'
@@ -399,6 +404,7 @@ function AdminDashboard({
           </button>
           <button
             type='button'
+            aria-pressed={tab === 'bugs'}
             onClick={() => setTab('bugs')}
             className={`rounded-full border px-4 py-1 text-xs font-medium transition ${
               tab === 'bugs'

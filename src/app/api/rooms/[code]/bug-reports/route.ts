@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { BUG_DESCRIPTION_MAX, type BugSnapshot } from '@/lib/rooms/bug-reports';
+import { readJson } from '@/lib/read-json';
+import {
+  BUG_DESCRIPTION_MAX,
+  type BugSnapshot,
+  ROOM_BUG_REPORT_ID,
+} from '@/lib/rooms/bug-reports';
 import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/codes';
 import { seatOf, toView } from '@/lib/rooms/engine';
 import { createLimiter } from '@/lib/rooms/rate-limit';
@@ -9,7 +14,6 @@ import { getRoomStore } from '@/lib/rooms/store';
 
 const captures = createLimiter(5, 60_000);
 const MAX_STATE_BYTES = 64 * 1024;
-const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const headers = { 'Cache-Control': 'no-store' };
 const bad = (error: string, status: number) =>
   NextResponse.json({ error }, { status, headers });
@@ -22,7 +26,11 @@ export async function POST(
   if (!CODE_PATTERN.test(code)) return bad('Kode room tidak valid.', 400);
   const token = req.headers.get('x-player-token');
   if (!token) return bad('Kamu harus menjadi pemain di room ini.', 403);
-  const body = await req.json().catch(() => null);
+  const body = (await readJson(req, 16 * 1024)) as {
+    action?: unknown;
+    id?: unknown;
+    description?: unknown;
+  } | null;
   const store = getRoomStore();
   if (!store) return bad('Penyimpanan laporan belum tersedia.', 503);
 
@@ -33,18 +41,21 @@ export async function POST(
     if (body?.action === 'capture') {
       const room = await store.get(code);
       if (!room) return bad('Room sudah tidak tersedia.', 404);
-      if (seatOf(room, token) === null)
+      const seat = seatOf(room, token);
+      if (seat === null)
         return bad('Kamu harus menjadi pemain di room ini.', 403);
       if (!captures.allow(owner))
         return bad('Tunggu sebentar sebelum membuka laporan lagi.', 429);
 
       const capturedAt = Date.now();
       const view = toView(room, token, capturedAt);
+      const playerName = view.names[seat];
       const stateOmitted =
         Buffer.byteLength(JSON.stringify(view.state)) > MAX_STATE_BYTES;
       const snapshot: BugSnapshot = {
         capturedAt,
         browser: (req.headers.get('user-agent') ?? '').slice(0, 500),
+        ...(playerName && { playerName }),
         room: {
           code: view.code,
           game: view.game,
@@ -71,7 +82,7 @@ export async function POST(
     if (
       body?.action !== 'submit' ||
       typeof body.id !== 'string' ||
-      !UUID.test(body.id)
+      !ROOM_BUG_REPORT_ID.test(body.id)
     )
       return bad('Laporan tidak valid.', 400);
     const description =

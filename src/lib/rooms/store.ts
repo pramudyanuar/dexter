@@ -1,3 +1,4 @@
+import type { BugReportAction, BugReportTarget } from '@/lib/game-bugs/types';
 import {
   BUG_DRAFT_TTL,
   BUG_REPORT_KEEP,
@@ -34,6 +35,10 @@ export interface RoomStore {
   getBugDraft(key: string): Promise<BugSnapshot | 'submitted' | null>;
   submitBugReport(key: string, report: BugReport): Promise<boolean>;
   listBugReports(): Promise<BugReport[]>;
+  changeBugReport(
+    target: BugReportTarget,
+    action: BugReportAction,
+  ): Promise<boolean>;
   /** Lists all active room codes. */
   listCodes(): Promise<string[]>;
   /** Permanently deletes a room and its associated chat/signal keys. */
@@ -45,15 +50,33 @@ const chatKey = (code: string) => `room:${code}:chat`;
 const signalKey = (code: string) => `room:${code}:rtc`;
 const bugDraftKey = (key: string) => `bug-reports:draft:${key}`;
 const bugInboxKey = 'bug-reports:inbox';
+const bugDoneKey = 'bug-reports:inbox:done';
 
 const SUBMIT_BUG_REPORT = `
 local draft = redis.call('GET', KEYS[1])
 if not draft then return 0 end
 if draft == 'submitted' then return 1 end
 redis.call('LPUSH', KEYS[2], ARGV[1])
+local evicted = redis.call('LINDEX', KEYS[2], tonumber(ARGV[2]) + 1)
+if evicted then redis.call('HDEL', KEYS[3], cjson.decode(evicted).id) end
 redis.call('LTRIM', KEYS[2], 0, ARGV[2])
 redis.call('SET', KEYS[1], 'submitted', 'KEEPTTL')
 return 1`;
+
+const CHANGE_BUG_REPORT = `
+for _, member in ipairs(redis.call('LRANGE', KEYS[1], 0, -1)) do
+  local report = cjson.decode(member)
+  if report.id == ARGV[1] and report.submittedAt == tonumber(ARGV[2]) then
+    if ARGV[3] == 'delete' then redis.call('LREM', KEYS[1], 1, member) end
+    if ARGV[3] == 'done' then
+      redis.call('HSET', KEYS[2], report.id, '1')
+    else
+      redis.call('HDEL', KEYS[2], report.id)
+    end
+    return 1
+  end
+end
+return 0`;
 
 /** Compare-and-set done atomically in Redis (Lua): only overwrite the version we read. */
 const SAVE_IF = `
@@ -180,9 +203,10 @@ class RedisStore implements RoomStore {
     const result = await this.command([
       'EVAL',
       SUBMIT_BUG_REPORT,
-      2,
+      3,
       bugDraftKey(key),
       bugInboxKey,
+      bugDoneKey,
       JSON.stringify(report),
       BUG_REPORT_KEEP - 1,
     ]);
@@ -196,7 +220,30 @@ class RedisStore implements RoomStore {
       0,
       BUG_REPORT_KEEP - 1,
     ])) as string[] | null;
-    return (lines ?? []).map((line) => JSON.parse(line) as BugReport);
+    const reports = (lines ?? []).map((line) => JSON.parse(line) as BugReport);
+    if (!reports.length) return reports;
+    const done = (await this.command([
+      'HMGET',
+      bugDoneKey,
+      ...reports.map(({ id }) => id),
+    ])) as (string | null)[];
+    return reports.map((report, index) =>
+      done[index] === '1' ? { ...report, done: true } : report,
+    );
+  }
+
+  async changeBugReport({ id, at }: BugReportTarget, action: BugReportAction) {
+    const result = await this.command([
+      'EVAL',
+      CHANGE_BUG_REPORT,
+      2,
+      bugInboxKey,
+      bugDoneKey,
+      id,
+      at,
+      action,
+    ]);
+    return result === 1;
   }
 
   async listCodes(): Promise<string[]> {
@@ -327,6 +374,17 @@ class MemoryStore implements RoomStore {
 
   async listBugReports() {
     return structuredClone(this.bugReports);
+  }
+
+  async changeBugReport({ id, at }: BugReportTarget, action: BugReportAction) {
+    const index = this.bugReports.findIndex(
+      (report) => report.id === id && report.submittedAt === at,
+    );
+    if (index < 0) return false;
+    if (action === 'delete') this.bugReports.splice(index, 1);
+    else if (action === 'done') this.bugReports[index].done = true;
+    else delete this.bugReports[index].done;
+    return true;
   }
 
   private read(code: string) {
