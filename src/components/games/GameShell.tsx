@@ -3,6 +3,7 @@ import * as React from 'react';
 
 import DocumentTitle from '@/components/games/DocumentTitle';
 import FitBox from '@/components/games/FitBox';
+import GameBugTab from '@/components/games/GameBugTab';
 import RememberGame from '@/components/games/RememberGame';
 import Splash from '@/components/games/Splash';
 
@@ -91,6 +92,7 @@ export default function GameShell({
       >
         {fit || menu || fullscreen ? children : <FitBox>{children}</FitBox>}
       </main>
+      {game && <GameBugTab />}
     </div>
   );
 }

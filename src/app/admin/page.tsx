@@ -7,6 +7,7 @@ import { AdminRoomSummary } from '@/lib/rooms/admin';
 import { DEFAULT_GAME_CONFIG, GameConfig } from '@/lib/rooms/game-config';
 import { ChatMsg, RoomStatus } from '@/lib/rooms/types';
 
+import AdminBugReports from '@/components/admin/AdminBugReports';
 import AdminConfigPanel from '@/components/admin/AdminConfigPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import DocumentTitle from '@/components/games/DocumentTitle';
@@ -73,7 +74,7 @@ function AdminDashboard({
   const [pendingBulk, setPendingBulk] = React.useState<
     'cleanup' | 'all' | null
   >(null);
-  const [tab, setTab] = React.useState<'rooms' | 'config'>('rooms');
+  const [tab, setTab] = React.useState<'rooms' | 'config' | 'bugs'>('rooms');
   const [config, setConfig] = React.useState<GameConfig>(DEFAULT_GAME_CONFIG);
   const [savingConfig, setSavingConfig] = React.useState(false);
   const [configNotice, setConfigNotice] = React.useState('');
@@ -149,6 +150,7 @@ function AdminDashboard({
   );
 
   React.useEffect(() => {
+    if (tab === 'bugs') return;
     const first = setTimeout(() => {
       loadRooms(false);
     }, 0);
@@ -163,7 +165,7 @@ function AdminDashboard({
       clearTimeout(first);
       clearInterval(timer);
     };
-  }, [autoRefresh, loadRooms, loadDetail, selectedCode]);
+  }, [autoRefresh, loadRooms, loadDetail, selectedCode, tab]);
 
   React.useEffect(() => {
     if (!selectedCode) return;
@@ -328,24 +330,28 @@ function AdminDashboard({
           </div>
 
           <div className='flex items-center gap-3 text-xs'>
-            <label className='flex items-center gap-1.5 text-[var(--mute)]'>
-              <input
-                type='checkbox'
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-              />
-              Auto-refresh (5d)
-            </label>
-            <button
-              type='button'
-              onClick={() => {
-                loadRooms(false);
-                if (selectedCode) loadDetail(selectedCode);
-              }}
-              className='rounded-lg border border-line-strong px-2.5 py-1 text-ink hover:border-accent'
-            >
-              {loading ? 'Memuat...' : 'Segarkan'}
-            </button>
+            {tab !== 'bugs' && (
+              <>
+                <label className='flex items-center gap-1.5 text-[var(--mute)]'>
+                  <input
+                    type='checkbox'
+                    checked={autoRefresh}
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                  />
+                  Auto-refresh (5d)
+                </label>
+                <button
+                  type='button'
+                  onClick={() => {
+                    loadRooms(false);
+                    if (selectedCode) loadDetail(selectedCode);
+                  }}
+                  className='rounded-lg border border-line-strong px-2.5 py-1 text-ink hover:border-accent'
+                >
+                  {loading ? 'Memuat...' : 'Segarkan'}
+                </button>
+              </>
+            )}
             <Link href='/games' className='text-[var(--mute)] hover:text-ink'>
               Games
             </Link>
@@ -363,7 +369,7 @@ function AdminDashboard({
       </header>
 
       <main className='mx-auto flex w-full max-w-7xl flex-1 flex-col gap-5 px-4 py-6'>
-        {error && (
+        {tab !== 'bugs' && error && (
           <div
             role='alert'
             className='rounded-xl border border-err/40 bg-err/10 px-4 py-2.5 text-sm text-err'
@@ -373,7 +379,7 @@ function AdminDashboard({
         )}
 
         {/* Tab switcher */}
-        <div className='flex gap-2 border-b border-line pb-3'>
+        <div className='flex flex-wrap gap-2 border-b border-line pb-3'>
           <button
             type='button'
             onClick={() => setTab('rooms')}
@@ -396,9 +402,23 @@ function AdminDashboard({
           >
             Pengaturan Game (CMS)
           </button>
+          <button
+            type='button'
+            aria-pressed={tab === 'bugs'}
+            onClick={() => setTab('bugs')}
+            className={`rounded-full border px-4 py-1 text-xs font-medium transition ${
+              tab === 'bugs'
+                ? 'border-transparent bg-ink text-paper'
+                : 'border-line-strong text-[var(--mute)] hover:text-ink'
+            }`}
+          >
+            Laporan Bug
+          </button>
         </div>
 
-        {tab === 'config' ? (
+        {tab === 'bugs' ? (
+          <AdminBugReports onExpire={expire} />
+        ) : tab === 'config' ? (
           <AdminConfigPanel
             config={config}
             setConfig={setConfig}
