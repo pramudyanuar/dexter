@@ -1,4 +1,4 @@
-// Keep admission, capacity, and frame updates atomic across Vercel instances.
+// Keep room admission and WebRTC signaling atomic across Vercel instances.
 export const CREATE_ROOM = `
 local prior = redis.call('GET', KEYS[3])
 if prior then return prior end
@@ -8,84 +8,54 @@ if ARGV[4] ~= '' then redis.call('ZADD', KEYS[2], ARGV[4], ARGV[3]) end
 return ARGV[3]
 `;
 
-export const COMMIT_ROOM = `
-if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-local change = cjson.decode(ARGV[4])
-if change.owner and redis.call('GET', KEYS[3]) ~= change.owner then return -1 end
-if change.reserve then
-  redis.call('ZREMRANGEBYSCORE', KEYS[4], '-inf', change.now)
-  if redis.call('ZCARD', KEYS[4]) >= 2 then return -2 end
-  local used = tonumber(redis.call('GET', KEYS[6]) or '0')
-  if used >= change.monthlyRounds then return -3 end
-  redis.call('ZADD', KEYS[4], change.deadline, change.reserve)
-  if redis.call('INCR', KEYS[6]) == 1 then redis.call('EXPIRE', KEYS[6], 3024000) end
-end
-if change.release then redis.call('ZREM', KEYS[4], change.release) end
-if change.owner then redis.call('PEXPIRE', KEYS[3], change.leaseMs) end
-if change.lobby == 'open' then
-  redis.call('ZADD', KEYS[5], change.indexExpiry, change.code)
-elseif change.lobby == 'hide' then
-  redis.call('ZREM', KEYS[5], change.code)
-end
-redis.call('SET', KEYS[1], ARGV[2], 'EX', change.roomTtl)
-redis.call('PUBLISH', KEYS[2], ARGV[3])
-return 1
-`;
-
-export const ATTACH = `
+export const JOIN_ROOM = `
 local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
+if not raw then return 'missing' end
 local room = cjson.decode(raw)
-local seat = room.players[tonumber(ARGV[1]) + 1]
-if type(seat) ~= 'table' or seat.tokenHash ~= ARGV[2] then return 0 end
-local now = tonumber(ARGV[4])
-local presence = {id = ARGV[3], seenAt = now}
-local prior = redis.call('GET', KEYS[2])
-if prior and type(room.round) == 'table' and room.round.phase ~= 'over' then
-  local previous = cjson.decode(prior)
-  local lostAt = previous.closedAt or (previous.seenAt + tonumber(ARGV[6]))
-  if previous.expiredRound == room.round.id or now - lostAt >= tonumber(ARGV[7]) then
-    presence.expiredRound = room.round.id
+local joining = cjson.decode(ARGV[1])
+if room.paired then return 'full' end
+if room.players[1].tokenHash == joining.tokenHash then return 'host' end
+if type(room.players[2]) == 'table' and redis.call('EXISTS', KEYS[2]) == 1 then
+  if room.players[2].tokenHash == joining.tokenHash then return 'guest' end
+  return 'full'
+end
+room.players[2] = joining
+redis.call('SET', KEYS[1], cjson.encode(room), 'KEEPTTL')
+redis.call('SET', KEYS[2], '1', 'EX', ARGV[2])
+redis.call('DEL', KEYS[3], KEYS[4])
+return 'guest'
+`;
+
+export const EXCHANGE_SIGNAL = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return '' end
+local room = cjson.decode(raw)
+local player = tonumber(ARGV[1]) + 1
+local seat = room.players[player]
+if type(seat) ~= 'table' or seat.tokenHash ~= ARGV[2] then return 'forbidden' end
+local guest = type(room.players[2]) == 'table'
+  and (room.paired or redis.call('EXISTS', KEYS[5]) == 1) and room.players[2]
+if player == 2 and not guest then return 'forbidden' end
+if ARGV[3] ~= '' then
+  local update = cjson.decode(ARGV[3])
+  if not guest or (update.paired or update.guest) ~= guest.reservation then return 'stale' end
+  if update.paired then
+    if not room.paired then
+      room.paired = true
+      redis.call('SET', KEYS[1], cjson.encode(room), 'KEEPTTL')
+      redis.call('ZREM', KEYS[6], room.code)
+    end
+  elseif not room.paired then
+    redis.call('SET', KEYS[2], ARGV[3], 'EX', ARGV[5])
   end
 end
-redis.call('SET', KEYS[2], cjson.encode(presence), 'EX', ARGV[5])
-return 1
-`;
-
-export const UPDATE_PRESENCE = `
-local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
-local presence = cjson.decode(raw)
-if presence.id ~= ARGV[1] or presence.closedAt then return 0 end
-if ARGV[4] == 'close' then
-  presence.closedAt = tonumber(ARGV[2])
-else
-  presence.seenAt = tonumber(ARGV[2])
-end
-redis.call('SET', KEYS[1], cjson.encode(presence), 'EX', ARGV[3])
-return 1
-`;
-
-export const UPDATE_INPUT = `
-local raw = redis.call('GET', KEYS[1])
-if not raw then return 0 end
-local presence = cjson.decode(raw)
-if presence.id ~= ARGV[1] or presence.closedAt then return 0 end
-local previous = redis.call('GET', KEYS[2])
-if previous then
-  local input = cjson.decode(previous)
-  if input.player == ARGV[1] and input.roundId == ARGV[3] and input.seq >= tonumber(ARGV[4]) then
-    return 0
-  end
-end
-redis.call('SET', KEYS[2], ARGV[2], 'PX', 3000)
-return 1
-`;
-
-export const UPDATE_LEASE = `
-if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-if ARGV[2] == '0' then return redis.call('DEL', KEYS[1]) end
-return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+if not room.paired then redis.call('SET', KEYS[4], '1', 'EX', ARGV[4]) end
+local incoming = guest and redis.call('GET', KEYS[3])
+return cjson.encode({
+  names = {room.players[1].name, guest and guest.name or cjson.null},
+  guest = guest and guest.reservation or cjson.null,
+  signal = incoming and cjson.decode(incoming) or cjson.null
+})
 `;
 
 export const QUEUE_OR_MATCH = `
@@ -106,6 +76,7 @@ if peer then
       if not redis.call('SET', KEYS[3], cjson.encode(proposal.room), 'NX', 'EX', ARGV[7]) then
         return ''
       end
+      redis.call('SET', KEYS[4], '1', 'EX', ARGV[8])
       local first = cjson.encode({status = 'matched', session = proposal.sessions[1]})
       local second = cjson.encode({status = 'matched', session = proposal.sessions[2]})
       redis.call('ZREM', KEYS[1], peer)

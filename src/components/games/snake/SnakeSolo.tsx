@@ -1,9 +1,20 @@
 'use client';
 
+import { ArrowUpRight, Pause } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 
+import styles from '@/components/games/snake/snake.module.css';
+
 import { seededRandom } from '@/lib/games/seeded-random';
-import { Dir, initialSnake, SnakeState, step, turn } from '@/lib/games/snake';
+import {
+  Dir,
+  GRID,
+  initialSnake,
+  SnakeState,
+  step,
+  turn,
+} from '@/lib/games/snake';
 import {
   DAILY_DURATION_MS,
   DailyChallenge,
@@ -17,6 +28,27 @@ import SnakeBoard from '@/components/games/snake/SnakeBoard';
 type Status =
   | { phase: 'ready' | 'running' | 'paused' }
   | { phase: 'ended'; replay: SnakeReplay; seed: number };
+
+const classicPreview = {
+  dir: 'right' as const,
+  food: { x: 16, y: 5 },
+  snake: [
+    [11, 5],
+    [10, 5],
+    [9, 5],
+    [8, 5],
+    [7, 5],
+    [6, 5],
+    [5, 5],
+    [5, 6],
+    [5, 7],
+    [5, 8],
+    [5, 9],
+    [4, 9],
+    [3, 9],
+    [2, 9],
+  ].map(([x, y]) => ({ x, y })),
+};
 
 function preview(challenge?: DailyChallenge) {
   return initialSnake(challenge ? seededRandom(challenge.seed) : () => 0.5);
@@ -144,7 +176,10 @@ export default function SnakeSolo({
   function togglePause() {
     if (phase === 'ended') return false;
     if (phase === 'ready') start();
-    if (phase === 'running') setStatus({ phase: 'paused' });
+    if (phase === 'running') {
+      setStatus({ phase: 'paused' });
+      focusBoard();
+    }
     if (phase === 'paused') {
       setStatus({ phase: 'running' });
       focusBoard();
@@ -163,72 +198,136 @@ export default function SnakeSolo({
 
   useSnakeKeys(steer, togglePause, restart);
 
+  const visible = phase === 'ready' && !challenge ? classicPreview : board;
+
   return (
-    <section aria-label='Permainan Snake' className='space-y-3'>
-      <div className='flex items-center justify-between gap-3 text-sm'>
-        <span className='text-mute'>
-          Skor <strong className='text-ink'>{board.score}</strong>
-        </span>
-        <span className='text-mute'>
-          Terbaik <strong className='text-ink'>{best}</strong>
-        </span>
-        {challenge && (
-          <span className='text-mute'>
-            <strong className='text-ink'>
-              {Math.ceil((limit - elapsed) / 1000)}
-            </strong>{' '}
-            dtk
-          </span>
-        )}
+    <section aria-label='Permainan Snake' className={styles.play}>
+      <div className={styles.stats}>
+        <dl className={styles.scores}>
+          <div>
+            <dt>Skor</dt>
+            <dd>{board.score}</dd>
+          </div>
+          <div>
+            <dt>Terbaik</dt>
+            <dd>{best}</dd>
+          </div>
+          {challenge && (
+            <div>
+              <dt>Waktu</dt>
+              <dd>
+                {Math.ceil((limit - elapsed) / 1000)} <small>dtk</small>
+              </dd>
+            </div>
+          )}
+        </dl>
         <button
           type='button'
+          aria-label='Jeda'
           disabled={phase !== 'running'}
           onClick={togglePause}
-          className='min-h-11 rounded-md border border-line px-3 hover:border-accent disabled:invisible'
+          className={styles.pause}
         >
-          Jeda
+          <Pause size={16} aria-hidden='true' />
+          <span>Jeda</span>
         </button>
       </div>
 
-      <SnakeBoard
-        boardRef={boardRef}
-        snakes={[board]}
-        food={board.food}
-        active={phase === 'running'}
-        onSwipe={steer}
-      >
-        {phase !== 'running' && (
-          <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[inherit] bg-paper/85 px-3 text-center'>
-            <p role='status' className='font-medium text-ink'>
-              {phase === 'ready' && 'Makan apel dan hindari tabrakan.'}
-              {phase === 'paused' && 'Permainan dijeda.'}
-              {phase === 'ended' &&
-                (board.result === 'won'
-                  ? `Menang! Papan penuh. Skor ${board.score}.`
-                  : board.result === 'lost'
-                    ? `Game over. Skor ${board.score}.`
-                    : `Waktu habis. Skor ${board.score}.`)}
-            </p>
-            {status.phase === 'ended' &&
-              resultContent(board, status.replay, status.seed)}
-            <button
-              type='button'
-              className='min-h-11 rounded-lg bg-ink px-4 font-semibold text-paper hover:opacity-90'
-              onClick={phase === 'ended' ? restart : togglePause}
+      <div className={styles.arena}>
+        <div className={styles.arenaCaption}>
+          {challenge ? (
+            <time dateTime={challenge.day}>{challenge.day} WIB</time>
+          ) : (
+            <span>Arena</span>
+          )}
+          <span>
+            {GRID} × {GRID}
+          </span>
+        </div>
+        <SnakeBoard
+          boardRef={boardRef}
+          snakes={[visible]}
+          food={visible.food}
+          onSwipe={steer}
+        >
+          {phase !== 'running' && (
+            <div
+              className={
+                phase === 'ready'
+                  ? `${styles.overlay} ${styles.ready}`
+                  : styles.overlay
+              }
             >
-              {phase === 'ready'
-                ? 'Mulai'
-                : phase === 'paused'
-                  ? 'Lanjut'
-                  : 'Main lagi'}
-            </button>
+              <p role='status'>
+                {phase === 'ready' && 'Siap bermain?'}
+                {phase === 'paused' && 'Permainan dijeda.'}
+                {phase === 'ended' &&
+                  (board.result === 'won'
+                    ? `Menang! Papan penuh. Skor ${board.score}.`
+                    : board.result === 'lost'
+                      ? `Game over. Skor ${board.score}.`
+                      : `Waktu habis. Skor ${board.score}.`)}
+              </p>
+              <button
+                type='button'
+                className={styles.primary}
+                onClick={phase === 'ended' ? restart : togglePause}
+              >
+                {phase === 'ready'
+                  ? 'Mulai'
+                  : phase === 'paused'
+                    ? 'Lanjut'
+                    : 'Main lagi'}
+              </button>
+              {status.phase === 'ended' &&
+                resultContent(board, status.replay, status.seed)}
+            </div>
+          )}
+        </SnakeBoard>
+        <p className={styles.objective}>
+          Makan apel. Hindari dinding dan tubuhmu.
+        </p>
+      </div>
+
+      <div className={styles.controls}>
+        <div className={styles.keyboard}>
+          <h2 className='mb-3 text-xl font-semibold tracking-tight'>Kontrol</h2>
+          <dl className='divide-y divide-line border-y border-line text-sm'>
+            <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3'>
+              <dt className='text-mute'>Belok</dt>
+              <dd className='flex flex-wrap items-center gap-2 font-mono font-semibold'>
+                <kbd>
+                  <span className='sr-only'>Tombol panah</span>
+                  <span aria-hidden='true'>↑ ↓ ← →</span>
+                </kbd>
+                <span className='text-mute'>/</span>
+                <kbd>WASD</kbd>
+              </dd>
+            </div>
+            <div className='flex items-center justify-between gap-2 py-3'>
+              <dt className='text-mute'>Jeda / lanjut</dt>
+              <dd>
+                <kbd className='font-mono font-semibold'>Spasi</kbd>
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <SnakePad onDirection={steer} disabled={phase === 'ended'} />
+        <p className={styles.touchHint}>
+          Geser arena atau gunakan tombol arah.
+        </p>
+        {!challenge && (
+          <div className='max-md:text-center'>
+            <Link
+              href='/games/leaderboard?game=snake'
+              className={styles.ranking}
+            >
+              Papan peringkat
+              <ArrowUpRight size={15} aria-hidden='true' />
+            </Link>
           </div>
         )}
-      </SnakeBoard>
-      <SnakePad onDirection={steer} disabled={phase === 'ended'} />
-      <p className='text-center text-xs text-mute'>
-        Panah atau WASD untuk belok. Spasi untuk jeda. Geser di layar sentuh.
-      </p>
+      </div>
     </section>
   );
 }

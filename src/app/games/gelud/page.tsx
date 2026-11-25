@@ -15,6 +15,7 @@ import {
   GROUND_Y,
   stepGelud,
 } from '@/lib/games/gelud';
+import { newToken } from '@/lib/rooms/codes';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
@@ -371,8 +372,10 @@ function OnlineArena({
   names,
   match,
   roomWinner,
+  hostReloaded,
   reported,
   busy,
+  onHostStart,
   onReportWinner,
   rematchControl,
 }: {
@@ -382,8 +385,10 @@ function OnlineArena({
   names: (string | null)[];
   match: number;
   roomWinner: 0 | 1 | null;
+  hostReloaded?: true;
   reported: boolean;
   busy: boolean;
+  onHostStart: (run: string, signal: AbortSignal) => Promise<void>;
   onReportWinner: (winner: 0 | 1) => void;
   rematchControl: React.ReactNode;
 }) {
@@ -392,6 +397,12 @@ function OnlineArena({
   const keysRef = React.useRef<Set<string>>(new Set());
   const touchRef = React.useRef<FighterInput>(emptyInput());
   const remoteInputRef = React.useRef<FighterInput>(emptyInput());
+  const hostRun = React.useRef<string | null>(null);
+  const [hostReady, setHostReady] = React.useState(you !== 0);
+  const [startError, setStartError] = React.useState('');
+  const [startAttempt, setStartAttempt] = React.useState(0);
+  const roomOver = roomWinner !== null || hostReloaded === true;
+  const startHost = React.useEffectEvent(onHostStart);
 
   const initialOnline = React.useCallback((): GeludState => {
     const base = createGeludState('2p');
@@ -404,12 +415,12 @@ function OnlineArena({
   const [hud, setHud] = React.useState<GeludState>(() => initialOnline());
   const [muted, setMuted] = React.useState(false);
 
-  const { connected, send } = useGeludPeer({
+  const { connected, timedOut, supported, send, retry } = useGeludPeer({
     code,
     token,
     you,
     match,
-    active: roomWinner === null,
+    active: !roomOver,
     onMessage: (raw) => {
       try {
         const msg = JSON.parse(raw) as
@@ -429,6 +440,27 @@ function OnlineArena({
       }
     },
   });
+
+  React.useEffect(() => {
+    if (hostReady || !connected || roomOver) return;
+    const controller = new AbortController();
+    const run = (hostRun.current ??= newToken());
+    void startHost(
+      run,
+      AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]),
+    )
+      .then(() => {
+        if (!controller.signal.aborted) {
+          setStartError('');
+          setHostReady(true);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setStartError('Gagal memulai pertandingan.');
+      });
+    return () => controller.abort();
+  }, [connected, hostReady, roomOver, startAttempt]);
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -451,6 +483,7 @@ function OnlineArena({
   }, []);
 
   React.useEffect(() => {
+    if (!connected) remoteInputRef.current = emptyInput();
     let raf = 0;
     let last = performance.now();
     let hudTimer = 0;
@@ -475,7 +508,7 @@ function OnlineArena({
       last = now;
 
       if (you === 0) {
-        if (connected) {
+        if (connected && hostReady && !roomOver) {
           const p1 = readLocalInput();
           const p2 = remoteInputRef.current;
           const res = stepGelud(stateRef.current, [p1, p2], dt, now / 1000);
@@ -513,7 +546,7 @@ function OnlineArena({
 
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [you, connected, muted, send]);
+  }, [you, connected, hostReady, roomOver, muted, send]);
 
   const myFighter = hud.fighters[you] ?? hud.fighters[0];
 
@@ -522,11 +555,44 @@ function OnlineArena({
       {roomWinner === you && <Confetti />}
 
       <div className='flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface/60 px-3.5 py-2 text-xs'>
-        <span className={connected ? 'text-accent' : 'text-[var(--mute)]'}>
-          {connected
-            ? 'Terhubung P2P (WebRTC)'
-            : 'Menghubungkan koneksi P2P dengan lawan…'}
+        <span
+          role='status'
+          className={connected ? 'text-accent' : 'text-[var(--mute)]'}
+        >
+          {roomOver
+            ? 'Pertandingan selesai'
+            : startError ||
+              (connected && hostReady
+                ? 'Terhubung ke lawan'
+                : connected
+                  ? 'Menyiapkan pertandingan…'
+                  : !supported
+                    ? 'Browser ini tidak mendukung WebRTC.'
+                    : timedOut
+                      ? 'Koneksi ke lawan gagal. Masih mencoba menyambung.'
+                      : 'Menghubungkan ke lawan…')}
         </span>
+        {supported && timedOut && !roomOver && (
+          <button
+            type='button'
+            onClick={retry}
+            className='min-h-11 rounded-lg border border-line-strong px-3 hover:text-ink'
+          >
+            Sambung ulang
+          </button>
+        )}
+        {startError && connected && !roomOver && (
+          <button
+            type='button'
+            onClick={() => {
+              setStartError('');
+              setStartAttempt((count) => count + 1);
+            }}
+            className='min-h-11 rounded-lg border border-line-strong px-3 hover:text-ink'
+          >
+            Coba lagi
+          </button>
+        )}
         <button
           type='button'
           onClick={() => setMuted((v) => !v)}
@@ -545,21 +611,23 @@ function OnlineArena({
           height={ARENA_H}
           className='aspect-[800/420] w-full'
         />
-        {!connected && roomWinner === null && (
+        {!connected && supported && !timedOut && !roomOver && (
           <div className='absolute inset-0 flex items-center justify-center bg-black/70 text-sm text-[var(--mute)]'>
             Menyiapkan koneksi arena real-time…
           </div>
         )}
-        {(hud.phase === 'match-over' || roomWinner !== null) && (
+        {(hud.phase === 'match-over' || roomOver) && (
           <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/75 p-6 text-center'>
             <h2 className='text-2xl font-black tracking-wider text-accent uppercase'>
-              {roomWinner === null
-                ? hud.banner
-                : roomWinner === you
-                  ? 'KAMU MENANG!'
-                  : 'KAMU KALAH'}
+              {hostReloaded
+                ? 'Host memuat ulang halaman. Pertandingan berakhir.'
+                : roomWinner === null
+                  ? hud.banner
+                  : roomWinner === you
+                    ? 'KAMU MENANG!'
+                    : 'KAMU KALAH'}
             </h2>
-            {roomWinner !== null ? (
+            {roomOver ? (
               rematchControl
             ) : reported ? (
               <p className='text-sm text-mute'>Menunggu konfirmasi lawan.</p>
@@ -849,15 +917,19 @@ function GeludRouter() {
       >
         {({ room, you }) => (
           <OnlineArena
-            key={room.state.match ?? 0}
+            key={`${room.code}:${room.state.match ?? 0}`}
             code={r.session!.code}
             token={r.session!.token}
             you={you}
             names={room.names}
             match={room.state.match ?? 0}
             roomWinner={room.state.winner}
+            hostReloaded={room.state.hostReloaded}
             reported={room.state.reports?.[you] != null}
             busy={r.busy}
+            onHostStart={(hostRun, signal) =>
+              r.moveOrThrow({ hostRun, match: room.state.match ?? 0 }, signal)
+            }
             onReportWinner={(winner) =>
               r.move({ winner, match: room.state.match ?? 0 })
             }

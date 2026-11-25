@@ -1,89 +1,87 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 
-import { initialArena } from '@/lib/games/snake-duel';
-import { DuelEvent, DuelView } from '@/lib/snake-duel/protocol';
+import { DUEL_TICK_MS, initialArena } from '@/lib/games/snake-duel';
+import { DuelMessage } from '@/lib/snake-duel/messages';
 
 import SnakeDuelRoom from '@/components/games/snake/SnakeDuelRoom';
 
-it('receives arena state and sends player actions through the WebSocket', () => {
-  const originalWebSocket = globalThis.WebSocket;
-  class TestSocket {
-    static OPEN = 1;
-    static instances: TestSocket[] = [];
-    readyState = TestSocket.OPEN;
-    send = jest.fn();
-    close = jest.fn();
-    onopen?: () => void;
-    onmessage?: (event: { data: string }) => void;
+class TestChannel extends EventTarget {
+  readyState = 'open';
+  bufferedAmount = 0;
+  send = jest.fn();
 
-    constructor(readonly url: URL) {
-      TestSocket.instances.push(this);
-    }
-
-    receive(event: DuelEvent) {
-      this.onmessage?.({ data: JSON.stringify(event) });
-    }
+  receive(event: DuelMessage) {
+    this.dispatchEvent(
+      new MessageEvent('message', { data: JSON.stringify(event) }),
+    );
   }
+}
 
-  globalThis.WebSocket = TestSocket as unknown as typeof WebSocket;
+it('sends ready, turns, and leave over the WebRTC data channel', () => {
   const canvas = jest
     .spyOn(HTMLCanvasElement.prototype, 'getContext')
     .mockReturnValue(null);
-  const session = { code: 'ABCDE', seat: 0 as const, token: 'a'.repeat(32) };
+  const channel = new TestChannel();
+  const peer = { close: jest.fn() };
   const onExit = jest.fn();
-  const room: DuelView = {
-    code: session.code,
-    version: 1,
-    now: Date.now(),
-    players: [
-      { name: 'Satu', online: true, ready: false },
-      { name: 'Dua', online: true, ready: false },
-    ],
-    round: null,
-  };
-  const view = render(<SnakeDuelRoom session={session} onExit={onExit} />);
+  const view = render(
+    <SnakeDuelRoom
+      seat={1}
+      names={['Satu', 'Dua']}
+      channel={channel as unknown as RTCDataChannel}
+      peer={peer as unknown as RTCPeerConnection}
+      onExit={onExit}
+    />,
+  );
   try {
-    const [ws] = TestSocket.instances;
-    expect(ws.url.pathname).toBe('/api/snake/duel/socket');
-    expect(ws.url.searchParams.get('room')).toBe(session.code);
-    ws.onopen?.();
-    expect(ws.send).toHaveBeenCalledWith(
-      JSON.stringify({ type: 'hello', seat: 0, token: session.token }),
+    expect(screen.getByRole('button', { name: 'Siap' })).toBeDisabled();
+    act(() =>
+      channel.receive({
+        type: 'state',
+        frame: { ready: [false, false], round: null },
+      }),
     );
-
-    act(() => ws.receive({ type: 'state', room }));
     fireEvent.click(screen.getByRole('button', { name: 'Siap' }));
-    expect(ws.send).toHaveBeenCalledWith(
+    expect(channel.send).toHaveBeenCalledWith(
       JSON.stringify({ type: 'ready', ready: true }),
     );
 
     act(() =>
-      ws.receive({
+      channel.receive({
         type: 'state',
-        room: {
-          ...room,
-          version: 2,
+        frame: {
+          ready: [false, false],
           round: {
-            id: 'round',
+            id: 1,
             phase: 'playing',
-            nextAt: Date.now(),
+            stepInMs: DUEL_TICK_MS,
+            turns: [null, null],
             arena: initialArena(0),
           },
         },
       }),
     );
     fireEvent.keyDown(window, { key: 'ArrowUp' });
-    expect(ws.send).toHaveBeenCalledWith(
-      JSON.stringify({ type: 'turn', dir: 'up', roundId: 'round', seq: 1 }),
+    expect(channel.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: 'turn', id: 1, dir: 'up' }),
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Keluar room' }));
-    expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ type: 'leave' }));
-    act(() => ws.receive({ type: 'left' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keluar duel' }));
+    expect(channel.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: 'leave' }),
+    );
     expect(onExit).toHaveBeenCalledTimes(1);
+
+    act(() => channel.receive({ type: 'leave' }));
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Lawan keluar. Duel selesai.',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Siap' }),
+    ).not.toBeInTheDocument();
+    expect(peer.close).toHaveBeenCalledTimes(1);
   } finally {
     view.unmount();
-    globalThis.WebSocket = originalWebSocket;
     canvas.mockRestore();
   }
 });

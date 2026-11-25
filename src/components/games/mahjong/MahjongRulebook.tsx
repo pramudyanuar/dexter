@@ -113,7 +113,7 @@ function Basics() {
     </>
   );
 }
-function Claims() {
+function Claims({ seconds }: { seconds: number }) {
   return (
     <>
       <p>
@@ -123,7 +123,7 @@ function Claims() {
       </p>
       <div className={styles.clockNote}>
         <strong>
-          {DECISION_SECONDS}
+          {seconds}
           <small> detik</small>
         </strong>
         <p>
@@ -169,8 +169,8 @@ function Claims() {
       <h3>Jika beberapa pemain mengklaim</h3>
       <p>
         <strong>Mahjong → pong atau kong → chow.</strong> Semua pemain yang
-        berhak mendapat jendela klaim bersama selama {DECISION_SECONDS} detik.
-        Jika beberapa pemain bisa menang, kursi terdekat setelah pembuang dalam
+        berhak mendapat jendela klaim bersama selama {seconds} detik. Jika
+        beberapa pemain bisa menang, kursi terdekat setelah pembuang dalam
         urutan giliran mendapat ubinnya.
       </p>
       <p>
@@ -361,10 +361,12 @@ export default function MahjongRulebook({
   onDismiss,
   playing,
   myTurn,
+  decisionSeconds = DECISION_SECONDS,
 }: {
   onDismiss: () => void;
   playing: boolean;
   myTurn: boolean;
+  decisionSeconds?: number;
 }) {
   const dialog = React.useRef<HTMLDialogElement>(null);
   const heading = React.useRef<HTMLHeadingElement>(null);
@@ -455,7 +457,7 @@ export default function MahjongRulebook({
             {
               [
                 <Basics key='basics' />,
-                <Claims key='claims' />,
+                <Claims key='claims' seconds={decisionSeconds} />,
                 <Patterns key='patterns' />,
                 <Scoring key='scoring' />,
               ][chapter]

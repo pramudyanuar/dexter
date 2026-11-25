@@ -36,6 +36,16 @@ describe('Snake Classic', () => {
     expect(screen.getByText('Game over. Skor 1.')).toBeInTheDocument();
   });
 
+  it('marks Classic as active and links back to the Snake mode menu', () => {
+    render(<SnakePage />);
+    expect(
+      screen.getByRole('link', { name: 'Classic', current: 'page' }),
+    ).toHaveAttribute('href', '/games/snake/classic');
+    expect(
+      screen.getByRole('link', { name: 'Pilih mode Snake' }),
+    ).toHaveAttribute('href', '/games/snake');
+  });
+
   it('leaves normal typing and Enter available to the score form', () => {
     render(<SnakePage />);
     fireEvent.keyDown(window, { key: 'ArrowRight' });

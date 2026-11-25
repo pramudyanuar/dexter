@@ -10,7 +10,7 @@ export default function SnakeClassicPage() {
   const [best, setBest] = useStoredState<number>('snake-best', 0);
 
   return (
-    <SnakeShell>
+    <SnakeShell mode='classic'>
       <SnakeSolo
         best={best}
         onBest={setBest}

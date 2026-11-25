@@ -2,10 +2,37 @@ import {
   DUEL_ROUND_MS,
   DUEL_TICK_MS,
   initialArena,
+  projectArenaStep,
   stepArena,
 } from '@/lib/games/snake-duel';
 
+import { slideSnake } from '@/components/games/snake/snake-motion';
+
 describe('shared Snake arena', () => {
+  it('slides around a predicted corner while keeping the bend on the grid', () => {
+    const arena = initialArena(1);
+    const from = arena.snakes[0].snake;
+    const to = projectArenaStep(arena, ['down', null]).snakes[0].snake;
+    expect(slideSnake(from, to, 0)).toBe(from);
+    expect(slideSnake(from, to, 0.5)).toEqual([
+      { x: 5, y: 8.5 },
+      { x: 5, y: 8 },
+      { x: 4, y: 8 },
+      { x: 3.5, y: 8 },
+    ]);
+    expect(slideSnake(from, to, 1)).toBe(to);
+  });
+
+  it('holds the tail when growing and snaps past missed ticks', () => {
+    const arena = { ...initialArena(1), food: { x: 6, y: 8 } };
+    const from = arena.snakes[0].snake;
+    const after = stepArena(arena, [null, null]);
+    const to = after.snakes[0].snake;
+    expect(slideSnake(from, to, 0.5)).toEqual([{ x: 5.5, y: 8 }, ...from]);
+    const skipped = stepArena(after, [null, null]).snakes[0].snake;
+    expect(slideSnake(from, skipped, 0.5)).toBe(skipped);
+  });
+
   it('treats head-on and swapped-head collisions as simultaneous draws', () => {
     const arena = initialArena(1);
     const first = {

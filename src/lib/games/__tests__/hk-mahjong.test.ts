@@ -169,7 +169,7 @@ const play = (s: TableState, seat: number, action: Play) =>
 const actions = (s: TableState, seat: number) => tableView(s, seat).actions;
 
 describe('four-seat Mahjong table', () => {
-  it('shows and enforces twenty seconds for a discard, even with a global override or a late move before the next poll', () => {
+  it('shows and enforces 25 seconds for a discard, even with a global override or a late move before the next poll', () => {
     const tokens = ['a', 'b', 'c', 'd'];
     const started = 10_000;
     let room = newRoom('mahjong-hk', 'ABCDE', tokens[0], started);
@@ -179,20 +179,20 @@ describe('four-seat Mahjong table', () => {
     const state = room.state as TableState;
     const player = tokens[state.turn];
     expect(toView(room, player, started).waiting).toMatchObject({
-      remaining: 20,
-      seconds: 20,
+      remaining: 25,
+      seconds: 25,
     });
-    expect(sweep(room, started + 19_999)).toBe(room);
+    expect(sweep(room, started + 24_999)).toBe(room);
     const move = {
       type: 'discard',
       tile: state.players[state.turn].hand.find((t) => t !== state.drawn),
       revision: state.revision,
     };
-    const onTime = act(room, player, move, undefined, started + 19_999);
+    const onTime = act(room, player, move, undefined, started + 24_999);
     expect(onTime.strikes?.[state.turn]).toBe(0);
-    const expired = sweep(room, started + 20_000);
+    const expired = sweep(room, started + 25_000);
     expect(expired.strikes?.[state.turn]).toBe(1);
-    const late = act(room, player, move, undefined, started + 20_000);
+    const late = act(room, player, move, undefined, started + 25_000);
     expect(late.strikes?.[state.turn]).toBe(1);
     expect((late.state as TableState).players[state.turn].river).toEqual([
       state.drawn,
@@ -335,11 +335,21 @@ describe('four-seat Mahjong table', () => {
     s.players[1].hand = [4, 4];
     s.wall = [34, 8, 16, 41];
     s = play(s, 0, { type: 'discard', tile: 4 });
-    expect(game.tick!(s, 20999)).toBeNull();
-    const next = game.tick!(s, 21000)!;
+    expect(game.tick!(s, 25_999)).toBeNull();
+    const next = game.tick!(s, 26_000)!;
     expect(next.drawn).toBe(16);
     expect(next.players[1].flowers).toEqual([35, 34, 41]);
     expect(next.wall).toEqual([8]);
+  });
+  it('uses the room decision time for discard claims', () => {
+    const s = fixture();
+    s.decisionSeconds = 37;
+    s.players[0].hand = [4];
+    s.players[1].hand = [4, 4];
+    const next = play(s, 0, { type: 'discard', tile: 4 });
+    expect(next.offer?.until).toBe(38_000);
+    expect(game.tick!(next, 37_999)).toBeNull();
+    expect(game.tick!(next, 38_000)?.offer).toBeNull();
   });
   it('melds an exposed kong and draws from the back; a chow consumes only its two matching tiles', () => {
     let s = fixture();

@@ -2,6 +2,7 @@
 import type { UnoView } from '@/lib/games/uno';
 import { GameConfig, sanitizeGameConfig } from '@/lib/rooms/game-config';
 
+import { POST as saveConfig } from '@/app/api/admin/config/route';
 import { GET, POST } from '@/app/api/rooms/[code]/route';
 import { GET as list, POST as create } from '@/app/api/rooms/route';
 
@@ -15,6 +16,7 @@ beforeEach(() => {
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.KV_REST_API_URL;
   delete process.env.KV_REST_API_TOKEN;
+  delete process.env.ADMIN_PASSWORD;
   (globalThis as { __rooms?: unknown }).__rooms = undefined;
 });
 afterEach(() => {
@@ -78,6 +80,39 @@ it('plays poker through the room API while keeping opponent cards private', asyn
 });
 
 describe('admin defaults in a new game', () => {
+  it('uses the saved Mahjong and Pictionary timers in rooms created afterward', async () => {
+    const settings = await saveConfig(
+      new Request('http://x/api/admin/config', {
+        method: 'POST',
+        body: JSON.stringify({
+          room: { turnSeconds: 90 },
+          'mahjong-hk': { decisionSeconds: 37 },
+          pictionary: { roundSeconds: 45, turnsEach: 3 },
+        }),
+      }),
+    );
+    expect(settings.status).toBe(200);
+
+    const mahjong = await startedRoom('mahjong-hk');
+    await post(mahjong.code, { action: 'join' });
+    const lastSeat = await (
+      await post(mahjong.code, { action: 'join' })
+    ).json();
+    expect(lastSeat.room).toMatchObject({
+      waiting: { seconds: 37 },
+      state: { decisionSeconds: 37 },
+    });
+
+    const pictionary = await startedRoom('pictionary');
+    const { room } = await (
+      await post(pictionary.code, { action: 'start', token: pictionary.A })
+    ).json();
+    expect(room).toMatchObject({
+      waiting: { seconds: 45 },
+      state: { roundSeconds: 45, rounds: 6 },
+    });
+  });
+
   it('uses the configured custom clock, module count, and mistake allowance in Three Monkeys', async () => {
     adminConfig.__gameConfig = sanitizeGameConfig({
       monkeys: {

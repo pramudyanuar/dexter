@@ -5,7 +5,7 @@ import * as React from 'react';
 
 import styles from '@/app/games/pictionary/pictionary.module.css';
 
-import { PictionaryView, ROUND_SECONDS } from '@/lib/games/pictionary';
+import { PictionaryView } from '@/lib/games/pictionary';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
@@ -32,7 +32,10 @@ function RoundHeader({
   you: number;
   r: GameRoom;
 }) {
-  const seconds = r.room?.waiting?.seconds ?? ROUND_SECONDS;
+  const seconds = Math.min(
+    v.roundSeconds,
+    r.room?.waiting?.seconds ?? Infinity,
+  );
   const deadline =
     r.receivedAt +
     Math.min(v.remainingMs, (r.room?.waiting?.remaining ?? Infinity) * 1000);

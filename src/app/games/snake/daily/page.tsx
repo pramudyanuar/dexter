@@ -2,8 +2,9 @@
 
 import * as React from 'react';
 
+import styles from '@/components/games/snake/snake.module.css';
+
 import {
-  DAILY_DURATION_MS,
   DailyChallenge,
   dailyChallenge,
   SnakeReplay,
@@ -100,12 +101,9 @@ export default function SnakeDailyPage() {
   }
 
   return (
-    <SnakeShell>
+    <SnakeShell mode='daily'>
       {data ? (
         <>
-          <p className='text-sm text-mute'>
-            {data.day} WIB · {DAILY_DURATION_MS / 1000} detik waktu bermain
-          </p>
           <SnakeSolo
             key={data.day}
             challenge={data}
@@ -124,11 +122,10 @@ export default function SnakeDailyPage() {
               />
             )}
           />
-          <section
-            id='daily-leaderboard'
-            className='space-y-2 rounded-lg border border-line bg-card p-4'
-          >
-            <h2 className='font-semibold'>Peringkat Harian</h2>
+          <section id='daily-leaderboard' className={styles.leaderboard}>
+            <h2 className='mb-2 text-xl font-semibold tracking-tight'>
+              Peringkat Harian
+            </h2>
             {!data.available ? (
               <p role='status' className='text-sm text-mute'>
                 Peringkat sedang tidak tersedia. Kamu masih bisa bermain.

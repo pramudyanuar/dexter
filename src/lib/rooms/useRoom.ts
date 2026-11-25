@@ -222,11 +222,15 @@ export function useRoom<V>(game: GameId) {
   ) => {
     if (!session) throw new Error('Room sudah ditutup.');
     const epoch = roomEpoch.current;
-    const data = await callRoom(`/api/rooms/${session.code}`, {
-      body: { action, token: session.token, ...extra },
-      signal,
-    });
-    if (!signal?.aborted && epoch === roomEpoch.current) adopt(data.room);
+    try {
+      const data = await callRoom(`/api/rooms/${session.code}`, {
+        body: { action, token: session.token, ...extra },
+        signal,
+      });
+      if (!signal?.aborted && epoch === roomEpoch.current) adopt(data.room);
+    } catch (error) {
+      if (epoch === roomEpoch.current) throw error;
+    }
   };
 
   const act = (action: string, extra: Record<string, unknown> = {}) =>

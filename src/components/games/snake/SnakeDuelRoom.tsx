@@ -2,297 +2,364 @@
 
 import * as React from 'react';
 
-import type { Dir } from '@/lib/games/snake';
+import { Dir, OPPOSITE } from '@/lib/games/snake';
 import {
   DUEL_ROUND_MS,
   DUEL_TICK_MS,
   initialArena,
+  Pair,
+  pairOf,
+  projectArenaStep,
+  Seat,
   SEATS,
 } from '@/lib/games/snake-duel';
 import {
-  DUEL_SOCKET_URL,
-  DuelEvent,
-  DuelSession,
-  DuelView,
-} from '@/lib/snake-duel/protocol';
+  advanceDuel,
+  DUEL_FRAME_MS,
+  DuelFrame,
+  duelFrame,
+  DuelMatch,
+  queueDuelTurn,
+  readyDuel,
+} from '@/lib/snake-duel/match';
+import { DuelMessage, readDuelMessage } from '@/lib/snake-duel/messages';
 
-import RoomBar from '@/components/games/RoomBar';
 import { SnakePad, useSnakeKeys } from '@/components/games/snake/controls';
 import SnakeBoard from '@/components/games/snake/SnakeBoard';
 
 const waitingArena = initialArena(0);
+const waitingMatch: DuelMatch = { ready: [false, false], round: null };
+const HEARTBEAT_MS = 1000;
+const PEER_TIMEOUT_MS = 5500;
 const button =
   'min-h-11 rounded-lg border border-line px-3 text-sm font-medium hover:border-accent disabled:opacity-40';
 
-type Connection = 'connecting' | 'online' | 'retrying' | 'closed';
+function sameStep(a: DuelFrame['round'], b: DuelFrame['round']) {
+  return (
+    a?.id === b?.id && a?.phase === b?.phase && a?.arena.tick === b?.arena.tick
+  );
+}
 
 export default function SnakeDuelRoom({
-  session,
+  seat,
+  names,
+  peer,
+  channel,
   onExit,
 }: {
-  session: DuelSession;
+  seat: Seat;
+  names: Pair<string>;
+  peer: RTCPeerConnection;
+  channel: RTCDataChannel;
   onExit: () => void;
 }) {
-  const [snapshot, setSnapshot] = React.useState<{
-    room: DuelView;
-    receivedAt: number;
+  const match = React.useRef(waitingMatch);
+  const [snapshot, setSnapshot] = React.useState(() => ({
+    frame: duelFrame(waitingMatch, 0),
+    receivedAt: 0,
+    durationMs: DUEL_TICK_MS,
+    previous: null as DuelFrame['round'],
+  }));
+  const [peerLeft, setPeerLeft] = React.useState(false);
+  const [localTurn, setLocalTurn] = React.useState<{
+    id: number;
+    tick: number;
+    dir: Dir;
   } | null>(null);
-  const [connection, setConnection] = React.useState<Connection>('connecting');
-  const [attempt, setAttempt] = React.useState(0);
-  const [notice, setNotice] = React.useState('');
-  const [left, setLeft] = React.useState(false);
-  const [now, setNow] = React.useState(Date.now);
-  const socket = React.useRef<WebSocket | null>(null);
-  const seq = React.useRef(0);
   const boardRef = React.useRef<HTMLDivElement>(null);
-  const exit = React.useEffectEvent(onExit);
-  const room = snapshot?.room;
-  const round = room?.round;
+  const { frame } = snapshot;
+  const round = frame.round;
   const phase = round?.phase;
   const arena = round?.arena ?? waitingArena;
-  const online = connection === 'online';
-  const playing = online && phase === 'playing';
-  const myPlayer = room?.players[session.seat];
-  const bothReady = room?.players.every(
-    (player) => player?.online && player.ready,
+  const playing = !peerLeft && phase === 'playing';
+
+  const receive = React.useCallback((next: DuelFrame) => {
+    const at = Date.now();
+    setSnapshot((current) => {
+      const before = current.frame.round;
+      const after = next.round;
+      const same = current.receivedAt !== 0 && sameStep(before, after);
+      if (
+        same &&
+        next.ready.every(
+          (ready, player) => ready === current.frame.ready[player],
+        ) &&
+        after?.turns[0] === before?.turns[0] &&
+        after?.turns[1] === before?.turns[1] &&
+        (after?.phase !== 'countdown' ||
+          Math.ceil(after.stepInMs / 1000) ===
+            Math.ceil((before?.stepInMs ?? 0) / 1000))
+      )
+        return current;
+
+      return {
+        frame: next,
+        receivedAt: same ? current.receivedAt : at,
+        durationMs: same
+          ? current.durationMs
+          : Math.max(
+              1,
+              Math.min(DUEL_TICK_MS, after?.stepInMs ?? DUEL_TICK_MS),
+            ),
+        previous: same
+          ? current.previous
+          : before?.id === after?.id
+            ? before
+            : null,
+      };
+    });
+  }, []);
+
+  const send = React.useCallback(
+    (message: DuelMessage) => {
+      if (channel.readyState !== 'open') return false;
+      try {
+        channel.send(JSON.stringify(message));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [channel],
+  );
+
+  const publish = React.useCallback(
+    (now: number, force = false) => {
+      const frame = duelFrame(match.current, now);
+      receive(frame);
+      if (force || channel.bufferedAmount === 0) send({ type: 'state', frame });
+    },
+    [channel, receive, send],
+  );
+
+  const markReady = React.useCallback(
+    (player: Seat, value: boolean) => {
+      const now = Date.now();
+      const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+      match.current = readyDuel(match.current, player, value, seed, now);
+      publish(now, true);
+    },
+    [publish],
   );
 
   React.useEffect(() => {
-    let disposed = false;
-    let retry: number | undefined;
-    let delay = 250;
-    let retrySince: number | undefined;
+    let heardAt = Date.now();
+    let pulseAt = 0;
+    let stopped = false;
 
-    function connect() {
-      const url = new URL(DUEL_SOCKET_URL, window.location.href);
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      url.searchParams.set('room', session.code);
-      const ws = new WebSocket(url);
-      socket.current = ws;
-
-      ws.onopen = () => {
-        if (!disposed)
-          ws.send(
-            JSON.stringify({
-              type: 'hello',
-              seat: session.seat,
-              token: session.token,
-            }),
-          );
-      };
-      ws.onmessage = ({ data }) => {
-        if (disposed || typeof data !== 'string') return;
-        let event: DuelEvent;
-        try {
-          event = JSON.parse(data) as DuelEvent;
-        } catch {
-          return;
-        }
-        if (event.type === 'left') {
-          exit();
-        } else if (event.type === 'notice') {
-          setNotice(event.message);
-        } else if (event.type === 'state') {
-          delay = 250;
-          retrySince = undefined;
-          const receivedAt = Date.now();
-          setConnection('online');
-          setSnapshot((current) =>
-            current && current.room.version > event.room.version
-              ? current
-              : { room: event.room, receivedAt },
-          );
-        }
-      };
-      ws.onclose = ({ code }) => {
-        if (disposed) return;
-        retrySince ??= Date.now();
-        if (
-          code === 1000 ||
-          code === 1008 ||
-          Date.now() - retrySince > 20_000
-        ) {
-          setConnection('closed');
-          return;
-        }
-        setConnection('retrying');
-        retry = window.setTimeout(connect, delay);
-        delay = Math.min(delay * 2, 2000);
-      };
+    function end() {
+      if (stopped) return;
+      stopped = true;
+      window.clearInterval(timer);
+      setPeerLeft(true);
+      peer.close();
     }
 
-    connect();
+    function onMessage(event: MessageEvent) {
+      if (stopped) return;
+      const message = readDuelMessage(event.data);
+      if (!message) return;
+      heardAt = Date.now();
+      if (message.type === 'leave') end();
+      else if (seat === 1 && message.type === 'state') receive(message.frame);
+      else if (seat === 0 && message.type === 'ready')
+        markReady(1, message.ready);
+      else if (seat === 0 && message.type === 'turn') {
+        const next = queueDuelTurn(match.current, 1, message.id, message.dir);
+        if (next !== match.current) {
+          match.current = next;
+          publish(heardAt);
+        }
+      }
+    }
+
+    function clock() {
+      if (stopped) return;
+      const now = Date.now();
+      if (now - heardAt > PEER_TIMEOUT_MS || channel.readyState !== 'open') {
+        end();
+        return;
+      }
+      const pulse = now - pulseAt >= HEARTBEAT_MS;
+      if (pulse) pulseAt = now;
+      if (seat === 0) {
+        const before = match.current;
+        const next = advanceDuel(before, now);
+        match.current = next;
+        if (
+          next !== before ||
+          pulse ||
+          (next.round && next.round.phase !== 'over')
+        ) {
+          publish(now, pulse || next.round?.phase !== before.round?.phase);
+        }
+      } else if (pulse) send({ type: 'ping' });
+    }
+
+    function pageHide() {
+      send({ type: 'leave' });
+      peer.close();
+    }
+
+    channel.addEventListener('message', onMessage);
+    channel.addEventListener('close', end);
+    window.addEventListener('pagehide', pageHide);
+    const timer = window.setInterval(clock, DUEL_FRAME_MS);
     return () => {
-      disposed = true;
-      window.clearTimeout(retry);
-      socket.current?.close();
+      stopped = true;
+      window.clearInterval(timer);
+      window.removeEventListener('pagehide', pageHide);
+      channel.removeEventListener('message', onMessage);
+      channel.removeEventListener('close', end);
     };
-  }, [session, attempt]);
-
-  React.useEffect(() => {
-    if (phase !== 'countdown') return;
-    const timer = window.setInterval(() => setNow(Date.now()), 100);
-    return () => window.clearInterval(timer);
-  }, [phase]);
-
-  React.useEffect(() => {
-    if (!left) return;
-    const timer = window.setTimeout(() => exit(), 1500);
-    return () => window.clearTimeout(timer);
-  }, [left]);
-
-  function send(event: object) {
-    const ws = socket.current;
-    if (ws?.readyState !== WebSocket.OPEN) return false;
-    ws.send(JSON.stringify(event));
-    return true;
-  }
+  }, [channel, markReady, peer, publish, receive, seat, send]);
 
   function steer(dir: Dir) {
     if (!playing || !round) return false;
-    return send({ type: 'turn', dir, roundId: round.id, seq: ++seq.current });
+    if (seat === 0) {
+      match.current = queueDuelTurn(match.current, seat, round.id, dir);
+      publish(Date.now());
+      return true;
+    }
+    if (!send({ type: 'turn', id: round.id, dir })) return false;
+    const heading = arena.snakes[seat].dir;
+    if (dir !== heading && dir !== OPPOSITE[heading]) {
+      setLocalTurn((current) =>
+        current?.id === round.id && current.tick === arena.tick
+          ? current
+          : { id: round.id, tick: arena.tick, dir },
+      );
+    }
+    return true;
   }
 
   function ready(value: boolean) {
-    setNotice('');
-    if (send({ type: 'ready', ready: value }) && value) {
-      boardRef.current?.focus({ preventScroll: true });
-    }
+    if (seat === 0) markReady(seat, value);
+    else if (!send({ type: 'ready', ready: value })) return;
+    boardRef.current?.focus({ preventScroll: true });
   }
 
   useSnakeKeys(steer);
 
-  const countdown =
-    snapshot && round
-      ? Math.max(
-          1,
-          Math.ceil(
-            (round.nextAt -
-              snapshot.room.now -
-              Math.max(0, now - snapshot.receivedAt)) /
-              1000,
+  const previous = snapshot.previous;
+  const predicted =
+    playing && round
+      ? projectArenaStep(
+          arena,
+          pairOf((player) =>
+            player === seat &&
+            localTurn?.id === round.id &&
+            localTurn.tick === arena.tick
+              ? (round.turns[player] ?? localTurn.dir)
+              : round.turns[player],
           ),
-        )
-      : 3;
+        ).snakes
+      : null;
+  const motion = playing ? snapshot : undefined;
   const seconds = Math.max(
     0,
     Math.ceil((DUEL_ROUND_MS - arena.tick * DUEL_TICK_MS) / 1000),
   );
-  let status = 'Menunggu lawan…';
-  if (connection === 'connecting') status = 'Menyambungkan ke arena…';
-  if (connection === 'retrying') status = 'Menyambungkan ulang…';
-  if (connection === 'closed') status = 'Koneksi arena berakhir.';
-  if (online && phase === 'countdown') status = `Mulai dalam ${countdown}`;
-  if (online && phase === 'paused')
-    status = 'Jeda · menunggu pemain tersambung kembali';
-  if (online && phase === 'over' && arena.result) {
+  let status = 'Tekan Siap untuk mulai.';
+  if (peerLeft) status = 'Lawan keluar. Duel selesai.';
+  else if (round?.phase === 'countdown')
+    status = `Mulai dalam ${Math.max(1, Math.ceil(round.stepInMs / 1000))}`;
+  else if (round?.phase === 'over' && arena.result) {
     status =
-      arena.result.reason === 'cancelled'
-        ? 'Ronde batal.'
-        : arena.result.winner === null
-          ? 'Seri.'
-          : arena.result.winner === session.seat
-            ? 'Kamu menang!'
-            : 'Lawan menang.';
+      arena.result.winner === null
+        ? 'Seri.'
+        : arena.result.winner === seat
+          ? 'Kamu menang!'
+          : 'Lawan menang.';
   }
-  if (online && !round && room?.players.every(Boolean))
-    status = 'Tekan Siap untuk mulai.';
 
   return (
-    <section aria-label='Duel Snake' className='space-y-3'>
-      <RoomBar
-        code={session.code}
-        share
-        leaveDisabled={left}
-        onLeave={() => {
-          if (online && send({ type: 'leave' })) setLeft(true);
-          else onExit();
-        }}
-      />
-
-      <div className='grid grid-cols-2 gap-2'>
-        {SEATS.map((seat) => {
-          const player = room?.players[seat];
-          return (
-            <div
-              key={seat}
-              className={`min-w-0 rounded-lg border border-line bg-card p-3 text-sm ${seat === session.seat ? 'text-accent' : 'text-info'}`}
-            >
-              <p className='truncate font-semibold'>
-                {player?.name ?? 'Kursi kosong'}
-                {seat === session.seat && player ? ' (kamu)' : ''}
-              </p>
-              <p className='text-xs text-mute'>
-                {player?.online
-                  ? player.ready
-                    ? 'Siap'
-                    : 'Terhubung'
-                  : player
-                    ? 'Terputus'
-                    : 'Menunggu'}{' '}
-                · {arena.snakes[seat].score} apel
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
+    <section
+      aria-label='Duel Snake'
+      className='mx-auto max-w-[30rem] space-y-3'
+    >
       <div className='flex items-center justify-between gap-2 text-sm'>
         <span className='text-mute'>{seconds} dtk</span>
-        {online && (!phase || phase === 'over') && (
-          <button
-            type='button'
-            className={button}
-            onClick={() => ready(bothReady || !myPlayer?.ready)}
-          >
-            {bothReady
-              ? 'Coba mulai'
-              : myPlayer?.ready
+        <div className='flex gap-2'>
+          {!peerLeft && (!phase || phase === 'over') && (
+            <button
+              type='button'
+              className={button}
+              disabled={seat === 1 && snapshot.receivedAt === 0}
+              onClick={() => ready(!frame.ready[seat])}
+            >
+              {frame.ready[seat]
                 ? 'Batal siap'
                 : phase === 'over'
                   ? 'Siap rematch'
                   : 'Siap'}
+            </button>
+          )}
+          <button
+            type='button'
+            className={button}
+            onClick={() => {
+              send({ type: 'leave' });
+              onExit();
+            }}
+          >
+            {peerLeft ? 'Kembali ke lobi' : 'Keluar duel'}
           </button>
-        )}
+        </div>
       </div>
-
+      <div className='grid grid-cols-2 gap-2'>
+        {SEATS.map((player) => (
+          <div
+            key={player}
+            className={`min-w-0 rounded-lg border border-line bg-card p-3 text-sm ${player === seat ? 'text-accent' : 'text-info'}`}
+          >
+            <p className='truncate font-semibold'>
+              {names[player]}
+              {player === seat ? ' (kamu)' : ''}
+            </p>
+            <p className='text-xs text-mute'>
+              {frame.ready[player] ? 'Siap · ' : ''}
+              {arena.snakes[player].score} apel
+            </p>
+          </div>
+        ))}
+      </div>
       <SnakeBoard
         boardRef={boardRef}
-        snakes={arena.snakes.map((snake, seat) => ({
-          ...snake,
-          opponent: seat !== session.seat,
-        }))}
+        snakes={arena.snakes.map((snake, player) => {
+          const opponent = player !== seat;
+          const target = predicted?.[player];
+          const last =
+            opponent && previous && previous.arena.tick + 1 === arena.tick
+              ? previous.arena.snakes[player].snake
+              : undefined;
+          return {
+            ...snake,
+            opponent,
+            slide: target
+              ? { from: snake.snake, to: target.snake, dir: target.dir }
+              : undefined,
+            catchUp: last
+              ? { from: last, to: snake.snake, dir: snake.dir }
+              : undefined,
+          };
+        })}
+        motion={motion}
         food={arena.food}
-        active={playing}
         onSwipe={steer}
       >
         {!playing && (
-          <div className='absolute inset-0 grid place-items-center rounded-[inherit] bg-paper/80 p-4 text-center'>
-            <p role='status' className='font-semibold'>
+          <div className='pointer-events-none absolute inset-0 grid place-items-center p-4 text-center'>
+            <p
+              role='status'
+              className='border border-line-strong bg-paper px-5 py-3 font-semibold'
+            >
               {status}
             </p>
           </div>
         )}
       </SnakeBoard>
       <SnakePad onDirection={steer} disabled={!playing} />
-      {connection === 'closed' && (
-        <button
-          type='button'
-          className={button}
-          onClick={() => {
-            setConnection('connecting');
-            setNotice('');
-            setAttempt((n) => n + 1);
-          }}
-        >
-          Sambung ulang
-        </button>
-      )}
-      {notice && (
-        <p role='alert' className='text-sm text-err'>
-          {notice}
-        </p>
-      )}
       <p className='text-center text-xs text-mute'>
         Panah, WASD, atau geser untuk belok.
       </p>

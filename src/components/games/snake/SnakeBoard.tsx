@@ -2,33 +2,47 @@
 
 import * as React from 'react';
 
+import styles from '@/components/games/snake/snake.module.css';
+
 import { DELTA, Dir, GRID, Point } from '@/lib/games/snake';
 
 import { isInteractive } from '@/components/games/snake/controls';
+import { slideSnake } from '@/components/games/snake/snake-motion';
 
 const CELL = 20;
 const SIZE = GRID * CELL;
+const INSET = 3;
+const SEGMENT = CELL - INSET * 2;
+const OPPONENT_BUFFER_MS = 33;
+
+interface SnakeSlide {
+  from: readonly Point[];
+  to: readonly Point[];
+  dir: Dir;
+}
 
 interface BoardSnake {
   snake: readonly Point[];
   dir: Dir;
   opponent?: boolean;
+  slide?: SnakeSlide;
+  catchUp?: SnakeSlide;
 }
 
 export default function SnakeBoard({
   snakes,
   food,
-  active,
   boardRef,
   onSwipe,
   children,
+  motion,
 }: {
   snakes: readonly BoardSnake[];
   food: Point | null;
-  active: boolean;
   boardRef: React.RefObject<HTMLDivElement | null>;
   onSwipe: (dir: Dir) => void;
   children?: React.ReactNode;
+  motion?: { receivedAt: number; durationMs: number };
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const swipe = React.useRef<(Point & { id: number }) | null>(null);
@@ -47,110 +61,103 @@ export default function SnakeBoard({
 
     const style = getComputedStyle(canvas);
     const color = (name: string) => style.getPropertyValue(name).trim();
-    const background = color('--card');
-    const line = color('--line');
-    const accent = color('--accent');
-    const info = color('--info');
-    const apple = color('--err');
-    const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    let frame = 0;
+    const boardColor = color('--card');
+    const gridColor = color('--snake-grid');
+    const foodColor = color('--err');
+    const playerColor = color('--accent');
+    const opponentColor = color('--info');
+    const bodyColor = color('--snake-body');
+    const eyeColor = color('--paper');
+    const animation = window.matchMedia('(prefers-reduced-motion: reduce)')
+      .matches
+      ? undefined
+      : motion;
+    const startedAt =
+      performance.now() - (animation ? Date.now() - animation.receivedAt : 0);
+    let request = 0;
 
-    function draw(pulse: number) {
-      if (!ctx) return;
-      ctx.fillStyle = background;
+    function paint(ctx: CanvasRenderingContext2D, now: number) {
+      const progress = animation
+        ? Math.max(0, Math.min(1, (now - startedAt) / animation.durationMs))
+        : 1;
+      ctx.fillStyle = boardColor;
       ctx.fillRect(0, 0, SIZE, SIZE);
-      ctx.fillStyle = line;
-      ctx.globalAlpha = 0.24;
-      for (let y = 0; y < GRID; y++) {
-        for (let x = (y + 1) % 2; x < GRID; x += 2) {
-          ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
-        }
+      ctx.fillStyle = gridColor;
+      for (let offset = CELL; offset < SIZE; offset += CELL) {
+        ctx.fillRect(offset, 0, 1, SIZE);
+        ctx.fillRect(0, offset, SIZE, 1);
       }
-      ctx.globalAlpha = 1;
 
       if (food) {
-        ctx.save();
-        ctx.translate(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2 + 1);
-        ctx.scale(pulse, pulse);
-        ctx.fillStyle = apple;
+        const x = (food.x + 0.5) * CELL;
+        const y = (food.y + 0.5) * CELL;
+        ctx.fillStyle = foodColor;
         ctx.beginPath();
-        ctx.arc(0, 0, 7, 0, Math.PI * 2);
+        ctx.moveTo(x, y - 6);
+        ctx.lineTo(x + 6, y);
+        ctx.lineTo(x, y + 6);
+        ctx.lineTo(x - 6, y);
         ctx.fill();
-        ctx.fillStyle = 'rgb(255 255 255 / 0.55)';
-        ctx.beginPath();
-        ctx.arc(-3, -3, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = accent;
-        ctx.beginPath();
-        ctx.ellipse(3, -8, 4, 2, -0.6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
       }
 
-      for (const { snake, dir, opponent } of snakes) {
-        ctx.fillStyle = opponent ? info : accent;
-        for (let i = snake.length - 1; i >= 0; i--) {
-          const { x, y } = snake[i];
-          const inset = i === 0 ? 0.5 : 1.5 + (i / snake.length) * 1.5;
-          ctx.globalAlpha = i === 0 ? 1 : 0.9 - (i / snake.length) * 0.4;
-          ctx.beginPath();
-          ctx.roundRect(
-            x * CELL + inset,
-            y * CELL + inset,
-            CELL - inset * 2,
-            CELL - inset * 2,
-            i === 0 ? 7 : 5,
-          );
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        const head = snake[0];
+      for (const { snake, dir, opponent, slide, catchUp } of snakes) {
+        // Give the opponent a short buffer for confirmed turns without adding a full tick of delay.
+        const offset =
+          animation && catchUp
+            ? Math.min(1, OPPONENT_BUFFER_MS / animation.durationMs)
+            : 0;
+        const position = progress - offset;
+        const move = animation && (position < 0 ? catchUp : slide);
+        const path = move
+          ? slideSnake(
+              move.from,
+              move.to,
+              position < 0 ? 1 + position : position,
+            )
+          : snake;
+        const [head] = path;
         if (!head) continue;
-        const { x: dx, y: dy } = DELTA[dir];
+        const headColor = opponent ? opponentColor : playerColor;
+        ctx.fillStyle = opponent ? headColor : bodyColor;
+        for (let i = 1; i < path.length; i++) {
+          const { x, y } = path[i];
+          const previous = path[i - 1];
+          ctx.fillRect(
+            Math.min(x, previous.x) * CELL + INSET,
+            Math.min(y, previous.y) * CELL + INSET,
+            Math.abs(x - previous.x) * CELL + SEGMENT,
+            Math.abs(y - previous.y) * CELL + SEGMENT,
+          );
+        }
+        ctx.fillStyle = headColor;
+        ctx.fillRect(
+          head.x * CELL + INSET,
+          head.y * CELL + INSET,
+          SEGMENT,
+          SEGMENT,
+        );
+        ctx.fillStyle = eyeColor;
+        const { x: dx, y: dy } = DELTA[move ? move.dir : dir];
         for (const side of [-1, 1]) {
-          const x = head.x * CELL + CELL / 2 + dx * 3 - dy * side * 4;
-          const y = head.y * CELL + CELL / 2 + dy * 3 + dx * side * 4;
-          ctx.fillStyle = '#fff';
-          ctx.beginPath();
-          ctx.arc(x, y, 2.6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#111';
-          ctx.beginPath();
-          ctx.arc(x + dx, y + dy, 1.3, 0, Math.PI * 2);
-          ctx.fill();
+          const x = (head.x + 0.5) * CELL + dx * 4 - dy * side * 3;
+          const y = (head.y + 0.5) * CELL + dy * 4 + dx * side * 3;
+          ctx.fillRect(x - 1, y - 1, 2, 2);
         }
       }
+      if (animation && progress < 1)
+        request = requestAnimationFrame((at) => paint(ctx, at));
     }
 
-    function animate(time: number) {
-      draw(1 + Math.sin(time / 160) * 0.1);
-      frame = requestAnimationFrame(animate);
-    }
-
-    function refresh() {
-      cancelAnimationFrame(frame);
-      draw(1);
-      if (active && !motion?.matches && !document.hidden) {
-        frame = requestAnimationFrame(animate);
-      }
-    }
-
-    refresh();
-    motion?.addEventListener('change', refresh);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      cancelAnimationFrame(frame);
-      motion?.removeEventListener('change', refresh);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  }, [active, food, snakes]);
+    paint(ctx, performance.now());
+    return () => cancelAnimationFrame(request);
+  }, [food, motion, snakes]);
 
   return (
     <div
       ref={boardRef}
       tabIndex={0}
       aria-label='Arena Snake'
-      className='relative aspect-square touch-none rounded-lg border border-line focus-visible:outline-2 focus-visible:outline-accent'
+      className={styles.board}
       onPointerDown={(event) => {
         if (event.pointerType === 'mouse' || isInteractive(event.target))
           return;
@@ -181,7 +188,7 @@ export default function SnakeBoard({
         height={SIZE}
         role='img'
         aria-label='Papan permainan ular'
-        className='block size-full rounded-[inherit]'
+        className='block size-full'
       />
       {children}
     </div>
