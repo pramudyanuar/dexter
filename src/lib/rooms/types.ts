@@ -16,6 +16,7 @@ export type GameId =
   | 'sekata'
   | 'dart'
   | 'remo'
+  | 'poker'
   | 'werewolf'
   | 'monkeys'
   | 'karambol'

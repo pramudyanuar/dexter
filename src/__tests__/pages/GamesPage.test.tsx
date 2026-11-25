@@ -26,7 +26,9 @@ describe('Games menu', () => {
 
     for (const game of GAMES) {
       expect(
-        screen.getByRole('link', { name: new RegExp(`^${game.title}:`) }),
+        screen.getByRole('link', {
+          name: `${game.title}: ${game.description}`,
+        }),
       ).toHaveAttribute('href', game.href);
     }
   });
@@ -71,7 +73,9 @@ describe('Games menu', () => {
 
   it('has a drawing for every game', () => {
     const { container } = render(<GamesPage />);
-    expect(container.querySelectorAll('li svg')).toHaveLength(GAMES.length);
+    expect(container.querySelectorAll('li [role="presentation"]')).toHaveLength(
+      GAMES.length,
+    );
   });
 
   it('offers to continue the game played last', () => {

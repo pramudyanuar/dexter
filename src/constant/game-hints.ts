@@ -65,6 +65,12 @@ export const GAME_HINTS: Record<string, string[]> = {
     'Setiap giliran: ambil satu kartu, susun kombinasi kalau bisa, lalu buang satu.',
     'Yang pertama menghabiskan semua kartunya menang.',
   ],
+  poker: [
+    'Gunakan kombinasi lima kartu terbaik dari dua kartu di tanganmu dan lima kartu di meja.',
+    'Check untuk lanjut tanpa menambah chip, call untuk menyamakan taruhan, atau fold untuk menyerah pada ronde itu.',
+    'Taruhan atau raise naik 2 chip sebelum dan saat flop, lalu 4 chip pada turn dan river. Maksimal empat taruhan per tahap.',
+    'Pemenang mengambil pot. Jika seri, pot dibagi. Chip virtual direset setiap ronde.',
+  ],
   werewolf: [
     'Warga vs serigala. Warga menang kalau semua serigala tersingkir; serigala menang kalau jumlah mereka menyamai warga.',
     'Malam: serigala memilih korban diam-diam, dan peran khusus beraksi. Siang: semua berdebat lalu memilih siapa yang digantung.',

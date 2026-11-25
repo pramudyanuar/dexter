@@ -200,12 +200,31 @@ const ALL_GAMES: readonly GameEntry[] = [
   {
     id: 'remo',
     players: '2–4',
-    title: 'Remo',
+    title: 'Remi (Remo)',
     online: true,
     href: '/games/remo',
     description:
-      'Classic rummy: build sequences and sets, and be the first to get rid of every card.',
-    controls: 'pick cards, lay down combinations, then discard',
+      'Remi gaya rummy. Susun seri atau set dan habiskan kartu lebih dulu.',
+    controls: 'ambil kartu, pasang kombinasi, lalu buang satu kartu',
+  },
+  {
+    id: 'poker',
+    players: '2–6',
+    title: 'Poker Texas Hold’em',
+    online: true,
+    href: '/games/poker',
+    description:
+      'Main Texas Hold’em bareng teman dengan chip virtual dan taruhan batas tetap.',
+    controls: 'check, call, bet, raise, atau fold saat giliranmu',
+  },
+  {
+    id: 'card-archive',
+    title: 'Arsip Kartu',
+    players: '1',
+    href: '/games/card-archive',
+    description:
+      'Susun kombinasi poker, sisihkan kartu bukti, dan penuhi lima kontrak dalam satu ekspedisi.',
+    controls: 'pilih kartu untuk kombinasi atau bukti, lalu simpan atau tukar',
   },
   {
     id: 'werewolf',

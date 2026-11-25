@@ -60,6 +60,7 @@ describe('the registry', () => {
       'mahjong-hk',
       'monkeys',
       'pictionary',
+      'poker',
       'quiz',
       'remo',
       'sekata',
@@ -71,7 +72,7 @@ describe('the registry', () => {
     ]);
     expect(isGameId('uno')).toBe(true);
     for (const bad of [
-      'poker',
+      'poker-invalid',
       '',
       null,
       undefined,
