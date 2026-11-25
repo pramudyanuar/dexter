@@ -240,4 +240,71 @@ describe('useRoom: coming back to a room', () => {
     // the room says we sit in seat 1 now, not the 2 we were handed
     await waitFor(() => expect(result.current.session?.you).toBe(1));
   });
+
+  it('returns to the lobby when an admin removes your seat', async () => {
+    sessionStorage.setItem(
+      'room-session-chess',
+      JSON.stringify({ code: 'ABCDE', token: 'old-token', you: 1 }),
+    );
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        changed: true,
+        room: { ...view, version: 2, seat: null },
+      }),
+    })) as unknown as typeof fetch;
+    const { result } = renderHook(() => useRoom('chess'));
+    await waitFor(() => expect(result.current.error).toMatch(/Kursimu/));
+    expect(result.current.session).toBeNull();
+    expect(result.current.room).toBeNull();
+  });
+
+  it('ignores an old poll failure and move response after switching rooms', async () => {
+    sessionStorage.setItem(
+      'room-session-chess',
+      JSON.stringify({ code: 'ABCDE', token: 'old-token', you: 0 }),
+    );
+    const reply = (data: unknown, status = 200) => ({
+      ok: status === 200,
+      status,
+      json: async () => data,
+    });
+    const poll = Promise.withResolvers<ReturnType<typeof reply>>();
+    const move = Promise.withResolvers<ReturnType<typeof reply>>();
+    const fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/rooms')
+        return reply({
+          code: 'FGHJK',
+          token: 'new-token',
+          you: 0,
+          room: { ...view, code: 'FGHJK', seat: 0 },
+        });
+      if (url.startsWith('/api/rooms/ABCDE?')) return poll.promise;
+      if (JSON.parse(String(init?.body ?? '{}')).action === 'move')
+        return move.promise;
+      return reply({ changed: false });
+    });
+    global.fetch = fetch as unknown as typeof global.fetch;
+    const { result } = renderHook(() => useRoom('chess'));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/rooms/ABCDE?'),
+        expect.anything(),
+      ),
+    );
+    let pendingMove: Promise<void>;
+    act(() => {
+      pendingMove = result.current.moveOrThrow({});
+    });
+    act(() => result.current.leave());
+    await act(async () => result.current.create());
+    await act(async () => {
+      poll.resolve(reply({}, 404));
+      move.resolve(reply({ room: { ...view, version: 99, seat: 0 } }));
+      await pendingMove;
+    });
+    expect(result.current.session?.code).toBe('FGHJK');
+    expect(result.current.room?.code).toBe('FGHJK');
+    expect(result.current.error).toBe('');
+  });
 });

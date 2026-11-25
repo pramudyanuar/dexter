@@ -100,7 +100,7 @@ export default function SnakeDailyPage() {
   }
 
   return (
-    <SnakeShell mode='daily'>
+    <SnakeShell>
       {data ? (
         <>
           <p className='text-sm text-mute'>

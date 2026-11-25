@@ -1,20 +1,60 @@
 import { getBugReportStore } from '@/lib/game-bugs/store';
-import { BUG_REPORT_PAGE_SIZE } from '@/lib/game-bugs/types';
+import {
+  type AdminBugReport,
+  BUG_REPORT_PAGE_SIZE,
+} from '@/lib/game-bugs/types';
 import { readJson } from '@/lib/read-json';
 import { isAdminAuthed } from '@/lib/rooms/admin-auth';
+import { ROOM_BUG_REPORT_ID } from '@/lib/rooms/bug-reports';
+import { getRoomStore } from '@/lib/rooms/store';
+
+import { GAME_PAGES } from '@/constant/games';
 
 const headers = { 'Cache-Control': 'no-store' };
+
+async function listReports(
+  offset: number,
+  roomReports: boolean,
+): Promise<AdminBugReport[]> {
+  const count = BUG_REPORT_PAGE_SIZE + 1;
+  if (roomReports) {
+    const store = getRoomStore();
+    if (!store) throw new Error('Room storage is unavailable');
+    return (await store.listBugReports())
+      .slice(offset, offset + count)
+      .map((snapshot) => {
+        const { room, id, description, submittedAt, playerName, done } =
+          snapshot;
+        const game = GAME_PAGES.find(({ id }) => id === room.game);
+        return {
+          id,
+          game: room.game,
+          gameTitle: game?.title ?? room.game,
+          pathname: game?.href ?? `/games/${room.game}`,
+          description,
+          playerName,
+          at: submittedAt,
+          done: done ?? false,
+          snapshot,
+        };
+      });
+  }
+  const store = getBugReportStore();
+  if (!store) throw new Error('Bug report storage is unavailable');
+  return store.list(offset, count);
+}
 
 export async function GET(req: Request) {
   if (!isAdminAuthed(req)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers });
   }
 
-  const offset = Number(new URL(req.url).searchParams.get('offset') ?? 0);
+  const params = new URL(req.url).searchParams;
+  const offset = Number(params.get('offset') ?? 0);
   if (
     !Number.isSafeInteger(offset) ||
     offset < 0 ||
-    offset > Number.MAX_SAFE_INTEGER - BUG_REPORT_PAGE_SIZE
+    offset > Number.MAX_SAFE_INTEGER - BUG_REPORT_PAGE_SIZE - 1
   ) {
     return Response.json(
       { error: 'Halaman tidak valid.' },
@@ -23,9 +63,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const store = getBugReportStore();
-    if (!store) throw new Error('Bug report storage is unavailable');
-    const reports = await store.list(offset, BUG_REPORT_PAGE_SIZE + 1);
+    const reports = await listReports(offset, params.get('source') === 'room');
     return Response.json(
       {
         reports: reports.slice(0, BUG_REPORT_PAGE_SIZE),
@@ -47,9 +85,11 @@ async function changeReport(req: Request, deleting: boolean) {
   }
 
   const params = new URL(req.url).searchParams;
+  const roomReports = params.get('source') === 'room';
   const id = params.get('id') ?? '';
   const at = Number(params.get('at'));
-  if (!/^[a-f0-9]{64}$/.test(id) || !Number.isSafeInteger(at) || at <= 0) {
+  const idPattern = roomReports ? ROOM_BUG_REPORT_ID : /^[a-f0-9]{64}$/;
+  if (!idPattern.test(id) || !Number.isSafeInteger(at) || at <= 0) {
     return Response.json(
       { error: 'Laporan bug tidak valid.' },
       { status: 400, headers },
@@ -66,10 +106,18 @@ async function changeReport(req: Request, deleting: boolean) {
   }
 
   try {
-    const store = getBugReportStore();
-    if (!store) throw new Error('Bug report storage is unavailable');
     const action = deleting ? 'delete' : body?.done ? 'done' : 'reopen';
-    if (!(await store.change({ id, at }, action))) {
+    let changed: boolean;
+    if (roomReports) {
+      const store = getRoomStore();
+      if (!store) throw new Error('Room storage is unavailable');
+      changed = await store.changeBugReport({ id, at }, action);
+    } else {
+      const store = getBugReportStore();
+      if (!store) throw new Error('Bug report storage is unavailable');
+      changed = await store.change({ id, at }, action);
+    }
+    if (!changed) {
       return Response.json(
         { error: 'Laporan bug sudah tidak ada.' },
         { status: 404, headers },

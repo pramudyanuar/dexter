@@ -17,7 +17,7 @@ import useStoredState from '@/lib/useStoredState';
 
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
-import { isInteractive } from '@/components/games/snake/controls';
+import { shouldIgnoreGameKey } from '@/components/games/snake/controls';
 import SubmitScore from '@/components/games/SubmitScore';
 
 interface Game {
@@ -107,7 +107,7 @@ function Game2048() {
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || isInteractive(e.target)) return;
+    if (shouldIgnoreGameKey(e)) return;
     const dir = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
     if (dir) {
       e.preventDefault(); // arrow keys would scroll the page

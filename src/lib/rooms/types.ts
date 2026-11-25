@@ -16,6 +16,7 @@ export type GameId =
   | 'sekata'
   | 'dart'
   | 'remo'
+  | 'poker'
   | 'werewolf'
   | 'monkeys'
   | 'karambol'
@@ -116,6 +117,8 @@ export interface ChatMsg {
   id: string;
   seat: number;
   text: string;
+  /** Catalog ID for a sticker; text is its fallback label. */
+  stickerId?: string;
   at: number;
   /** Which channel it was said in (games with private chat); none means everyone */
   channel?: string;

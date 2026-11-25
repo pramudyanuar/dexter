@@ -1,9 +1,15 @@
+import {
+  BUG_DESCRIPTION_MAX,
+  type BugReport as RoomBugReport,
+} from '@/lib/rooms/bug-reports';
+
 import { GAME_PAGES } from '@/constant/games';
 
-export const BUG_DESCRIPTION_LIMIT = 2000;
+export const BUG_DESCRIPTION_LIMIT = BUG_DESCRIPTION_MAX;
 export const BUG_REPORT_PAGE_SIZE = 25;
 
 const snakeModes: Record<string, string> = {
+  '/games/snake/classic': 'Snake Classic',
   '/games/snake/daily': 'Snake Harian',
   '/games/snake/duel': 'Snake Duel',
 };
@@ -35,3 +41,4 @@ export interface BugReport {
 
 export type BugReportTarget = Pick<BugReport, 'id' | 'at'>;
 export type BugReportAction = 'done' | 'reopen' | 'delete';
+export type AdminBugReport = BugReport & { snapshot?: RoomBugReport };

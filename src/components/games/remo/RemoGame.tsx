@@ -23,7 +23,7 @@ function Remo() {
   if (!r.session) {
     return (
       <RoomLobby
-        blurb='# Remo (rummy) untuk 2 sampai 4 pemain: susun urutan dan kembar, habiskan kartumu duluan.'
+        blurb='Remi gaya rummy untuk 2–4 pemain. Susun seri dan set, lalu habiskan kartumu duluan.'
         busy={r.busy}
         error={r.error}
         name={r.name}

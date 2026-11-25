@@ -52,6 +52,16 @@ function custom(pieces: Record<string, Piece>, turn: 0 | 1 = 0): ChessState {
 }
 
 describe('chess', () => {
+  it('draws when only kings and bishops on the same square color remain', () => {
+    const pieces = { a1: 'wK', h8: 'bK', c1: 'wB' } as const;
+    expect(play(custom({ ...pieces, f8: 'bB' }), ['c1', 'd2']).status).toBe(
+      'draw',
+    );
+    expect(play(custom({ ...pieces, c8: 'bB' }), ['c1', 'd2']).status).toBe(
+      'playing',
+    );
+  });
+
   it('allows a claim after three repetitions and draws automatically after five', () => {
     const repeat = (state: ChessState) =>
       play(state, ['g1', 'f3'], ['g8', 'f6'], ['f3', 'g1'], ['f6', 'g8']);

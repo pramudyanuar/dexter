@@ -37,12 +37,17 @@ const NUMBER_COLOR = [
 const pad = (n: number) => String(Math.min(n, 999)).padStart(3, '0');
 
 function newRun() {
+  let startedAt = 0;
   return {
     controller: new AbortController(),
     opening: false,
     ticket: null as string | null,
     rng: Math.random,
     moves: [] as MinesMove[],
+    startClock() {
+      startedAt = performance.now();
+    },
+    elapsedSeconds: () => (performance.now() - startedAt) / 1000,
   };
 }
 
@@ -68,9 +73,8 @@ function Minesweeper() {
   const [flagMode, setFlagMode] = React.useState(false);
   const [seconds, setSeconds] = React.useState(0);
   const [best, setBest] = useStoredState<Best>('mines-best', NO_BEST);
-  const startedAt = React.useRef(0);
   const holdTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const held = React.useRef(false);
+  const held = React.useRef<number | null>(null);
 
   const playing = game.status === 'playing';
   React.useEffect(() => {
@@ -84,7 +88,7 @@ function Minesweeper() {
   React.useEffect(() => {
     if (!playing) return;
     const timer = setInterval(
-      () => setSeconds(Math.floor((Date.now() - startedAt.current) / 1000)),
+      () => setSeconds(Math.floor(run.current?.elapsedSeconds() ?? 0)),
       250,
     );
     return () => clearInterval(timer);
@@ -93,8 +97,9 @@ function Minesweeper() {
   const start = (next: Level) => {
     run.current?.controller.abort();
     run.current = newRun();
-    if (holdTimer.current) clearTimeout(holdTimer.current);
-    held.current = false;
+    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    held.current = null;
     setLevel(next);
     latest.current = newGame(next);
     setGame(latest.current);
@@ -110,14 +115,10 @@ function Minesweeper() {
     const before = latest.current;
     if (next === before) return;
     active.moves.push(move);
-    if (before.status === 'ready' && next.status !== 'ready') {
-      startedAt.current = Date.now();
-    }
+    if (before.status === 'ready' && next.status !== 'ready')
+      active.startClock();
     if (next.status === 'won' && before.status !== 'won') {
-      const time = Math.max(
-        1,
-        Math.round((Date.now() - startedAt.current) / 1000),
-      );
+      const time = Math.max(1, Math.round(active.elapsedSeconds()));
       setSeconds(time);
       if (!best[level] || time < best[level]!)
         setBest({ ...best, [level]: time });
@@ -181,24 +182,26 @@ function Minesweeper() {
   };
 
   const press = (x: number, y: number) => {
-    if (held.current) {
-      held.current = false; // the long press already placed a flag
-      return;
-    }
+    const alreadyFlagged = held.current === y * latest.current.width + x;
+    held.current = null;
+    if (alreadyFlagged) return;
     if (flagMode) flag(x, y);
     else void open(x, y);
   };
 
   // long press on touch screens places a flag
   const holdStart = (x: number, y: number) => {
-    held.current = false;
+    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+    held.current = null;
     holdTimer.current = setTimeout(() => {
-      held.current = true;
+      holdTimer.current = null;
+      held.current = y * latest.current.width + x;
       flag(x, y);
     }, 450);
   };
   const holdEnd = () => {
-    if (holdTimer.current) clearTimeout(holdTimer.current);
+    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
   };
 
   const { width } = game;
@@ -277,11 +280,21 @@ function Minesweeper() {
               onClick={() => press(x, y)}
               onContextMenu={(e) => {
                 e.preventDefault();
+                if (held.current === i) return;
+                if (holdTimer.current !== null) {
+                  clearTimeout(holdTimer.current);
+                  holdTimer.current = null;
+                  held.current = i;
+                }
                 flag(x, y);
               }}
               onTouchStart={() => holdStart(x, y)}
               onTouchEnd={holdEnd}
               onTouchMove={holdEnd}
+              onTouchCancel={() => {
+                holdEnd();
+                held.current = null;
+              }}
               className={`flex aspect-square items-center justify-center font-bold transition-colors ${
                 small ? 'text-[11px]' : 'text-sm'
               } ${

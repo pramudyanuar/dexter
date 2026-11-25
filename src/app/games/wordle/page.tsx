@@ -77,6 +77,13 @@ function Wordle() {
   const [current, setCurrent] = React.useState('');
   const [message, setMessage] = React.useState('');
   const [shake, setShake] = React.useState(0);
+  const flashTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(
+    () => () => {
+      if (flashTimer.current !== null) clearTimeout(flashTimer.current);
+    },
+    [],
+  );
 
   const guesses = React.useMemo(() => game?.guesses ?? [], [game]);
   const answer = game?.answer ?? '';
@@ -88,7 +95,11 @@ function Wordle() {
   const flash = (text: string) => {
     setShake((n) => n + 1);
     setMessage(text);
-    setTimeout(() => setMessage(''), 1600);
+    if (flashTimer.current !== null) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => {
+      setMessage('');
+      flashTimer.current = null;
+    }, 1600);
   };
 
   const submit = () => {
@@ -119,9 +130,14 @@ function Wordle() {
   };
 
   const handleKey = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === 'Enter') submit();
-    else if (e.key === 'Backspace') setCurrent((c) => c.slice(0, -1));
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    const target = e.target instanceof Element ? e.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable=true]'))
+      return;
+    if (e.key === 'Enter') {
+      if (e.repeat || target?.closest('button, a[href]')) return;
+      submit();
+    } else if (e.key === 'Backspace') setCurrent((c) => c.slice(0, -1));
     else if (/^[a-z]$/i.test(e.key)) type(e.key.toLowerCase());
   };
 

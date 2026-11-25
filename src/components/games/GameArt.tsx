@@ -1206,8 +1206,7 @@ function Dart() {
   );
 }
 
-/** Remo: a fan of playing cards. */
-function Remo() {
+function CardFan({ poker = false }: { poker?: boolean }) {
   const card = (
     x: number,
     rot: number,
@@ -1254,21 +1253,40 @@ function Remo() {
       {card(
         52,
         -16,
-        '7',
-        '♥',
-        true,
+        poker ? 'A' : '7',
+        poker ? '♠' : '♥',
+        !poker,
         'group-hover:-translate-x-2 group-hover:-rotate-6',
       )}
-      {card(80, 0, '8', '♥', true, 'group-hover:-translate-y-2')}
+      {card(80, 0, poker ? 'A' : '8', '♥', true, 'group-hover:-translate-y-2')}
       {card(
         108,
         16,
-        '9',
-        '♥',
-        true,
+        poker ? 'A' : '9',
+        poker ? '♣' : '♥',
+        !poker,
         'group-hover:translate-x-2 group-hover:rotate-6',
       )}
     </Frame>
+  );
+}
+
+const Remo = () => <CardFan />;
+const Poker = () => <CardFan poker />;
+
+function CardArchive() {
+  return (
+    <div
+      aria-hidden
+      role='presentation'
+      className='relative flex size-full items-center justify-center overflow-hidden bg-[#292129]'
+    >
+      <span className='absolute size-16 -translate-x-5 rotate-[-17deg] rounded-md border border-[#8e759c] bg-[#46384c]' />
+      <span className='absolute size-16 translate-x-5 rotate-[17deg] rounded-md border border-[#a0713d] bg-[#674526]' />
+      <span className='relative grid size-16 place-items-center rounded-md border border-[#ebbe82] bg-[#e5b46d] font-serif text-4xl text-[#4d2f1b] transition-transform group-hover:-translate-y-1'>
+        ♦
+      </span>
+    </div>
   );
 }
 
@@ -1572,6 +1590,8 @@ const ART: Record<string, () => React.JSX.Element> = {
   'mahjong-hk': Mahjong,
   dart: Dart,
   remo: Remo,
+  poker: Poker,
+  'card-archive': CardArchive,
   werewolf: Werewolf,
   monkeys: Monkeys,
   unoflip: UnoFlip,

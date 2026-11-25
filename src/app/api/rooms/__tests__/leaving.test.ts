@@ -193,6 +193,21 @@ describe('the admin removing a player in the middle of a game', () => {
 });
 
 describe('missing turns, noticed by polls', () => {
+  it('saves the forced move and rejects a late player move', async () => {
+    const { code, tokens } = await room();
+    clock += 46_000;
+    const res = await post(code, {
+      action: 'move',
+      token: tokens[0],
+      move: { col: 0 },
+    });
+    expect(res.status).toBe(409);
+    const view = await poll(code, tokens[0]);
+    expect(view.strikes).toEqual([1, 0]);
+    expect(view.state.moves).toBe(1);
+    expect(view.state.turn).toBe(1);
+  });
+
   it('punishes a player who sits on their turn, without any other call', async () => {
     const { code, tokens } = await room();
     clock += 46_000;

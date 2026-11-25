@@ -3,12 +3,12 @@ import { NextResponse } from 'next/server';
 import { isAdminAuthed } from '@/lib/rooms/admin-auth';
 import { CODE_PATTERN, newToken, normalizeCode } from '@/lib/rooms/codes';
 import {
-  act,
   join,
   kick,
   leaveRoom,
   rematch,
   rename,
+  resolveMove,
   revive,
   seatOf,
   setOptions,
@@ -79,9 +79,11 @@ export async function GET(req: Request, { params }: Context) {
     // whoever is asking is obviously here, so they are no longer "leaving"
     if (seat !== null) next = revive(next, seat);
     if (next !== room) {
-      room = (await store.saveIf(next, room.version))
+      const latest = (await store.saveIf(next, room.version))
         ? next
-        : ((await store.get(code)) ?? room);
+        : await store.get(code);
+      if (!latest) return notFound();
+      room = latest;
     }
 
     const known = Number(reqUrl.searchParams.get('v'));
@@ -178,9 +180,17 @@ export async function POST(req: Request, { params }: Context) {
         return NextResponse.json({ ok: true }, { headers: NO_STORE });
       }
       case 'move': {
-        const next = await mutate(store, room, (r) =>
-          act(r, body.token, body.move, cryptoRng()),
-        );
+        let applied = false;
+        const next = await mutate(store, room, (r) => {
+          const result = resolveMove(r, body.token, body.move, cryptoRng());
+          applied = result.applied;
+          return result.room;
+        });
+        if (!applied)
+          throw new RoomError(
+            'Kondisi permainan sudah berubah. Coba lagi.',
+            409,
+          );
         return NextResponse.json(
           { room: toView(next, body.token) },
           { headers: NO_STORE },

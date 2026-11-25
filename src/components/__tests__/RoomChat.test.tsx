@@ -6,6 +6,8 @@ import {
   waitFor,
 } from '@testing-library/react';
 
+import type { ChatMsg } from '@/lib/rooms/types';
+
 /** jsdom has no Response, so answer with the small part of it the component reads. */
 const reply = (body: unknown, status = 200) => ({
   ok: status < 400,
@@ -23,20 +25,20 @@ const line = (id: string, seat: number, text: string) => ({
   at: Date.UTC(2026, 0, 1, 10, 30),
 });
 
-function mockServer(initial: ReturnType<typeof line>[] = []) {
+function mockServer(initial: ChatMsg[] = []) {
   const lines = [...initial];
   const posts: unknown[] = [];
   global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'POST') {
+      const body = JSON.parse(init.body as string);
       posts.push({
         headers: init.headers,
-        body: JSON.parse(init.body as string),
+        body,
       });
-      const m = line(
-        `n${lines.length}`,
-        1,
-        JSON.parse(init.body as string).text,
-      );
+      const m = {
+        ...line(`n${lines.length}`, 1, body.text ?? 'Sticker'),
+        ...(body.stickerId ? { stickerId: body.stickerId } : {}),
+      };
       lines.push(m);
       return reply({ message: m });
     }
@@ -125,5 +127,35 @@ describe('RoomChat', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Terlalu cepat');
     expect(screen.getByLabelText('Pesan')).toHaveValue('spam');
+  });
+
+  it('searches the sticker catalog and sends a sticker without clearing the draft', async () => {
+    sessionStorage.setItem('room-session-chess', JSON.stringify(session));
+    const server = mockServer();
+    render(<RoomChat game='chess' inline />);
+
+    fireEvent.change(screen.getByLabelText('Pesan'), {
+      target: { value: 'ayo main' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Stiker' }));
+    const search = screen.getByRole('searchbox');
+    expect(search).toHaveFocus();
+    fireEvent.change(search, { target: { value: 'nggak ada' } });
+    expect(screen.getByText('Stiker tidak ditemukan.')).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: 'good game' } });
+    expect(
+      screen.queryByRole('button', { name: 'Kirim stiker WKWK' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Kirim stiker GG!' }));
+
+    expect(await screen.findByRole('img', { name: 'GG!' })).toBeInTheDocument();
+    expect(server.posts).toEqual([
+      {
+        headers: expect.objectContaining({ 'x-player-token': 'tok' }),
+        body: { stickerId: 'gg' },
+      },
+    ]);
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Pesan')).toHaveValue('ayo main');
   });
 });

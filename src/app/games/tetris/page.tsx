@@ -19,7 +19,7 @@ import {
 import useStoredState from '@/lib/useStoredState';
 
 import GameShell from '@/components/games/GameShell';
-import { isInteractive } from '@/components/games/snake/controls';
+import { shouldIgnoreGameKey } from '@/components/games/snake/controls';
 import SubmitScore from '@/components/games/SubmitScore';
 
 const CELL = 24;
@@ -242,7 +242,7 @@ function Tetris() {
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || isInteractive(e.target)) return;
+    if (shouldIgnoreGameKey(e)) return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const actions: Record<string, () => void> = {
       ArrowLeft: () => act('left'),

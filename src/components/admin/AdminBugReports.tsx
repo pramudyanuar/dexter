@@ -10,9 +10,13 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { BUG_REPORT_PAGE_SIZE, BugReport } from '@/lib/game-bugs/types';
+import {
+  type AdminBugReport,
+  BUG_REPORT_PAGE_SIZE,
+} from '@/lib/game-bugs/types';
 
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { useCopy } from '@/components/games/RoomBar';
 
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
   dateStyle: 'medium',
@@ -24,17 +28,21 @@ export default function AdminBugReports({
 }: {
   onExpire: () => void;
 }) {
+  const [source, setSource] = useState<'game' | 'room'>('game');
   const [offset, setOffset] = useState(0);
   const [version, setVersion] = useState(0);
   const detailDialog = useRef<HTMLDialogElement>(null);
-  const [detail, setDetail] = useState<BugReport | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<BugReport | null>(null);
+  const [detail, setDetail] = useState<AdminBugReport | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AdminBugReport | null>(
+    null,
+  );
   const [changingId, setChangingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
+  const { copied, copy } = useCopy();
   const [result, setResult] = useState<{
     offset: number;
     version: number;
-    reports: BugReport[];
+    reports: AdminBugReport[];
     hasMore: boolean;
     error?: string;
   } | null>(null);
@@ -43,14 +51,17 @@ export default function AdminBugReports({
     const controller = new AbortController();
     async function loadReports() {
       try {
-        const response = await fetch(`/api/admin/game-bugs?offset=${offset}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/admin/game-bugs?source=${source}&offset=${offset}`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+        );
         if (controller.signal.aborted) return;
         if (response.status === 401) return onExpire();
         const page = (await response.json()) as {
-          reports: BugReport[];
+          reports: AdminBugReport[];
           hasMore: boolean;
           error?: string;
         };
@@ -72,13 +83,16 @@ export default function AdminBugReports({
     }
     void loadReports();
     return () => controller.abort();
-  }, [offset, version, onExpire]);
+  }, [source, offset, version, onExpire]);
 
   const page =
     result?.offset === offset && result.version === version ? result : null;
   const busy = changingId !== null;
 
-  async function changeReport(report: BugReport, done: boolean | 'delete') {
+  async function changeReport(
+    report: AdminBugReport,
+    done: boolean | 'delete',
+  ) {
     if (busy) return;
     const deleting = done === 'delete';
     setPendingDelete(null);
@@ -86,7 +100,7 @@ export default function AdminBugReports({
     setActionError('');
     try {
       const response = await fetch(
-        `/api/admin/game-bugs?id=${report.id}&at=${report.at}`,
+        `/api/admin/game-bugs?source=${source}&id=${report.id}&at=${report.at}`,
         deleting
           ? { method: 'DELETE' }
           : {
@@ -152,6 +166,30 @@ export default function AdminBugReports({
           Segarkan
         </button>
       </div>
+      <div
+        role='group'
+        aria-label='Jenis laporan'
+        className='mb-4 flex flex-wrap gap-2'
+      >
+        {(['game', 'room'] as const).map((kind) => (
+          <button
+            key={kind}
+            type='button'
+            aria-pressed={source === kind}
+            disabled={busy}
+            onClick={() => {
+              if (source === kind) return;
+              setActionError('');
+              setSource(kind);
+              setOffset(0);
+              setVersion((current) => current + 1);
+            }}
+            className='min-h-9 rounded-lg border border-line-strong px-3 text-sm hover:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 aria-pressed:border-accent aria-pressed:text-accent'
+          >
+            {kind === 'game' ? 'Umum' : 'Dengan catatan room'}
+          </button>
+        ))}
+      </div>
       {actionError && (
         <p
           role='alert'
@@ -178,6 +216,7 @@ export default function AdminBugReports({
                 <div className='flex min-w-0 items-baseline justify-between gap-2'>
                   <h3 className='truncate text-sm font-semibold text-ink'>
                     {report.gameTitle}
+                    {report.snapshot && ` · ${report.snapshot.room.code}`}
                   </h3>
                   <time
                     className='shrink-0 text-xs text-mute'
@@ -196,7 +235,9 @@ export default function AdminBugReports({
                   }}
                   className='flex min-h-8 min-w-0 cursor-pointer items-center justify-between gap-2 rounded-sm text-left text-sm text-ink hover:text-accent focus-visible:ring-2 focus-visible:ring-accent'
                 >
-                  <span className='truncate'>{report.description}</span>
+                  <span className='line-clamp-3 wrap-anywhere'>
+                    {report.description}
+                  </span>
                   <ChevronRight
                     aria-hidden='true'
                     size={15}
@@ -309,6 +350,46 @@ export default function AdminBugReports({
             <p className='mt-4 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap'>
               {detail.description}
             </p>
+            {detail.snapshot && (
+              <details className='mt-4 space-y-2 text-sm'>
+                <summary className='cursor-pointer font-medium'>
+                  Kondisi game
+                </summary>
+                <p className='text-xs text-mute'>
+                  {detail.snapshot.room.code} · {detail.snapshot.room.status} ·
+                  v{detail.snapshot.room.version} ·{' '}
+                  {dateFormat.format(detail.snapshot.capturedAt)}
+                </p>
+                {detail.snapshot.stateOmitted && (
+                  <p className='text-xs text-mute'>
+                    Data papan melebihi batas ukuran. Informasi room lain tetap
+                    tersedia.
+                  </p>
+                )}
+                <button
+                  type='button'
+                  onClick={() =>
+                    void copy(
+                      detail.id,
+                      JSON.stringify(detail.snapshot, null, 2),
+                    )
+                  }
+                  className='rounded-md border border-line-strong px-2.5 py-1 text-xs hover:border-accent'
+                >
+                  {copied === detail.id ? 'Tersalin' : 'Salin laporan JSON'}
+                </button>
+                <pre className='max-h-72 overflow-auto rounded-lg border border-line bg-card p-3 text-xs'>
+                  {JSON.stringify(
+                    {
+                      browser: detail.snapshot.browser,
+                      ...detail.snapshot.room,
+                    },
+                    null,
+                    2,
+                  )}
+                </pre>
+              </details>
+            )}
           </>
         )}
         <form method='dialog' className='mt-4 flex justify-end'>

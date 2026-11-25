@@ -1,7 +1,6 @@
 'use client';
 
-import { ArrowLeft, Check, Pencil } from 'lucide-react';
-import Link from 'next/link';
+import { Check, Pencil } from 'lucide-react';
 import * as React from 'react';
 
 import styles from '@/app/games/pictionary/pictionary.module.css';
@@ -372,16 +371,13 @@ function Pictionary() {
   const r = useRoom<PictionaryView>('pictionary');
 
   return (
-    <div className={r.session ? undefined : styles.lobby}>
-      <RoomGate
-        r={r}
-        lobbyHeading='Buat atau gabung room'
-        inlineNotice
-        blurb='Bergantian menggambar kata rahasia. Tebak lebih cepat untuk mendapat lebih banyak poin.'
-      >
-        {({ room, you }) => <PlayArea v={room.state} you={you} r={r} />}
-      </RoomGate>
-    </div>
+    <RoomGate
+      r={r}
+      inlineNotice
+      blurb='Bergantian menggambar kata rahasia. Tebak lebih cepat untuk mendapat lebih banyak poin.'
+    >
+      {({ room, you }) => <PlayArea v={room.state} you={you} r={r} />}
+    </RoomGate>
   );
 }
 
@@ -389,14 +385,7 @@ export default function PictionaryPage() {
   const mounted = useMounted();
 
   return (
-    <GameShell name='pictionary' fit className={styles.shell} showBack={false}>
-      <header className={styles.masthead}>
-        <Link href='/games' className={styles.back}>
-          <ArrowLeft size={16} aria-hidden='true' />
-          Semua game
-        </Link>
-        <h1>Pictionary</h1>
-      </header>
+    <GameShell name='pictionary' fit className={styles.shell}>
       {mounted ? <Pictionary /> : null}
     </GameShell>
   );
