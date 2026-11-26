@@ -43,17 +43,21 @@ it('replays a completed 2048 game and rejects an unfinished one', () => {
   ).toBeNull();
 });
 
-it('replays exactly one undo and rejects a second one in a finished run', () => {
+it('replays multiple undos separated by slides and rejects consecutive undos', () => {
   const seed = 12;
   const start = start2048(seed);
   const first = play2048(start, 'up')!;
   const rewound = play2048(first, 'undo')!;
-  let run = play2048(rewound, 'up')!;
+  const second = play2048(rewound, 'up')!;
+  const rewoundAgain = play2048(second, 'undo')!;
+  let run = play2048(rewoundAgain, 'up')!;
   expect(rewound.board).toEqual(start.board);
   expect(rewound.score).toBe(start.score);
-  expect(run.spawn).not.toEqual(first.spawn);
-  expect(play2048(run, 'undo')).toBeNull();
-  const moves: Action2048[] = ['up', 'undo', 'up'];
+  expect(second.spawn).not.toEqual(first.spawn);
+  expect(run.spawn).not.toEqual(second.spawn);
+  expect(rewoundAgain.board).toEqual(start.board);
+  expect(play2048(rewoundAgain, 'undo')).toBeNull();
+  const moves: Action2048[] = ['up', 'undo', 'up', 'undo', 'up'];
   for (let i = 0; i < 500 && !run.over; i++) {
     for (const dir of ['up', 'left', 'down', 'right'] as const) {
       const next = play2048(run, dir);
@@ -71,7 +75,7 @@ it('replays exactly one undo and rejects a second one in a finished run', () => 
   expect(
     verifySoloReplay('2048', {
       seed,
-      moves: [...moves.slice(0, 3), 'undo', ...moves.slice(3)],
+      moves: [...moves.slice(0, 4), 'undo', ...moves.slice(4)],
     }),
   ).toBeNull();
 });
@@ -87,7 +91,10 @@ it('changes the rerolled tile value when only the original cell is free', () => 
     ],
   };
   const first = play2048(start, 'left')!;
-  const replayed = play2048(play2048(first, 'undo')!, 'left')!;
+  const rewound = play2048(first, 'undo')!;
+  expect(play2048(rewound, 'right')).toBeNull();
+  expect(play2048(rewound, 'undo')).toBeNull();
+  const replayed = play2048(rewound, 'left')!;
   expect(first.spawn).toMatchObject({ row: 0, column: 3 });
   expect(replayed.spawn).toMatchObject({ row: 0, column: 3 });
   expect(replayed.spawn?.value).not.toBe(first.spawn?.value);

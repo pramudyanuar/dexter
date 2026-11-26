@@ -176,7 +176,7 @@ export function play2048(run: Run2048, action: Action2048): Run2048 | null {
     randomState,
     score: run.score + result.gained,
     over: !canMove(board),
-    previous: run.usedUndo ? null : { board: run.board, score: run.score },
+    previous: { board: run.board, score: run.score },
     usedUndo: run.usedUndo,
     reroll: null,
   };

@@ -73,7 +73,7 @@ function Game2048() {
   const latest = React.useRef(game);
   const [best, setBest] = useStoredState<number>('g2048-best', 0);
   const touchStart = React.useRef<{ x: number; y: number } | null>(null);
-  const { board, score, over, previous, usedUndo } = game.run;
+  const { board, score, over, previous } = game.run;
   const reached = maxTile(board);
 
   const restart = () => {
@@ -141,12 +141,11 @@ function Game2048() {
         <div className='flex gap-2'>
           <button
             type='button'
-            aria-label='Undo'
             disabled={!previous}
             onClick={() => play('undo')}
             className='text-mute'
           >
-            {usedUndo ? 'Undo terpakai' : 'Undo (1)'}
+            Undo
           </button>
           <button type='button' onClick={restart} className='text-info'>
             game baru
