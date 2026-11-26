@@ -1,6 +1,6 @@
 'use client';
 
-import { Sticker } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sticker } from 'lucide-react';
 import * as React from 'react';
 
 import { normalizeCode } from '@/lib/rooms/code-format';
@@ -54,11 +54,11 @@ function Chat({
   const t = useText();
   const lang = useLang();
   const wide = useWide();
-  const [openByHand, setOpen] = React.useState(false);
-  // on a wide screen or inline mode the chat is a panel that is always there
-  const open = inline || wide || openByHand;
+  const docked = inline || wide;
+  const [openByHand, setOpen] = React.useState<boolean | null>(null);
+  const open = openByHand ?? docked;
   const [lines, setLines] = React.useState<ChatMsg[]>([]);
-  const [seen, setSeen] = React.useState(0);
+  const [seen, setSeen] = React.useState<string | null>(null);
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
@@ -71,10 +71,12 @@ function Chat({
   const shownNames = names ?? roomNames;
   const lastId = React.useRef<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
+  const toggleRef = React.useRef<HTMLButtonElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const pickerButtonRef = React.useRef<HTMLButtonElement>(null);
   const stickerSearchRef = React.useRef<HTMLInputElement>(null);
   const inputId = React.useId();
+  const panelId = `${inputId}-panel`;
   const pickerId = `${inputId}-stickers`;
   const showPicker = pickerOpen && channel !== null;
   const searchWords = stickerQuery.trim().toLowerCase().split(/\s+/);
@@ -138,8 +140,8 @@ function Chat({
   }, [open, lines]);
 
   React.useEffect(() => {
-    if (openByHand) inputRef.current?.focus();
-  }, [openByHand]);
+    if (openByHand && !docked) inputRef.current?.focus();
+  }, [docked, openByHand]);
 
   React.useEffect(() => {
     if (open && showPicker) stickerSearchRef.current?.focus();
@@ -147,11 +149,13 @@ function Chat({
 
   const unread = open
     ? 0
-    : lines.slice(seen).filter((l) => l.seat !== you).length;
+    : lines
+        .slice(lines.findIndex((line) => line.id === seen) + 1)
+        .filter((line) => line.seat !== you).length;
 
   const toggle = () => {
-    setSeen(lines.length);
-    setOpen((o) => !o);
+    setSeen(lastId.current);
+    setOpen(!open);
     setPickerOpen(false);
     setStickerQuery('');
     setError('');
@@ -201,27 +205,61 @@ function Chat({
       setText((draft) => (draft === text ? '' : draft));
   };
 
+  const chatToggle = (
+    <button
+      ref={toggleRef}
+      type='button'
+      onClick={toggle}
+      aria-expanded={open}
+      aria-controls={open || docked ? panelId : undefined}
+      aria-label={
+        unread
+          ? `${t.chat}, ${t.unreadChat(unread)}`
+          : open
+            ? t.closeChat
+            : t.openChat
+      }
+      className={
+        docked
+          ? 'flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-surface'
+          : 'flex items-center gap-2 rounded-full border border-line-strong bg-card px-4 py-2 text-sm shadow-lg transition-[transform,border-color] hover:-translate-y-0.5 hover:border-[var(--mute)] active:scale-95'
+      }
+    >
+      {t.chat}
+      {unread > 0 && (
+        <span className='a-pop flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-paper'>
+          {unread}
+        </span>
+      )}
+      {docked &&
+        (open ? (
+          <ChevronUp size={16} aria-hidden='true' />
+        ) : (
+          <ChevronDown size={16} aria-hidden='true' />
+        ))}
+    </button>
+  );
+
   return (
     <div
+      data-chat-open={open}
       className={
         inline
           ? 'flex h-full w-full flex-col'
           : wide
-            ? 'fixed top-4 right-4 bottom-4 z-30 flex w-80 flex-col'
+            ? `fixed top-4 right-4 z-30 flex w-80 flex-col ${open ? 'bottom-4' : ''}`
             : `fixed right-4 z-40 flex flex-col items-end gap-2 ${
                 corner === 'top' ? 'top-3 flex-col-reverse' : 'bottom-4'
               }`
       }
     >
-      {open && (
+      {(open || docked) && (
         <section
           aria-label={t.chatRoom}
-          className={`a-slide-up flex flex-col overflow-hidden rounded-xl border border-line-strong bg-card ${
-            inline
-              ? 'h-full w-full'
-              : wide
-                ? 'h-full w-full shadow-2xl'
-                : 'h-[min(24rem,60dvh)] w-80 max-w-[calc(100vw-2rem)] shadow-2xl'
+          className={`flex flex-col overflow-hidden rounded-xl border border-line-strong bg-card ${
+            docked
+              ? `w-full ${open ? 'h-full' : ''} ${wide && !inline ? 'shadow-2xl' : ''}`
+              : 'h-[min(24rem,60dvh)] w-80 max-w-[calc(100vw-2rem)] shadow-2xl'
           }`}
           onKeyDown={(e) => {
             // keep typing here from triggering game shortcuts
@@ -230,233 +268,222 @@ function Chat({
               if (showPicker) {
                 e.preventDefault();
                 closePicker();
-              } else if (!wide && !inline) {
+              } else if (open) {
+                e.preventDefault();
                 toggle();
+                toggleRef.current?.focus();
               }
             }
           }}
         >
-          <div className='flex items-center justify-between border-b border-line px-3 py-2 text-sm'>
-            <span className='font-medium'>
-              {inline && token ? (
-                <label htmlFor={inputId}>{t.chat}</label>
-              ) : (
-                t.chat
-              )}
-            </span>
+          <div className='flex shrink-0 items-center justify-between border-b border-line px-3 py-2 text-sm'>
+            {docked ? (
+              chatToggle
+            ) : (
+              <span className='font-medium'>{t.chat}</span>
+            )}
             <span className='text-xs text-[var(--mute)]'>
               {t.room} {code}
             </span>
           </div>
 
           <div
-            ref={listRef}
-            role='log'
-            aria-live='polite'
-            className='min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2'
+            id={panelId}
+            hidden={!open}
+            className={open ? 'flex min-h-0 flex-1 flex-col' : undefined}
           >
-            {lines.length === 0 && (
-              <p className='pt-6 text-center text-xs text-[var(--mute)]'>
-                {t.noMessages}
-              </p>
-            )}
-            {lines.map((l) => {
-              const isAdmin = l.seat === -1;
-              const mine = l.seat === you;
-              const sticker = getRoomSticker(l.stickerId);
-              if (isAdmin) {
+            <div
+              ref={listRef}
+              role='log'
+              aria-live='polite'
+              className='min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2'
+            >
+              {lines.length === 0 && (
+                <p className='pt-6 text-center text-xs text-[var(--mute)]'>
+                  {t.noMessages}
+                </p>
+              )}
+              {lines.map((l) => {
+                const isAdmin = l.seat === -1;
+                const mine = l.seat === you;
+                const sticker = getRoomSticker(l.stickerId);
+                if (isAdmin) {
+                  return (
+                    <div
+                      key={l.id}
+                      className='my-1 rounded-xl border border-[#e4b34a]/50 bg-[#e4b34a]/15 px-3 py-2 text-left'
+                    >
+                      <div className='mb-0.5 flex items-center gap-1.5 text-[11px]'>
+                        <span className='rounded bg-[#e4b34a] px-1.5 py-px font-bold text-[#14161c]'>
+                          ADMIN
+                        </span>
+                        <span className='text-[var(--mute)]'>
+                          {time(l.at, t.locale)}
+                        </span>
+                      </div>
+                      <p className='text-sm font-medium [overflow-wrap:anywhere] break-words text-ink'>
+                        {l.text}
+                      </p>
+                    </div>
+                  );
+                }
                 return (
                   <div
                     key={l.id}
-                    className='my-1 rounded-xl border border-[#e4b34a]/50 bg-[#e4b34a]/15 px-3 py-2 text-left'
+                    className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}
                   >
-                    <div className='mb-0.5 flex items-center gap-1.5 text-[11px]'>
-                      <span className='rounded bg-[#e4b34a] px-1.5 py-px font-bold text-[#14161c]'>
-                        ADMIN
+                    <span className='mb-0.5 text-[11px] text-[var(--mute)]'>
+                      {seatName(lang, l.seat, you, shownNames)} ·{' '}
+                      {time(l.at, t.locale)}
+                      {l.channel && (
+                        <span className='ml-1 rounded bg-hash/15 px-1 text-[10px] text-hash uppercase'>
+                          {l.channel === 'wolves'
+                            ? t.wolvesOnly
+                            : l.channel === 'dead'
+                              ? t.deadOnly
+                              : l.channel}
+                        </span>
+                      )}
+                    </span>
+                    {sticker ? (
+                      <span
+                        role='img'
+                        aria-label={sticker.label[lang]}
+                        className='text-lg'
+                      >
+                        <StickerArt sticker={sticker} />
                       </span>
-                      <span className='text-[var(--mute)]'>
-                        {time(l.at, t.locale)}
-                      </span>
-                    </div>
-                    <p className='text-sm font-medium [overflow-wrap:anywhere] break-words text-ink'>
-                      {l.text}
-                    </p>
-                  </div>
-                );
-              }
-              return (
-                <div
-                  key={l.id}
-                  className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}
-                >
-                  <span className='mb-0.5 text-[11px] text-[var(--mute)]'>
-                    {seatName(lang, l.seat, you, shownNames)} ·{' '}
-                    {time(l.at, t.locale)}
-                    {l.channel && (
-                      <span className='ml-1 rounded bg-hash/15 px-1 text-[10px] text-hash uppercase'>
-                        {l.channel === 'wolves'
-                          ? t.wolvesOnly
-                          : l.channel === 'dead'
-                            ? t.deadOnly
-                            : l.channel}
+                    ) : (
+                      <span
+                        className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
+                          mine
+                            ? 'rounded-br-md bg-accent/20'
+                            : 'rounded-bl-md bg-surface'
+                        }`}
+                      >
+                        {l.text}
                       </span>
                     )}
-                  </span>
-                  {sticker ? (
-                    <span
-                      role='img'
-                      aria-label={sticker.label[lang]}
-                      className='text-lg'
-                    >
-                      <StickerArt sticker={sticker} />
-                    </span>
-                  ) : (
-                    <span
-                      className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
-                        mine
-                          ? 'rounded-br-md bg-accent/20'
-                          : 'rounded-bl-md bg-surface'
-                      }`}
-                    >
-                      {l.text}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {token && showPicker && (
-            <div
-              id={pickerId}
-              role='region'
-              aria-label={t.stickers}
-              className='flex max-h-[55%] min-h-0 flex-col gap-2 overflow-y-auto border-t border-line p-2'
-            >
-              <input
-                ref={stickerSearchRef}
-                type='search'
-                aria-label={t.searchStickers}
-                placeholder={t.searchStickers}
-                value={stickerQuery}
-                onChange={(e) => setStickerQuery(e.target.value)}
-                className='w-full shrink-0 text-sm'
-              />
-              {visibleStickers.length ? (
-                <div className='grid grid-cols-4 gap-1'>
-                  {visibleStickers.map((sticker) => (
-                    <button
-                      key={sticker.id}
-                      type='button'
-                      disabled={sending}
-                      aria-label={t.sendSticker(sticker.label[lang])}
-                      onClick={async () => {
-                        if (await send({ stickerId: sticker.id }))
-                          closePicker();
-                      }}
-                      className='rounded-lg py-1 text-[10px] hover:bg-surface disabled:opacity-50'
-                    >
-                      <StickerArt sticker={sticker} />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p
-                  role='status'
-                  className='py-2 text-center text-xs text-[var(--mute)]'
-                >
-                  {t.noStickers}
-                </p>
-              )}
+                  </div>
+                );
+              })}
             </div>
-          )}
 
-          {error && (
-            <p
-              id={`${inputId}-error`}
-              className='px-3 pb-1 text-xs text-err'
-              role='alert'
-            >
-              {error}
-            </p>
-          )}
-          {token ? (
-            <form
-              onSubmit={sendText}
-              aria-busy={sending}
-              className='flex shrink-0 gap-2 border-t border-line p-2'
-            >
-              <button
-                ref={pickerButtonRef}
-                type='button'
+            {token && showPicker && (
+              <div
+                id={pickerId}
+                role='region'
                 aria-label={t.stickers}
-                title={t.stickers}
-                aria-expanded={showPicker}
-                aria-controls={showPicker ? pickerId : undefined}
-                disabled={channel === null}
-                onClick={() => {
-                  if (showPicker) closePicker();
-                  else setPickerOpen(true);
-                }}
-                className='rounded-lg border border-line px-2 hover:bg-surface disabled:opacity-40 aria-expanded:bg-surface'
+                className='flex max-h-[55%] min-h-0 flex-col gap-2 overflow-y-auto border-t border-line p-2'
               >
-                <Sticker size={18} aria-hidden='true' />
-              </button>
-              <input
-                ref={inputRef}
-                id={inputId}
-                value={text}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  setError('');
-                }}
-                maxLength={CHAT_MAX_LENGTH}
-                disabled={channel === null}
-                placeholder={channel === null ? t.muted : t.write}
-                aria-label={t.message}
-                aria-describedby={error ? `${inputId}-error` : undefined}
-                autoComplete='off'
-                enterKeyHint='send'
-                className='min-w-0 flex-1'
-              />
-              <button
-                type='submit'
-                disabled={sending || !text.trim() || channel === null}
-                className='rounded-lg bg-ink px-3 text-sm font-medium text-paper transition-opacity disabled:opacity-40'
+                <input
+                  ref={stickerSearchRef}
+                  type='search'
+                  aria-label={t.searchStickers}
+                  placeholder={t.searchStickers}
+                  value={stickerQuery}
+                  onChange={(e) => setStickerQuery(e.target.value)}
+                  className='w-full shrink-0 text-sm'
+                />
+                {visibleStickers.length ? (
+                  <div className='grid grid-cols-4 gap-1'>
+                    {visibleStickers.map((sticker) => (
+                      <button
+                        key={sticker.id}
+                        type='button'
+                        disabled={sending}
+                        aria-label={t.sendSticker(sticker.label[lang])}
+                        onClick={async () => {
+                          if (await send({ stickerId: sticker.id }))
+                            closePicker();
+                        }}
+                        className='rounded-lg py-1 text-[10px] hover:bg-surface disabled:opacity-50'
+                      >
+                        <StickerArt sticker={sticker} />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    role='status'
+                    className='py-2 text-center text-xs text-[var(--mute)]'
+                  >
+                    {t.noStickers}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {error && (
+              <p
+                id={`${inputId}-error`}
+                className='px-3 pb-1 text-xs text-err'
+                role='alert'
               >
-                {sending ? (lang === 'en' ? 'Sending…' : 'Mengirim…') : t.send}
-              </button>
-            </form>
-          ) : (
-            <div className='border-t border-line px-3 py-2 text-center text-xs text-[#e4b34a]'>
-              Mode Spectate (Admin)
-            </div>
-          )}
+                {error}
+              </p>
+            )}
+            {token ? (
+              <form
+                onSubmit={sendText}
+                aria-busy={sending}
+                className='flex shrink-0 gap-2 border-t border-line p-2'
+              >
+                <button
+                  ref={pickerButtonRef}
+                  type='button'
+                  aria-label={t.stickers}
+                  title={t.stickers}
+                  aria-expanded={showPicker}
+                  aria-controls={showPicker ? pickerId : undefined}
+                  disabled={channel === null}
+                  onClick={() => {
+                    if (showPicker) closePicker();
+                    else setPickerOpen(true);
+                  }}
+                  className='rounded-lg border border-line px-2 hover:bg-surface disabled:opacity-40 aria-expanded:bg-surface'
+                >
+                  <Sticker size={18} aria-hidden='true' />
+                </button>
+                <input
+                  ref={inputRef}
+                  id={inputId}
+                  value={text}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    setError('');
+                  }}
+                  maxLength={CHAT_MAX_LENGTH}
+                  disabled={channel === null}
+                  placeholder={channel === null ? t.muted : t.write}
+                  aria-label={t.message}
+                  aria-describedby={error ? `${inputId}-error` : undefined}
+                  autoComplete='off'
+                  enterKeyHint='send'
+                  className='min-w-0 flex-1'
+                />
+                <button
+                  type='submit'
+                  disabled={sending || !text.trim() || channel === null}
+                  className='rounded-lg bg-ink px-3 text-sm font-medium text-paper transition-opacity disabled:opacity-40'
+                >
+                  {sending
+                    ? lang === 'en'
+                      ? 'Sending…'
+                      : 'Mengirim…'
+                    : t.send}
+                </button>
+              </form>
+            ) : (
+              <div className='border-t border-line px-3 py-2 text-center text-xs text-[#e4b34a]'>
+                Mode Spectate (Admin)
+              </div>
+            )}
+          </div>
         </section>
       )}
 
-      {!wide && !inline && (
-        <button
-          type='button'
-          onClick={toggle}
-          aria-expanded={open}
-          aria-label={
-            unread
-              ? `Chat, ${unread} pesan baru`
-              : open
-                ? 'Tutup chat'
-                : 'Buka chat'
-          }
-          className='flex items-center gap-2 rounded-full border border-line-strong bg-card px-4 py-2 text-sm shadow-lg transition-[transform,border-color] hover:-translate-y-0.5 hover:border-[var(--mute)] active:scale-95'
-        >
-          Chat
-          {unread > 0 && (
-            <span className='a-pop flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-paper'>
-              {unread}
-            </span>
-          )}
-        </button>
-      )}
+      {!docked && chatToggle}
     </div>
   );
 }

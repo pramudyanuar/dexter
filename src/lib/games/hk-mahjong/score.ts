@@ -30,7 +30,7 @@ export const meldTiles = ({ kind, tile }: Meld) =>
   kind === 'chow'
     ? [tile, tile + 1, tile + 2]
     : Array<number>(kind === 'kong' ? 4 : 3).fill(tile);
-export const PAYMENTS = [0, 0, 0, 8, 16, 24, 32, 48, 64, 96, 128];
+export const PAYMENTS = [8, 8, 8, 8, 16, 24, 32, 48, 64, 96, 128];
 
 function total(patterns: Pattern[]): Score {
   const faan = Math.min(

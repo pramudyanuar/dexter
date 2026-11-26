@@ -129,6 +129,42 @@ describe('RoomChat', () => {
     expect(screen.getByLabelText('Pesan')).toHaveValue('spam');
   });
 
+  it.each(['inline', 'desktop'])(
+    'collapses the %s panel and preserves its draft',
+    async (mode) => {
+      sessionStorage.setItem('room-session-chess', JSON.stringify(session));
+      const matchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+      if (mode === 'desktop')
+        Object.defineProperty(window, 'matchMedia', {
+          configurable: true,
+          value: () => ({
+            matches: true,
+            addEventListener: jest.fn(),
+            removeEventListener: jest.fn(),
+          }),
+        });
+      mockServer([line('a', 0, 'halo')]);
+      try {
+        render(<RoomChat game='chess' inline={mode === 'inline'} />);
+        expect(await screen.findByText('halo')).toBeVisible();
+        const input = screen.getByRole('textbox', { name: 'Pesan' });
+        fireEvent.change(input, { target: { value: 'draf' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Tutup chat' }));
+        expect(input).not.toBeVisible();
+        expect(
+          screen.getByRole('button', { name: 'Buka chat' }),
+        ).toHaveAttribute('aria-expanded', 'false');
+        fireEvent.click(screen.getByRole('button', { name: 'Buka chat' }));
+        expect(input).toBeVisible();
+        expect(input).toHaveValue('draf');
+        expect(screen.getByText('halo')).toBeVisible();
+      } finally {
+        if (matchMedia) Object.defineProperty(window, 'matchMedia', matchMedia);
+        else Reflect.deleteProperty(window, 'matchMedia');
+      }
+    },
+  );
+
   it('searches the sticker catalog and sends a sticker without clearing the draft', async () => {
     sessionStorage.setItem('room-session-chess', JSON.stringify(session));
     const server = mockServer();

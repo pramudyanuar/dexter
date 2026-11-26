@@ -12,7 +12,7 @@ import MahjongRulebook, {
   BookButton,
 } from '@/components/games/mahjong/MahjongRulebook';
 import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch } from '@/components/games/RoomGate';
+import RoomGate from '@/components/games/RoomGate';
 
 function TableRoom() {
   const r = useRoom<TableView>('mahjong-hk');
@@ -30,22 +30,27 @@ function TableRoom() {
         <RoomGate
           r={r}
           guide={<BookButton onClick={() => setReading(true)} />}
-          blurb='Main Mahjong Hong Kong seperti di meja Jakarta. Ajak tiga teman, duduk di empat penjuru, dan kumpulkan minimal tiga faan untuk menang.'
+          blurb='Ajak tiga teman bermain Mahjong Hong Kong. Susun empat set dan satu pasang untuk menang dari tembok atau buangan lawan.'
         >
           {({ room, you }) => (
-            <>
-              <HongKongTable
-                v={room.state}
-                you={you}
-                names={room.names}
-                busy={r.busy}
-                turnDeadline={
-                  room.waiting && r.receivedAt + room.waiting.remaining * 1000
-                }
-                onPlay={r.move}
-              />
-              {room.status === 'over' && !r.spectating && <Rematch r={r} />}
-            </>
+            <HongKongTable
+              v={room.state}
+              you={you}
+              names={room.names}
+              busy={r.busy}
+              turnDeadline={
+                room.waiting && r.receivedAt + room.waiting.remaining * 1000
+              }
+              onPlay={r.move}
+              completeTable={room.joined.every(
+                (joined, i) => joined && !room.out[i],
+              )}
+              onRematch={
+                room.status === 'over' && !r.spectating && !room.out[you]
+                  ? r.rematch
+                  : undefined
+              }
+            />
           )}
         </RoomGate>
       </div>

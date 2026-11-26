@@ -414,6 +414,15 @@ export function rematch(
 
   // players who were removed during the game do not come back for the next one
   const out = outOf(room);
+  const def = GAMES[room.game];
+  const fullTable = room.tokens.every((token, i) => token && !out[i]);
+  if (fullTable && def.rematchVote) {
+    const vote = def.rematchVote(room.state, seat);
+    if (!vote.unanimous)
+      return vote.state === room.state
+        ? room
+        : { ...room, state: vote.state, version: room.version + 1 };
+  }
   const tidy = compact({
     ...room,
     tokens: room.tokens.map((t, i) => (out[i] ? null : t)),
@@ -429,7 +438,6 @@ export function rematch(
     version: room.version + 1,
   };
 
-  const def = GAMES[room.game];
   const n = seated(next);
   // too few left to play (or a fixed-size game missing someone): wait for more
   if (n < def.minPlayers || (def.autoStart && n < def.maxPlayers)) {

@@ -92,6 +92,14 @@
   background: #0c382c;
   border-color: var(--gold);
 }
+button.seatHead {
+  cursor: pointer;
+  text-align: left;
+}
+button.seatHead:is(:hover, :focus-visible, [aria-expanded='true']) {
+  border-color: var(--gold);
+  background: #0c382c;
+}
 .wind {
   flex: none;
   display: grid;
@@ -106,7 +114,7 @@
     600 1.1rem Georgia,
     serif;
 }
-.seatHead div {
+.seatName {
   min-width: 0;
 }
 .seatHead strong,
@@ -256,6 +264,7 @@
   width: 2.4rem;
 }
 .tray,
+.details,
 .result {
   position: relative;
   margin-top: 1rem;
@@ -290,7 +299,7 @@
   border-radius: 0.35rem;
   transition: transform 0.15s;
 }
-.rack button[data-drawn='true'] {
+.rack button[data-drawn='true']:last-child {
   margin-left: 0.45rem;
 }
 .rack .tile {
@@ -300,8 +309,19 @@
     0 3px #cbb38b,
     0 5px #377961;
 }
-.rack button:enabled:hover {
+.rack button:enabled {
+  cursor: grab;
+}
+.rack button:enabled:active {
+  cursor: grabbing;
+}
+.rack button:enabled:is(:hover, :focus-visible) {
   transform: translateY(-3px);
+}
+.rack button[data-drawn='true'] .tile {
+  box-shadow:
+    0 3px #cbb38b,
+    0 5px var(--gold);
 }
 .rack button[aria-pressed='true'] {
   transform: translateY(-6px);
@@ -314,6 +334,29 @@
   justify-content: center;
   gap: 0.5rem;
   padding-top: 0.8rem;
+}
+.rackControls {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.rackControls button {
+  display: grid;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  place-items: center;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.45rem;
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+.rackControls button:enabled:is(:hover, :focus-visible) {
+  border-color: var(--gold);
+  background: var(--card);
+}
+.rackControls button:disabled {
+  opacity: 0.45;
 }
 .actions button,
 .result button {
@@ -351,15 +394,34 @@
   line-height: 1.65;
   margin: 0.6rem 0;
 }
-.result ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+.details p {
   font-size: 0.75rem;
-  margin: 0.8rem 0;
+  color: var(--mute);
+}
+.details :is(.river, .exposed),
+.result .exposed {
+  max-width: none;
+  justify-content: flex-start;
+  margin-top: 0.4rem;
+}
+.resultPlayers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  margin-block: 0.8rem;
+}
+.resultPlayers li {
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+}
+.resultPlayers li[data-winner='true'] {
+  border-color: var(--gold);
 }
 .winningHand {
   justify-content: flex-start;
+  margin-top: 0.35rem;
 }
 .winningHand .tile {
   width: 1.65rem;

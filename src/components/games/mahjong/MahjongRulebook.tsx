@@ -77,9 +77,9 @@ function Basics() {
   return (
     <>
       <p>
-        Mahjong Hong Kong dimainkan empat orang. Tujuanmu menyelesaikan tangan
-        bernilai minimal <strong>3 faan</strong>. Bentuk yang paling sering
-        ditemui adalah empat set dan satu pasang.
+        Mahjong Hong Kong dimainkan empat orang. Bentuk tangan menang yang
+        paling umum adalah <strong>empat set dan satu pasang</strong>. Ubin
+        penutup bisa berasal dari tembok atau dari buangan lawan.
       </p>
       <Sample example={STANDARD_HAND} flower={35} />
       <p>
@@ -272,9 +272,10 @@ function Scoring() {
       <div aria-live='polite'>
         <Sample example={STANDARD_HAND} flower={flower} />
         <p>
-          {score.units
-            ? `Bunga nomor 2 cocok dengan Selatan. Tiga faan cukup untuk menang. Karena ubin penutup berasal dari buangan, pembuang membayar ${score.units} poin.`
-            : 'Bunga nomor 1 cocok dengan Timur. Untuk kursi Selatan, tangan ini hanya menghasilkan dua faan. Pemain perlu menambah faan sebelum boleh menang.'}
+          {flower === 35
+            ? 'Bunga nomor 2 cocok dengan Selatan dan menambah satu faan.'
+            : 'Bunga nomor 1 cocok dengan Timur. Kursi Selatan mendapat dua faan.'}{' '}
+          Pembuang membayar {score.units} poin.
         </p>
       </div>
       <h3>Bonus yang dapat ditambahkan</h3>
@@ -297,9 +298,10 @@ function Scoring() {
         <thead>
           <tr>
             <th scope='col'>Faan</th>
-            {PAYMENTS.slice(3).map((_, i) => (
+            <th scope='col'>0–3</th>
+            {PAYMENTS.slice(4).map((_, i) => (
               <th scope='col' key={i}>
-                {i + 3}
+                {i + 4}
               </th>
             ))}
           </tr>
@@ -320,6 +322,7 @@ function Scoring() {
       </p>
       <h3>Akhir ronde Timur</h3>
       <p>
+        Keempat pemain menyatakan siap sebelum tangan atau ronde baru dimulai.
         Bandar bertahan saat menang atau seri. Saat pemain lain menang, kursi
         berikutnya menjadi bandar. Setelah bandar keempat berganti, pemain
         dengan poin tertinggi menang. Nilai tertinggi yang sama menghasilkan

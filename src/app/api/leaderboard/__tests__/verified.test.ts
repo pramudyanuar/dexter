@@ -1,4 +1,5 @@
 /** @jest-environment node */
+import { Action2048, play2048, start2048 } from '@/lib/games/game2048';
 import { newGame, reveal } from '@/lib/games/minesweeper';
 import { seededRandom } from '@/lib/games/seeded-random';
 import type { MinesMove } from '@/lib/leaderboard/replay';
@@ -38,6 +39,41 @@ it('uses the replay score and keeps retries on the same entry', async () => {
     {
       entries: [expect.objectContaining({ score: 1 })],
     },
+  );
+});
+
+it('uses the 2048 replay to determine the Undo tag', async () => {
+  const seed = 12;
+  let run = start2048(seed);
+  const moves: Action2048[] = [];
+  while (!run.over) {
+    const directions = ['up', 'left', 'down', 'right'] as const;
+    for (const direction of directions) {
+      const next = play2048(run, direction);
+      if (!next) continue;
+      moves.push(direction);
+      run = next;
+      break;
+    }
+  }
+  const body = { game: '2048', name: 'Test', usedUndo: true };
+  const original = await POST(request({ ...body, replay: { seed, moves } }));
+  expect(original.status).toBe(201);
+  expect((await original.json()).entries[0]).not.toHaveProperty('usedUndo');
+  const undone = await POST(
+    request({
+      ...body,
+      usedUndo: false,
+      replay: { seed, moves: [...moves, 'undo', moves.at(-1)] },
+    }),
+  );
+  expect(undone.status).toBe(201);
+  expect((await undone.json()).entries).toContainEqual(
+    expect.objectContaining({
+      score: run.score,
+      verified: true,
+      usedUndo: true,
+    }),
   );
 });
 

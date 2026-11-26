@@ -20,7 +20,21 @@ it('replays a completed 2048 game and rejects an unfinished one', () => {
     }
   }
   expect(canMove(board)).toBe(false);
-  expect(verifySoloReplay('2048', { seed, moves })).toMatchObject({ score });
+  expect(verifySoloReplay('2048', { seed, moves })).toMatchObject({
+    score,
+    usedUndo: undefined,
+  });
+  const withUndo = [...moves, 'undo', moves.at(-1)];
+  expect(verifySoloReplay('2048', { seed, moves: withUndo })).toMatchObject({
+    score,
+    usedUndo: true,
+  });
+  expect(
+    verifySoloReplay('2048', { seed, moves: ['undo', ...moves] }),
+  ).toBeNull();
+  expect(
+    verifySoloReplay('2048', { seed, moves: [...moves, 'undo'] }),
+  ).toBeNull();
   expect(
     verifySoloReplay('2048', { seed, moves: moves.slice(0, -1) }),
   ).toBeNull();

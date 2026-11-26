@@ -1,18 +1,3 @@
-.shell:global(.games-ui) {
-  --paper: #100e0e;
-  --surface: #191618;
-  --card: #191618;
-  --line: #393337;
-  --line-strong: #73655f;
-  --ink: #f4efe7;
-  --mute: #bbb0a8;
-  --accent: #f6be79;
-  --info: var(--accent);
-  --err: #f1a19a;
-  --correct: #a4deae;
-  background: var(--paper);
-}
-
 .shell > main {
   max-width: 84rem;
 }
@@ -317,7 +302,7 @@
 
 .playerState[data-solved='true'],
 .solved {
-  color: var(--correct);
+  color: var(--accent);
 }
 
 .score,
@@ -365,7 +350,7 @@
 }
 
 .guessForm button,
-.chat form button {
+.chat form button[type='submit'] {
   min-width: 5.75rem;
 }
 
@@ -385,7 +370,7 @@
 
 .guessState.solved {
   align-items: center;
-  color: var(--correct);
+  color: var(--accent);
 }
 
 .feed {
@@ -404,6 +389,9 @@
 .chat {
   grid-area: chat;
   min-width: 0;
+}
+
+.chat:has([data-chat-open='true']) {
   height: 15rem;
 }
 

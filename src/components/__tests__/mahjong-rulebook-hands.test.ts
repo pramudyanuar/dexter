@@ -23,10 +23,10 @@ describe('the illustrated Mahjong rulebook', () => {
       expect(score.faan).toBe(faan);
     },
   );
-  it('crosses the three-faan minimum when South receives its own flower', () => {
+  it('adds one faan when South receives its own flower', () => {
     expect(readExample(STANDARD_HAND, 34).score).toMatchObject({
       faan: 2,
-      units: 0,
+      units: 8,
     });
     expect(readExample(STANDARD_HAND, 35).score).toMatchObject({
       faan: 3,
