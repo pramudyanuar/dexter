@@ -1,4 +1,10 @@
 /** @jest-environment node */
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { getBugReportStore } from '@/lib/game-bugs/store';
+import { BUG_REPORT_PAGE_SIZE } from '@/lib/game-bugs/types';
 import {
   ADMIN_COOKIE_NAME,
   createAdminCookieValue,
@@ -11,13 +17,16 @@ import { POST as report } from '@/app/api/rooms/[code]/bug-reports/route';
 import { POST as create } from '@/app/api/rooms/route';
 
 const env = process.env;
+let directory: string;
 let ip = 0;
 const memory = globalThis as {
   __bugDrafts?: unknown;
   __bugReports?: unknown;
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  directory = await mkdtemp(join(tmpdir(), 'dexter-room-bugs-'));
+  jest.spyOn(process, 'cwd').mockReturnValue(directory);
   process.env = { ...env, ADMIN_PASSWORD: 'test-password' };
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,8 +36,10 @@ beforeEach(() => {
   delete memory.__bugReports;
 });
 
-afterEach(() => {
+afterEach(async () => {
   process.env = env;
+  jest.restoreAllMocks();
+  await rm(directory, { recursive: true, force: true });
 });
 
 async function createRoom() {
@@ -99,7 +110,7 @@ it('keeps the captured room version after the game changes and the room is delet
   });
   expect(JSON.stringify(data)).not.toContain(token);
 
-  const url = 'http://test/api/admin/game-bugs?source=room';
+  const url = 'http://test/api/admin/game-bugs';
   const headers = {
     cookie: `${ADMIN_COOKIE_NAME}=${createAdminCookieValue()}`,
   };
@@ -111,7 +122,8 @@ it('keeps the captured room version after the game changes and the room is delet
       { id, done: false, playerName: 'Budi', snapshot: data.reports[0] },
     ],
   });
-  const target = `${url}&id=${id}&at=${page.reports[0].at}`;
+
+  const target = `${url}?source=room&id=${id}&at=${page.reports[0].at}`;
   const patch = (done: boolean) =>
     PATCH(
       new Request(target, {
@@ -133,6 +145,57 @@ it('keeps the captured room version after the game changes and the room is delet
   expect(await getPage()).toEqual({ hasMore: false, reports: [] });
   expect((await send(code, token, submit)).status).toBe(200);
   expect(await (await list()).json()).toEqual({ reports: [] });
+});
+
+it('lists reports from both stores in time order across pages', async () => {
+  const { code, token } = await createRoom();
+  const { id } = await (await send(code, token, { action: 'capture' })).json();
+  expect(
+    (await send(code, token, { action: 'submit', id, description: 'Room bug' }))
+      .status,
+  ).toBe(200);
+  const [snapshot] = await getRoomStore()!.listBugReports();
+  const store = getBugReportStore()!;
+  const now = jest.spyOn(Date, 'now');
+  const generalIds = [];
+  const roomIndex = BUG_REPORT_PAGE_SIZE * 3 + 2;
+  for (let index = 0; index < roomIndex + 3; index++) {
+    const generalId = index.toString(16).padStart(64, '0');
+    generalIds.push(generalId);
+    now.mockReturnValue(snapshot.submittedAt + (roomIndex - index) * 2 - 1);
+    await store.save({
+      id: generalId,
+      game: 'pictionary',
+      gameTitle: 'Pictionary',
+      pathname: '/games/pictionary',
+      description: 'General bug',
+    });
+  }
+  now.mockRestore();
+
+  const expected = [...generalIds];
+  expected.splice(roomIndex, 0, id);
+  const headers = {
+    cookie: `${ADMIN_COOKIE_NAME}=${createAdminCookieValue()}`,
+  };
+  for (
+    let offset = 0;
+    offset < expected.length;
+    offset += BUG_REPORT_PAGE_SIZE
+  ) {
+    const request = new Request(
+      `http://test/api/admin/game-bugs?offset=${offset}`,
+      { headers },
+    );
+    const response = await GET(request);
+    expect(response.status).toBe(200);
+    const { reports, hasMore } = await response.json();
+    const end = offset + BUG_REPORT_PAGE_SIZE;
+    expect(reports.map((entry: { id: string }) => entry.id)).toEqual(
+      expected.slice(offset, end),
+    );
+    expect(hasMore).toBe(end < expected.length);
+  }
 });
 
 it('restricts capture and submission to the player who opened the report', async () => {

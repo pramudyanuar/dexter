@@ -28,7 +28,6 @@ export default function AdminBugReports({
 }: {
   onExpire: () => void;
 }) {
-  const [source, setSource] = useState<'game' | 'room'>('game');
   const [offset, setOffset] = useState(0);
   const [version, setVersion] = useState(0);
   const detailDialog = useRef<HTMLDialogElement>(null);
@@ -51,13 +50,10 @@ export default function AdminBugReports({
     const controller = new AbortController();
     async function loadReports() {
       try {
-        const response = await fetch(
-          `/api/admin/game-bugs?source=${source}&offset=${offset}`,
-          {
-            cache: 'no-store',
-            signal: controller.signal,
-          },
-        );
+        const response = await fetch(`/api/admin/game-bugs?offset=${offset}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
         if (controller.signal.aborted) return;
         if (response.status === 401) return onExpire();
         const page = (await response.json()) as {
@@ -83,7 +79,7 @@ export default function AdminBugReports({
     }
     void loadReports();
     return () => controller.abort();
-  }, [source, offset, version, onExpire]);
+  }, [offset, version, onExpire]);
 
   const page =
     result?.offset === offset && result.version === version ? result : null;
@@ -99,6 +95,7 @@ export default function AdminBugReports({
     setChangingId(report.id);
     setActionError('');
     try {
+      const source = report.snapshot ? 'room' : 'game';
       const response = await fetch(
         `/api/admin/game-bugs?source=${source}&id=${report.id}&at=${report.at}`,
         deleting
@@ -141,10 +138,7 @@ export default function AdminBugReports({
   }
 
   return (
-    <section
-      aria-labelledby='admin-bug-reports-title'
-      className='w-full max-w-2xl'
-    >
+    <section aria-labelledby='admin-bug-reports-title' className='w-full'>
       <div className='mb-4 flex items-center justify-between gap-3 sm:mb-5'>
         <h2
           id='admin-bug-reports-title'
@@ -165,30 +159,6 @@ export default function AdminBugReports({
           <RefreshCw aria-hidden='true' size={15} />
           Segarkan
         </button>
-      </div>
-      <div
-        role='group'
-        aria-label='Jenis laporan'
-        className='mb-4 flex flex-wrap gap-2'
-      >
-        {(['game', 'room'] as const).map((kind) => (
-          <button
-            key={kind}
-            type='button'
-            aria-pressed={source === kind}
-            disabled={busy}
-            onClick={() => {
-              if (source === kind) return;
-              setActionError('');
-              setSource(kind);
-              setOffset(0);
-              setVersion((current) => current + 1);
-            }}
-            className='min-h-9 rounded-lg border border-line-strong px-3 text-sm hover:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 aria-pressed:border-accent aria-pressed:text-accent'
-          >
-            {kind === 'game' ? 'Umum' : 'Dengan catatan room'}
-          </button>
-        ))}
       </div>
       {actionError && (
         <p

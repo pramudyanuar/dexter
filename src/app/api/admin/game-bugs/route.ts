@@ -5,43 +5,45 @@ import {
 } from '@/lib/game-bugs/types';
 import { readJson } from '@/lib/read-json';
 import { isAdminAuthed } from '@/lib/rooms/admin-auth';
-import { ROOM_BUG_REPORT_ID } from '@/lib/rooms/bug-reports';
+import { BUG_REPORT_KEEP, ROOM_BUG_REPORT_ID } from '@/lib/rooms/bug-reports';
 import { getRoomStore } from '@/lib/rooms/store';
 
 import { GAME_PAGES } from '@/constant/games';
 
 const headers = { 'Cache-Control': 'no-store' };
 
-async function listReports(
-  offset: number,
-  roomReports: boolean,
-): Promise<AdminBugReport[]> {
-  const count = BUG_REPORT_PAGE_SIZE + 1;
-  if (roomReports) {
-    const store = getRoomStore();
-    if (!store) throw new Error('Room storage is unavailable');
-    return (await store.listBugReports())
-      .slice(offset, offset + count)
-      .map((snapshot) => {
-        const { room, id, description, submittedAt, playerName, done } =
-          snapshot;
-        const game = GAME_PAGES.find(({ id }) => id === room.game);
-        return {
-          id,
-          game: room.game,
-          gameTitle: game?.title ?? room.game,
-          pathname: game?.href ?? `/games/${room.game}`,
-          description,
-          playerName,
-          at: submittedAt,
-          done: done ?? false,
-          snapshot,
-        };
-      });
-  }
+async function listReports(offset: number): Promise<AdminBugReport[]> {
   const store = getBugReportStore();
-  if (!store) throw new Error('Bug report storage is unavailable');
-  return store.list(offset, count);
+  const roomStore = getRoomStore();
+  if (!store || !roomStore)
+    throw new Error('Bug report storage is unavailable');
+
+  // Room reports can shift a general report by at most BUG_REPORT_KEEP places.
+  const start = Math.max(0, offset - BUG_REPORT_KEEP);
+  const skip = offset - start;
+  const count = skip + BUG_REPORT_PAGE_SIZE + 1;
+  const [general, snapshots] = await Promise.all([
+    store.list(start, count),
+    roomStore.listBugReports(),
+  ]);
+  const roomReports = snapshots.map((snapshot) => {
+    const { room, id, description, submittedAt, playerName, done } = snapshot;
+    const game = GAME_PAGES.find(({ id }) => id === room.game);
+    return {
+      id,
+      game: room.game,
+      gameTitle: game?.title ?? room.game,
+      pathname: game?.href ?? `/games/${room.game}`,
+      description,
+      playerName,
+      at: submittedAt,
+      done: done ?? false,
+      snapshot,
+    };
+  });
+  return [...general, ...roomReports]
+    .sort((a, b) => b.at - a.at)
+    .slice(skip, count);
 }
 
 export async function GET(req: Request) {
@@ -63,7 +65,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const reports = await listReports(offset, params.get('source') === 'room');
+    const reports = await listReports(offset);
     return Response.json(
       {
         reports: reports.slice(0, BUG_REPORT_PAGE_SIZE),
