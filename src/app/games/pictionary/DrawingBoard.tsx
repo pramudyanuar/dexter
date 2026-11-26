@@ -1,13 +1,10 @@
 'use client';
 
 import {
-  Circle,
   Eraser,
-  Minus,
   Pencil,
   Redo2,
   SkipForward,
-  Square,
   Trash2,
   Undo2,
 } from 'lucide-react';
@@ -32,9 +29,6 @@ const H = 540;
 const tools = [
   { id: 'pen', label: 'Pensil', Icon: Pencil },
   { id: 'eraser', label: 'Penghapus', Icon: Eraser },
-  { id: 'line', label: 'Garis lurus', Icon: Minus },
-  { id: 'rectangle', label: 'Persegi panjang', Icon: Square },
-  { id: 'ellipse', label: 'Elips', Icon: Circle },
 ] as const;
 
 const names = [
@@ -59,7 +53,7 @@ type Point = [number, number];
 type HistoryAction = 'undo' | 'redo' | 'clear';
 export type DrawingMove =
   ({ type: 'stroke' } & Stroke) | { type: HistoryAction | 'next' };
-type Gesture = { pointer: number; tool: Tool; start: Point; stroke: Stroke };
+type Gesture = { pointer: number; stroke: Stroke };
 
 function paint(canvas: HTMLCanvasElement | null, strokes: readonly Stroke[]) {
   const ctx = canvas?.getContext('2d');
@@ -85,25 +79,6 @@ function paint(canvas: HTMLCanvasElement | null, strokes: readonly Stroke[]) {
   }
 }
 
-function shape(tool: Tool, [x, y]: Point, [endX, endY]: Point) {
-  if (x === endX && y === endY) return [x, y];
-  if (tool === 'rectangle') return [x, y, endX, y, endX, endY, x, endY, x, y];
-  if (tool === 'ellipse') {
-    const rx = (endX - x) / 2;
-    const ry = (endY - y) / 2;
-    const points: number[] = [];
-    for (let segment = 0; segment <= 48; segment++) {
-      const angle = (segment / 48) * 2 * Math.PI;
-      points.push(
-        Math.round(x + rx + rx * Math.cos(angle)),
-        Math.round(y + ry + ry * Math.sin(angle)),
-      );
-    }
-    return points;
-  }
-  return [x, y, endX, endY];
-}
-
 function point(event: React.PointerEvent<HTMLCanvasElement>): Point {
   const rect = event.currentTarget.getBoundingClientRect();
   const clamp = (n: number) => Math.min(COORD_MAX, Math.max(0, Math.round(n)));
@@ -112,8 +87,6 @@ function point(event: React.PointerEvent<HTMLCanvasElement>): Point {
     clamp(((event.clientY - rect.top) / rect.height) * COORD_MAX),
   ];
 }
-
-const freehand = (tool: Tool) => tool === 'pen' || tool === 'eraser';
 
 export default function DrawingBoard({
   strokes,
@@ -132,6 +105,8 @@ export default function DrawingBoard({
   const [working, setWorking] = React.useState(false);
   const [confirmClear, setConfirmClear] = React.useState(false);
   const [error, setError] = React.useState('');
+  const colorPicker = React.useId();
+  const widthPicker = React.useId();
   const canvas = React.useRef<HTMLCanvasElement>(null);
   const local = React.useRef<Stroke[]>(strokes);
   const gesture = React.useRef<Gesture | null>(null);
@@ -209,17 +184,12 @@ export default function DrawingBoard({
       width,
       pts: [...start],
     };
-    gesture.current = { start, stroke, tool, pointer: event.pointerId };
+    gesture.current = { stroke, pointer: event.pointerId };
     setWorking(true);
     setError('');
-    if (freehand(tool)) {
-      local.current = [...local.current, stroke];
-      addPoints(stroke, start);
-    }
-    paint(
-      canvas.current,
-      freehand(tool) ? local.current : [...local.current, stroke],
-    );
+    local.current = [...local.current, stroke];
+    addPoints(stroke, start);
+    paint(canvas.current, local.current);
   }
 
   function move(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -227,11 +197,6 @@ export default function DrawingBoard({
     if (!active || active.pointer !== event.pointerId) return;
     const end = point(event);
     const { stroke } = active;
-    if (!freehand(active.tool)) {
-      stroke.pts = shape(active.tool, active.start, end);
-      paint(canvas.current, [...local.current, stroke]);
-      return;
-    }
     const n = stroke.pts.length;
     if (Math.hypot(end[0] - stroke.pts[n - 2], end[1] - stroke.pts[n - 1]) < 3)
       return;
@@ -241,17 +206,8 @@ export default function DrawingBoard({
   }
 
   function finish(event: React.PointerEvent<HTMLCanvasElement>) {
-    const active = gesture.current;
-    if (!active || active.pointer !== event.pointerId) return;
+    if (gesture.current?.pointer !== event.pointerId) return;
     gesture.current = null;
-    if (!freehand(active.tool)) {
-      if (event.type === 'pointerup') {
-        active.stroke.pts = shape(active.tool, active.start, point(event));
-        local.current = [...local.current, active.stroke];
-        addPoints(active.stroke, active.stroke.pts);
-      }
-      paint(canvas.current, local.current);
-    }
     void flush();
   }
 
@@ -288,6 +244,145 @@ export default function DrawingBoard({
           void changeBoard(redo ? 'redo' : 'undo');
       }}
     >
+      {canDraw && (
+        <div className={styles.toolbar} role='group' aria-label='Alat gambar'>
+          {tools.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type='button'
+              aria-label={label}
+              title={label}
+              aria-pressed={tool === id}
+              className={styles.tool}
+              onClick={() => setTool(id)}
+            >
+              <Icon size={19} aria-hidden='true' />
+            </button>
+          ))}
+          <button
+            type='button'
+            aria-label={`Warna: ${names[color]}`}
+            title={`Warna: ${names[color]}`}
+            className={styles.tool}
+            popoverTarget={colorPicker}
+          >
+            <span
+              className={styles.swatch}
+              style={{ backgroundColor: COLORS[color] }}
+            />
+          </button>
+          <div
+            id={colorPicker}
+            popover='auto'
+            className={styles.toolPicker}
+            role='group'
+            aria-label='Pilih warna'
+          >
+            {COLORS.map(
+              (value, i) =>
+                i !== ERASER && (
+                  <button
+                    key={value}
+                    type='button'
+                    aria-label={names[i]}
+                    title={names[i]}
+                    aria-pressed={i === color}
+                    className={styles.tool}
+                    onClick={(event) => {
+                      setColor(i);
+                      setTool('pen');
+                      event.currentTarget.parentElement?.hidePopover();
+                    }}
+                  >
+                    <span
+                      className={styles.swatch}
+                      style={{ backgroundColor: value }}
+                    />
+                  </button>
+                ),
+            )}
+          </div>
+          <button
+            type='button'
+            aria-label={`Ukuran kuas: ${WIDTHS[width]}`}
+            title={`Ukuran kuas: ${WIDTHS[width]}`}
+            className={styles.tool}
+            popoverTarget={widthPicker}
+          >
+            <span
+              className={styles.brush}
+              style={{ width: Math.min(22, WIDTHS[width]) }}
+            />
+          </button>
+          <div
+            id={widthPicker}
+            popover='auto'
+            className={styles.toolPicker}
+            role='group'
+            aria-label='Pilih ukuran kuas'
+          >
+            {brushSizes.map((i) => (
+              <button
+                key={i}
+                type='button'
+                aria-label={`Ketebalan ${WIDTHS[i]}`}
+                title={`Ketebalan ${WIDTHS[i]}`}
+                aria-pressed={i === width}
+                className={styles.tool}
+                onClick={(event) => {
+                  setWidth(i);
+                  event.currentTarget.parentElement?.hidePopover();
+                }}
+              >
+                <span
+                  className={styles.brush}
+                  style={{ width: Math.min(22, WIDTHS[i]) }}
+                />
+              </button>
+            ))}
+          </div>
+          <button
+            type='button'
+            className={styles.tool}
+            onClick={() => changeBoard('undo')}
+            disabled={working || !strokes.length}
+            title='Urungkan (Ctrl+Z)'
+            aria-label='Urungkan'
+          >
+            <Undo2 size={19} aria-hidden='true' />
+          </button>
+          <button
+            type='button'
+            className={styles.tool}
+            onClick={() => changeBoard('redo')}
+            disabled={working || !canRedo}
+            title='Ulangi (Ctrl+Shift+Z)'
+            aria-label='Ulangi'
+          >
+            <Redo2 size={19} aria-hidden='true' />
+          </button>
+          <button
+            type='button'
+            className={styles.tool}
+            onClick={() => setConfirmClear(true)}
+            disabled={working || !strokes.length}
+            title='Hapus kanvas'
+            aria-label='Hapus kanvas'
+          >
+            <Trash2 size={18} aria-hidden='true' />
+          </button>
+          <button
+            type='button'
+            className={styles.tool}
+            onClick={() => changeBoard('next')}
+            disabled={working}
+            title='Lewati kata'
+            aria-label='Lewati kata'
+          >
+            <SkipForward size={18} aria-hidden='true' />
+          </button>
+        </div>
+      )}
       <canvas
         ref={canvas}
         width={W}
@@ -306,132 +401,10 @@ export default function DrawingBoard({
             : styles.canvas
         }
       />
-      {canDraw && (
-        <div className={styles.toolbar} role='group' aria-label='Alat gambar'>
-          <div className={styles.toolRow}>
-            <div
-              className={styles.toolGroup}
-              role='group'
-              aria-label='Jenis alat'
-            >
-              {tools.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  type='button'
-                  aria-label={label}
-                  title={label}
-                  aria-pressed={tool === id}
-                  className={styles.tool}
-                  onClick={() => setTool(id)}
-                >
-                  <Icon size={19} aria-hidden='true' />
-                </button>
-              ))}
-            </div>
-            <div
-              className={styles.toolGroup}
-              role='group'
-              aria-label='Riwayat gambar'
-            >
-              <button
-                type='button'
-                className={styles.tool}
-                onClick={() => changeBoard('undo')}
-                disabled={working || !strokes.length}
-                title='Urungkan (Ctrl+Z)'
-                aria-label='Urungkan'
-              >
-                <Undo2 size={19} aria-hidden='true' />
-              </button>
-              <button
-                type='button'
-                className={styles.tool}
-                onClick={() => changeBoard('redo')}
-                disabled={working || !canRedo}
-                title='Ulangi (Ctrl+Shift+Z)'
-                aria-label='Ulangi'
-              >
-                <Redo2 size={19} aria-hidden='true' />
-              </button>
-              <button
-                type='button'
-                className={styles.tool}
-                onClick={() => setConfirmClear(true)}
-                disabled={working || !strokes.length}
-                title='Hapus kanvas'
-                aria-label='Hapus kanvas'
-              >
-                <Trash2 size={18} aria-hidden='true' />
-              </button>
-              <button
-                type='button'
-                className={styles.tool}
-                onClick={() => changeBoard('next')}
-                disabled={working}
-                title='Lewati kata'
-                aria-label='Lewati kata'
-              >
-                <SkipForward size={18} aria-hidden='true' />
-              </button>
-            </div>
-          </div>
-          <div className={styles.toolRow}>
-            <div className={styles.toolGroup} role='group' aria-label='Warna'>
-              {COLORS.map(
-                (value, i) =>
-                  i !== ERASER && (
-                    <button
-                      key={value}
-                      type='button'
-                      aria-label={names[i]}
-                      title={names[i]}
-                      aria-pressed={i === color}
-                      className={styles.tool}
-                      onClick={() => {
-                        setColor(i);
-                        if (tool === 'eraser') setTool('pen');
-                      }}
-                    >
-                      <span
-                        className={styles.swatch}
-                        style={{ backgroundColor: value }}
-                      />
-                    </button>
-                  ),
-              )}
-            </div>
-            <div
-              className={styles.toolGroup}
-              role='group'
-              aria-label='Tebal garis'
-            >
-              {brushSizes.map((i) => (
-                <button
-                  key={i}
-                  type='button'
-                  aria-label={`Ketebalan ${WIDTHS[i]}`}
-                  title={`Ketebalan ${WIDTHS[i]}`}
-                  aria-pressed={i === width}
-                  className={styles.tool}
-                  onClick={() => setWidth(i)}
-                >
-                  <span
-                    className={styles.brush}
-                    style={{
-                      width: Math.min(22, WIDTHS[i]),
-                      height: Math.min(22, WIDTHS[i]),
-                    }}
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
-          {error && (
-            <p role='alert' className={styles.inputError}>
-              {error}
-            </p>
-          )}
-        </div>
+      {error && (
+        <p role='alert' className={styles.inputError}>
+          {error}
+        </p>
       )}
       {confirmClear && (
         <ConfirmDialog

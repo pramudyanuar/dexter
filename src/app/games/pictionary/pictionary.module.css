@@ -132,13 +132,20 @@
 }
 
 .drawingBoard:has(.toolbar) {
-  grid-template-columns: minmax(0, 1fr) clamp(6.375rem, 24%, 10rem);
+  min-height: 12rem;
+  grid-template-columns: 3.625rem minmax(0, 1fr);
+  column-gap: 0.375rem;
+}
+
+.drawingBoard > [role='alert'] {
+  grid-column: 1 / -1;
 }
 
 .canvas {
   display: block;
   width: 100%;
   height: auto;
+  align-self: start;
   aspect-ratio: 16 / 9;
   background: #fff;
 }
@@ -149,44 +156,63 @@
 }
 
 .toolbar {
+  display: flex;
   contain: size;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  border-left: 1px solid var(--line);
-  padding: 0.375rem 0 0.375rem 0.375rem;
-}
-
-.toolRow {
-  display: flex;
   flex-direction: column;
-}
-
-.toolGroup {
-  display: flex;
-  flex-wrap: wrap;
   gap: 0.125rem;
-  padding-block: 0.25rem;
+  overflow-y: auto;
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 0.125rem;
 }
 
-.toolGroup + .toolGroup,
-.toolRow + .toolRow {
-  border-top: 1px solid var(--line);
+.toolPicker {
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.5rem;
+  background: var(--card);
+  padding: 0.25rem;
+  color: var(--ink);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.35);
+}
+
+.toolPicker:popover-open {
+  display: grid;
+  grid-template-columns: repeat(4, 2.75rem);
+}
+
+@supports (position-area: inline-end) {
+  .toolPicker {
+    inset: auto;
+    position-area: span-block-end inline-end;
+    position-try-fallbacks: flip-block;
+    margin: 0 0 0 0.375rem;
+  }
 }
 
 .tool {
   display: grid;
-  width: 2.75rem;
+  width: 100%;
   height: 2.75rem;
+  flex: none;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   color: var(--mute);
   touch-action: manipulation;
 }
 
-.tool:hover {
+.tool:enabled:hover {
   background: var(--card);
   color: var(--ink);
+}
+
+.shell .tool:focus-visible {
+  outline-offset: -3px;
 }
 
 .tool[aria-pressed='true'] {
@@ -210,6 +236,7 @@
 }
 
 .brush {
+  aspect-ratio: 1;
   background: var(--ink);
 }
 
@@ -312,26 +339,61 @@
 
 .guesses {
   grid-area: guesses;
-}
-
-.guessForm {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
 }
 
-.guessForm input {
+.guesses,
+.chat {
   min-width: 0;
+}
+
+.guesses,
+.chat:has([data-chat-open='true']) {
+  height: 12.5rem;
+}
+
+.guesses,
+.chat section {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.guesses .panelHead,
+.chat section > div:first-child {
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0.75rem;
+}
+
+:is(.guessForm, .chat form) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.375rem;
+  border-top: 1px solid var(--line);
+  padding: 0.5rem;
+}
+
+.chat form {
+  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+}
+
+:is(.guessForm, .chat form) > :is(input, button) {
   min-height: 2.75rem;
-  flex: 1;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.25rem;
-  background: var(--card);
-  padding-inline: 0.625rem;
+}
+
+:is(.guessForm, .chat form) > input {
+  width: 100%;
+  min-width: 0;
   font-size: 1rem;
 }
 
-.guessForm input::placeholder {
-  color: var(--mute);
+.chat form > button[type='button'] {
+  display: grid;
+  place-items: center;
+  padding: 0;
 }
 
 .guessForm button,
@@ -345,13 +407,15 @@
   font-weight: 700;
 }
 
-.guessForm button:disabled {
-  opacity: 0.45;
+:is(.guessForm, .chat form) > button[type='submit'] {
+  min-width: 3.5rem;
+  border-radius: 0.6rem;
+  padding-inline: 0.625rem;
+  white-space: nowrap;
 }
 
-.guessForm button,
-.chat form button[type='submit'] {
-  min-width: 5.75rem;
+.guessForm button:disabled {
+  opacity: 0.45;
 }
 
 .inputError {
@@ -362,8 +426,10 @@
 }
 
 .guessState {
-  min-height: 2.75rem;
+  min-height: 3.8125rem;
   align-content: center;
+  border-top: 1px solid var(--line);
+  padding: 0.5rem 0.75rem;
   color: var(--mute);
   font-size: 0.875rem;
 }
@@ -374,65 +440,36 @@
 }
 
 .feed {
-  max-height: 9rem;
+  min-height: 0;
+  flex: 1;
   overflow-y: auto;
-  margin-top: 0.625rem;
+  padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
 
 .feed li {
-  border-bottom: 1px solid var(--line);
-  padding: 0.375rem 0;
+  padding-block: 0.25rem;
 }
 
 .chat {
   grid-area: chat;
-  min-width: 0;
-}
-
-.chat:has([data-chat-open='true']) {
-  height: 15rem;
 }
 
 .chat section {
-  border-width: 1px 0 0;
-  border-radius: 0;
-  background: transparent;
   animation: none;
 }
 
-.chat section > div:first-child {
-  border-bottom: 0;
-  padding: 0.75rem 0;
-}
-
-.chat form {
-  border-top: 0;
-  padding: 0;
-}
-
+.guesses [role='alert'],
 .chat [role='alert'] {
-  order: 1;
-  padding: 0.5rem 0 0;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
 }
 
-.chat [role='log'] {
-  order: 2;
-  margin-top: 0.625rem;
-  padding-inline: 0;
-}
-
-.chat form :is(input, button) {
-  min-height: 2.75rem;
-}
-
-.chat form input {
-  font-size: 1rem;
-}
-
-.chat form :focus-visible {
-  outline-offset: -2px;
+.chat [role='log'] > p {
+  padding-block: 0.25rem;
+  text-align: start;
+  font-size: 0.875rem;
 }
 
 .results {
@@ -483,15 +520,11 @@
 
 @media (min-width: 72rem) {
   .workspace {
-    --board-width: clamp(40rem, calc((100dvh - 22rem) * 16 / 9), 58rem);
+    --board-width: clamp(32rem, calc((100dvh - 28rem) * 16 / 9), 58rem);
     width: min(100%, calc(var(--board-width) + 13.25rem));
     margin-inline: auto;
     grid-template-columns: 12rem minmax(0, 1.15fr) minmax(0, 1fr);
     grid-template-areas: 'players stage stage' 'players guesses chat';
-  }
-
-  .workspace:has(.toolbar) {
-    --board-width: clamp(40rem, calc((100dvh - 22rem) * 16 / 9 + 10rem), 68rem);
   }
 }
 

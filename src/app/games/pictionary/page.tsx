@@ -183,10 +183,7 @@ function GuessPanel({
   }, [v.round, v.guesses.length, latest?.text, latest?.seat]);
 
   return (
-    <section
-      className={`${styles.guesses} ${styles.panel}`}
-      aria-labelledby='pictionary-guesses'
-    >
+    <section className={styles.guesses} aria-labelledby='pictionary-guesses'>
       <div className={styles.panelHead}>
         <h2 id='pictionary-guesses'>
           {isDrawer || solvedMe ? (
@@ -196,6 +193,47 @@ function GuessPanel({
           )}
         </h2>
       </div>
+      <ul
+        ref={log}
+        className={styles.feed}
+        role='log'
+        aria-label='Riwayat tebakan'
+        data-testid='guesses'
+      >
+        {!v.guesses.length && (
+          <li className={styles.caption}>Belum ada tebakan.</li>
+        )}
+        {v.guesses.slice(-16).map((g, i) => (
+          <li key={`${i}-${g.seat}-${g.text}`}>
+            {g.correct ? (
+              <span className={styles.solved}>
+                <Check size={16} aria-hidden='true' />{' '}
+                {seatLabel(g.seat, you, r.room?.names)} menebak dengan benar!
+              </span>
+            ) : (
+              <>
+                <span className={styles.caption}>
+                  {seatLabel(g.seat, you, r.room?.names)}
+                  {' · '}
+                </span>
+                {g.text}
+                {g.seat === you && (
+                  <span className={styles.caption}> · Belum tepat</span>
+                )}
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      {error && (
+        <p
+          id='pictionary-guess-error'
+          role='alert'
+          className={styles.inputError}
+        >
+          {error} Coba kirim lagi.
+        </p>
+      )}
       {isDrawer ? (
         <p className={styles.guessState}>Pemain lain menebak gambarmu.</p>
       ) : solvedMe ? (
@@ -238,7 +276,7 @@ function GuessPanel({
               setText(e.target.value);
               setError('');
             }}
-            placeholder='Tebak kata dari gambar'
+            placeholder='Tulis tebakan'
             maxLength={40}
             autoComplete='off'
             autoCorrect='off'
@@ -251,47 +289,6 @@ function GuessPanel({
           </button>
         </form>
       )}
-      {error && (
-        <p
-          id='pictionary-guess-error'
-          role='alert'
-          className={styles.inputError}
-        >
-          {error} Coba kirim lagi.
-        </p>
-      )}
-      <ul
-        ref={log}
-        className={styles.feed}
-        role='log'
-        aria-label='Riwayat tebakan'
-        data-testid='guesses'
-      >
-        {!v.guesses.length && (
-          <li className={styles.caption}>Belum ada tebakan.</li>
-        )}
-        {v.guesses.slice(-16).map((g, i) => (
-          <li key={`${i}-${g.seat}-${g.text}`}>
-            {g.correct ? (
-              <span className={styles.solved}>
-                <Check size={16} aria-hidden='true' />{' '}
-                {seatLabel(g.seat, you, r.room?.names)} menebak dengan benar!
-              </span>
-            ) : (
-              <>
-                <span className={styles.caption}>
-                  {seatLabel(g.seat, you, r.room?.names)}
-                  {' · '}
-                </span>
-                {g.text}
-                {g.seat === you && (
-                  <span className={styles.caption}> · Belum tepat</span>
-                )}
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
