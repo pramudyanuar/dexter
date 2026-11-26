@@ -290,7 +290,11 @@ function Chat({
           <div
             id={panelId}
             hidden={!open}
-            className={open ? 'flex min-h-0 flex-1 flex-col' : undefined}
+            className={
+              open
+                ? 'flex min-h-0 flex-1 flex-col motion-safe:animate-[g-slide-up_240ms_var(--ease)_both]'
+                : undefined
+            }
           >
             <div
               ref={listRef}

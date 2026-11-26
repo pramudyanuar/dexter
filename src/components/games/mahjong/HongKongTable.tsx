@@ -289,7 +289,7 @@ export default function HongKongTable({
       </div>
       {!result && inspect !== null && (
         <section
-          className={styles.details}
+          className={`${styles.details} motion-safe:animate-[g-slide-up_260ms_var(--ease)_both]`}
           id={detailsId}
           aria-labelledby={`${detailsId}-title`}
         >
@@ -422,7 +422,10 @@ export default function HongKongTable({
         </div>
       )}
       {result && (
-        <section className={styles.result} aria-label='Hasil tangan'>
+        <section
+          className={`${styles.result} motion-safe:animate-[g-slide-up_260ms_var(--ease)_both]`}
+          aria-label='Hasil tangan'
+        >
           <h2>
             {status}
             {result.score && ` · ${result.score.faan} faan`}

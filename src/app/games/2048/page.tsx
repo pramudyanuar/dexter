@@ -165,6 +165,12 @@ function Game2048() {
         onTouchEnd={onTouchEnd}
         className='relative grid touch-none grid-cols-4 gap-2 rounded-sm border border-line bg-line/50 p-2'
       >
+        {game.moves.at(-1) === 'undo' && (
+          <span
+            className='pointer-events-none absolute inset-0 z-10 rounded-sm ring-2 ring-accent/65 motion-safe:animate-[g-fade_240ms_var(--ease)_both]'
+            aria-hidden='true'
+          />
+        )}
         {board.flat().map((value, i) => (
           <div
             key={`${i}-${value}`}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { dartGame, DartView, start } from '@/lib/games/dart';
 import { SEQUENCE } from '@/lib/games/dart-board';
@@ -111,6 +111,27 @@ describe('DartTable', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset aim' }));
     expect(screen.queryByTestId('crosshair')).toBeNull();
     expect(screen.getByRole('button', { name: 'THROW' })).toBeDisabled();
+  });
+
+  it('uses the animated reticle for a casual throw', () => {
+    jest.useFakeTimers();
+    try {
+      const r = setup();
+      fireEvent.keyDown(focusBoard(), { key: 'ArrowRight' });
+      const reticle = screen.getByTestId('crosshair');
+      const resting = reticle.getAttribute('transform');
+      act(() => jest.advanceTimersByTime(160));
+      expect(reticle.getAttribute('transform')).not.toEqual(resting);
+      fireEvent.keyDown(focusBoard(), { key: 'Enter' });
+      expect(r.move.mock.calls[0][0]).toMatchObject({
+        type: 'throw',
+        x: expect.any(Number),
+        y: expect.any(Number),
+      });
+      expect(r.move.mock.calls[0][0].y).not.toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('is not your turn: no throw button, and the board is not aimable', () => {

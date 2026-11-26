@@ -569,7 +569,7 @@ function OnlineArena({
                   : !supported
                     ? 'Browser ini tidak mendukung WebRTC.'
                     : timedOut
-                      ? 'Koneksi ke lawan gagal. Masih mencoba menyambung.'
+                      ? 'Koneksi belum berhasil. Coba sambung ulang.'
                       : 'Menghubungkan ke lawan…')}
         </span>
         {supported && timedOut && !roomOver && (
@@ -611,9 +611,11 @@ function OnlineArena({
           height={ARENA_H}
           className='aspect-[800/420] w-full'
         />
-        {!connected && supported && !timedOut && !roomOver && (
-          <div className='absolute inset-0 flex items-center justify-center bg-black/70 text-sm text-[var(--mute)]'>
-            Menyiapkan koneksi arena real-time…
+        {!connected && supported && !roomOver && (
+          <div className='a-fade absolute inset-0 flex items-center justify-center bg-black/70 px-4 text-center text-sm text-mute'>
+            {timedOut
+              ? 'Arena dijeda. Sambung ulang untuk melanjutkan.'
+              : 'Menyiapkan koneksi arena real-time…'}
           </div>
         )}
         {(hud.phase === 'match-over' || roomOver) && (

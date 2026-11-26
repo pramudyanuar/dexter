@@ -44,33 +44,42 @@ it('uses the replay score and keeps retries on the same entry', async () => {
 
 it('uses the 2048 replay to determine the Undo tag', async () => {
   const seed = 12;
-  let run = start2048(seed);
-  const moves: Action2048[] = [];
-  while (!run.over) {
-    const directions = ['up', 'left', 'down', 'right'] as const;
-    for (const direction of directions) {
-      const next = play2048(run, direction);
-      if (!next) continue;
-      moves.push(direction);
-      run = next;
-      break;
+  const finish = (
+    initial: ReturnType<typeof start2048>,
+    moves: Action2048[],
+  ) => {
+    let run = initial;
+    for (let i = 0; i < 500 && !run.over; i++) {
+      for (const direction of ['up', 'left', 'down', 'right'] as const) {
+        const next = play2048(run, direction);
+        if (!next) continue;
+        moves.push(direction);
+        run = next;
+        break;
+      }
     }
-  }
+    return { moves, run };
+  };
+  const originalRun = finish(start2048(seed), []);
   const body = { game: '2048', name: 'Test', usedUndo: true };
-  const original = await POST(request({ ...body, replay: { seed, moves } }));
+  const original = await POST(
+    request({ ...body, replay: { seed, moves: originalRun.moves } }),
+  );
   expect(original.status).toBe(201);
   expect((await original.json()).entries[0]).not.toHaveProperty('usedUndo');
+  const rewound = play2048(originalRun.run, 'undo')!;
+  const assisted = finish(rewound, [...originalRun.moves, 'undo']);
   const undone = await POST(
     request({
       ...body,
       usedUndo: false,
-      replay: { seed, moves: [...moves, 'undo', moves.at(-1)] },
+      replay: { seed, moves: assisted.moves },
     }),
   );
   expect(undone.status).toBe(201);
   expect((await undone.json()).entries).toContainEqual(
     expect.objectContaining({
-      score: run.score,
+      score: assisted.run.score,
       verified: true,
       usedUndo: true,
     }),

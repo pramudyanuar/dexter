@@ -4,12 +4,21 @@ export type Board = number[][];
 export type Move = 'up' | 'down' | 'left' | 'right';
 export type Action2048 = Move | 'undo';
 
+interface Spawn {
+  row: number;
+  column: number;
+  value: number;
+}
+
 interface Run2048 {
   board: Board;
   score: number;
   over: boolean;
   randomState: number;
-  previous: Run2048 | null;
+  previous: Pick<Run2048, 'board' | 'score'> | null;
+  usedUndo: boolean;
+  spawn: Spawn | null;
+  reroll: Spawn | null;
 }
 
 export const SIZE = 4;
@@ -69,19 +78,36 @@ export function move(board: Board, dir: Move) {
   return { board: next, gained, moved };
 }
 
-export function addTile(board: Board, rng: () => number = Math.random): Board {
+function spawnTile(board: Board, rng: () => number, avoid?: Spawn | null) {
   const empty: [number, number][] = [];
   board.forEach((row, y) =>
     row.forEach((v, x) => {
       if (!v) empty.push([y, x]);
     }),
   );
-  if (!empty.length) return board;
+  if (!empty.length) return { board, spawn: null };
 
-  const [y, x] = empty[Math.floor(rng() * empty.length)];
+  const choices =
+    avoid && empty.length > 1
+      ? empty.filter(
+          ([row, column]) => row !== avoid.row || column !== avoid.column,
+        )
+      : empty;
+  const [row, column] = choices[Math.floor(rng() * choices.length)];
+  const rolled = rng() < 0.9 ? 2 : 4;
+  const value =
+    row === avoid?.row && column === avoid.column && rolled === avoid.value
+      ? rolled === 2
+        ? 4
+        : 2
+      : rolled;
   const next = board.map((r) => [...r]);
-  next[y][x] = rng() < 0.9 ? 2 : 4;
-  return next;
+  next[row][column] = value;
+  return { board: next, spawn: { row, column, value } };
+}
+
+export function addTile(board: Board, rng: () => number = Math.random): Board {
+  return spawnTile(board, rng).board;
 }
 
 export function newBoard(rng: () => number = Math.random): Board {
@@ -96,36 +122,62 @@ export function canMove(board: Board): boolean {
 
 export const maxTile = (board: Board) => Math.max(...board.flat());
 
-function spawnForRun(randomState: number, spawn: (rng: () => number) => Board) {
-  const board = spawn(() => {
+function withRandomState<T>(
+  randomState: number,
+  sample: (rng: () => number) => T,
+) {
+  const result = sample(() => {
     const [next, value] = nextRandom(randomState);
     randomState = next;
     return value;
   });
-  return { board, randomState };
+  return { result, randomState };
 }
 
 export function start2048(seed: number): Run2048 {
+  const { result: board, randomState } = withRandomState(seed, newBoard);
   return {
-    ...spawnForRun(seed, newBoard),
+    board,
+    randomState,
     score: 0,
     over: false,
     previous: null,
+    usedUndo: false,
+    spawn: null,
+    reroll: null,
   };
 }
 
 export function play2048(run: Run2048, action: Action2048): Run2048 | null {
-  if (action === 'undo') return run.previous;
+  if (action === 'undo') {
+    if (!run.previous) return null;
+    return {
+      ...run,
+      ...run.previous,
+      over: false,
+      previous: null,
+      usedUndo: true,
+      spawn: null,
+      reroll: run.spawn,
+    };
+  }
   if (run.over) return null;
   const result = move(run.board, action);
   if (!result.moved) return null;
-  const next = spawnForRun(run.randomState, (rng) =>
-    addTile(result.board, rng),
+  const {
+    result: { board, spawn },
+    randomState,
+  } = withRandomState(run.randomState, (rng) =>
+    spawnTile(result.board, rng, run.reroll),
   );
   return {
-    ...next,
+    board,
+    spawn,
+    randomState,
     score: run.score + result.gained,
-    over: !canMove(next.board),
-    previous: run,
+    over: !canMove(board),
+    previous: { board: run.board, score: run.score },
+    usedUndo: run.usedUndo,
+    reroll: null,
   };
 }
