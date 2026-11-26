@@ -52,7 +52,7 @@ export function verifySoloReplay(game: string, input: unknown) {
       return run.over
         ? {
             score: run.score,
-            usedUndo: replay.data.includes('undo') || undefined,
+            usedUndo: run.usedUndo || undefined,
             replay: { seed, moves: replay.data },
           }
         : null;

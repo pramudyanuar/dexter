@@ -26,6 +26,14 @@ export const shipCells = (ship: Ship) =>
 
 const key = (x: number, y: number) => `${x},${y}`;
 
+export function canPlaceShip(ship: Ship, fleet: Ship[]) {
+  const taken = new Set(fleet.flatMap(shipCells).map(({ x, y }) => key(x, y)));
+  return shipCells(ship).every(
+    ({ x, y }) =>
+      x >= 0 && y >= 0 && x < SIZE && y < SIZE && !taken.has(key(x, y)),
+  );
+}
+
 /** Right lengths, inside the board, no two ships on the same cell. */
 export function validFleet(ships: unknown): ships is Ship[] {
   if (!Array.isArray(ships) || ships.length !== FLEET.length) return false;
@@ -35,7 +43,7 @@ export function validFleet(ships: unknown): ships is Ship[] {
       !s ||
       !Number.isInteger(s.x) ||
       !Number.isInteger(s.y) ||
-      !Number.isInteger(s.len) ||
+      !FLEET.some((len) => len === s.len) ||
       typeof s.horizontal !== 'boolean'
     )
       return false;
@@ -117,7 +125,7 @@ const fresh = (): BattleshipState => ({
   last: null,
 });
 
-const isSunk = (ship: Ship, shots: Shot[]) =>
+export const isSunk = (ship: Ship, shots: Shot[]) =>
   shipCells(ship).every((c) =>
     shots.some((s) => s.hit && s.x === c.x && s.y === c.y),
   );

@@ -19,3 +19,16 @@ it('places one flag when a long press also triggers the system context menu', as
     jest.useRealTimers();
   }
 });
+
+it('moves keyboard focus across the grid and flags the focused square', () => {
+  render(<MinesweeperPage />);
+  const initial = screen.getByRole('gridcell', { name: 'Baris 1, kolom 1' });
+  const below = screen.getByRole('gridcell', { name: 'Baris 2, kolom 1' });
+  act(() => initial.focus());
+  fireEvent.keyDown(initial, { key: 'ArrowDown' });
+  expect(below).toHaveFocus();
+  expect(initial).toHaveAttribute('tabindex', '-1');
+  fireEvent.keyDown(below, { key: 'f' });
+  expect(below).toHaveAccessibleName('Baris 2, kolom 1, bendera');
+  expect(screen.getByText('009')).toBeVisible();
+});

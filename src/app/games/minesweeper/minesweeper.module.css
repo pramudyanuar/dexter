@@ -1,0 +1,105 @@
+.boardFrame {
+  width: min(100%, clamp(20rem, calc(100dvh - 15rem), 36rem));
+  margin-inline: auto;
+}
+
+.board {
+  display: grid;
+  gap: clamp(1px, 0.3vw, 3px);
+  container-type: inline-size;
+  border-radius: 0.55rem;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.cell {
+  display: grid;
+  aspect-ratio: 1;
+  min-width: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: clamp(2px, 0.7cqw, 6px);
+  background: var(--surface);
+  font-size: clamp(0.7rem, 3.1cqw, 1.1rem);
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background-color 140ms,
+    border-color 140ms;
+}
+
+.cell:is([data-state='hidden'], [data-state='flag']) {
+  cursor: pointer;
+  border-color: var(--line-strong);
+  background: color-mix(in oklab, var(--card) 75%, var(--line-strong));
+}
+
+.cell[data-state='flag'] {
+  color: var(--hash);
+}
+
+.cell:is([data-state='hidden'], [data-state='flag']):hover {
+  border-color: var(--mute);
+  background: var(--line-strong);
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.cell[data-pending='true'] {
+  border-color: var(--accent);
+}
+
+.cell:is([data-mine='true'], [data-state='wrong']) {
+  color: var(--err);
+}
+
+.cell[data-mine='true'] {
+  background: color-mix(in oklab, var(--err) 16%, var(--surface));
+}
+
+.cell svg {
+  width: 62%;
+  height: 62%;
+}
+
+.message {
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cell[data-state='open'] {
+    animation: open-cell 240ms ease-out both;
+  }
+
+  .cell[data-state='flag'] svg,
+  .message {
+    animation: show-marker 220ms var(--ease-spring) both;
+  }
+
+  .cell[data-pending='true'] {
+    animation: wait-cell 650ms alternate infinite ease-in-out;
+  }
+}
+
+@keyframes open-cell {
+  from {
+    opacity: 0.36;
+    transform: scale(0.88);
+  }
+}
+
+@keyframes show-marker {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.88);
+  }
+}
+
+@keyframes wait-cell {
+  to {
+    background-color: color-mix(in oklab, var(--accent) 24%, var(--card));
+  }
+}

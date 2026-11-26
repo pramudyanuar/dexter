@@ -20,8 +20,8 @@ type Api = ReturnType<typeof useRoom>;
 const mmss = (sec: number) =>
   `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
-/** How far a shaky hand drifts, by difficulty (board units). */
-const SWAY = { easy: 0.012, normal: 0.022, hard: 0.04 } as const;
+/** How far the casual reticle drifts, by difficulty (board units). */
+const SWAY = { easy: 0.012, normal: 0.025, hard: 0.04 } as const;
 
 function useClock(active: boolean) {
   const [now, setNow] = React.useState(() => Date.now());
@@ -158,42 +158,36 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
 
   // ------------------------------------------------------------- aiming
   const [aim, setAim] = React.useState<{ x: number; y: number } | null>(null);
-  const [swayed, setSwayed] = React.useState<{ x: number; y: number } | null>(
-    null,
-  );
-  /** Where a dart would go right now: the aim, plus the shake in Skill mode */
-  const effRef = React.useRef<{ x: number; y: number } | null>(null);
+  const [drift, setDrift] = React.useState({ x: 0, y: 0 });
   const powerRef = React.useRef(0.5);
 
-  const swaying = skill && canAim && !!aim;
+  const swaying = canAim && !!aim;
   React.useEffect(() => {
-    if (!swaying || !aim) {
-      effRef.current = aim;
-      return;
-    }
-    const amp = SWAY[cfg.difficulty];
+    if (!swaying) return;
+    const amp = SWAY[cfg.difficulty] * (skill ? 1.65 : 1);
     let raf = 0;
-    const t0 = performance.now();
     const tick = (now: number) => {
-      const t = (now - t0) / 1000;
-      const p = {
-        x: aim.x + Math.sin(t * 2.3) * amp + Math.sin(t * 5.1) * amp * 0.4,
-        y: aim.y + Math.cos(t * 1.9) * amp + Math.cos(t * 4.3) * amp * 0.4,
-      };
-      effRef.current = p;
-      setSwayed(p);
+      const t = now / 1000;
+      setDrift({
+        x: (Math.sin(t * 2.3) + Math.sin(t * 5.1) * 0.4) * amp,
+        y: (Math.cos(t * 1.9) + Math.cos(t * 4.3) * 0.4) * amp,
+      });
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [swaying, aim, cfg.difficulty]);
+  }, [swaying, cfg.difficulty, skill]);
 
-  const shown = swaying ? (swayed ?? aim) : aim;
+  const withDrift = ({ x, y }: { x: number; y: number }) => ({
+    x: x + drift.x,
+    y: y + drift.y,
+  });
+  const shown = swaying && aim ? withDrift(aim) : aim;
   const canThrow = canAim && !r.busy && !!aim;
 
   const throwDart = (at?: { x: number; y: number }) => {
     if (!canAim || r.busy) return;
-    const target = at ?? effRef.current ?? aim;
+    const target = at ? withDrift(at) : shown;
     if (!target) return;
     void r.move({
       type: 'throw',
@@ -322,8 +316,7 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
               onAim={(x, y, touch) => setAim({ x, y: touch ? y - 0.16 : y })}
               onPick={(x, y) => {
                 setAim({ x, y });
-                // a click throws at the crosshair, shake and all
-                throwDart(swaying ? (effRef.current ?? { x, y }) : { x, y });
+                throwDart({ x, y });
               }}
             />
 
@@ -395,7 +388,7 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
               <p className='text-center text-xs text-[var(--mute)]'>
                 {skill
                   ? 'Aim, then throw with good timing. Your hand shakes.'
-                  : 'Aim with the mouse or your finger, click or tap THROW.'}{' '}
+                  : 'The crosshair drifts as you aim. Click or tap THROW to release.'}{' '}
                 Arrow keys move the aim, Enter throws.
               </p>
             )}
