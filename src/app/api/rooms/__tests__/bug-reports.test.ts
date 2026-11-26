@@ -13,6 +13,8 @@ import { getRoomStore } from '@/lib/rooms/store';
 
 import { GET as inbox } from '@/app/api/admin/bug-reports/route';
 import { DELETE, GET, PATCH } from '@/app/api/admin/game-bugs/route';
+import { GET as exportReports } from '@/app/api/game-bugs/export/route';
+import { PATCH as patchPublicReport } from '@/app/api/game-bugs/route';
 import { POST as report } from '@/app/api/rooms/[code]/bug-reports/route';
 import { POST as create } from '@/app/api/rooms/route';
 
@@ -196,6 +198,107 @@ it('lists reports from both stores in time order across pages', async () => {
     );
     expect(hasMore).toBe(end < expected.length);
   }
+});
+
+it('exports all retained reports and updates their status without credentials', async () => {
+  const { code, token } = await createRoom();
+  const { id: roomId } = await (
+    await send(code, token, { action: 'capture' })
+  ).json();
+  expect(
+    (
+      await send(code, token, {
+        action: 'submit',
+        id: roomId,
+        description: 'Room bug',
+      })
+    ).status,
+  ).toBe(200);
+
+  const store = getBugReportStore()!;
+  const generalIds = Array.from({ length: BUG_REPORT_PAGE_SIZE + 1 }, (_, i) =>
+    i.toString(16).padStart(64, '0'),
+  );
+  for (const id of generalIds) {
+    await store.save({
+      id,
+      game: 'pictionary',
+      gameTitle: 'Pictionary',
+      pathname: '/games/pictionary',
+      description: 'General bug',
+      playerName: 'Private name',
+    });
+  }
+
+  async function readExport() {
+    const response = await exportReports();
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/x-ndjson');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    return (await response.text())
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+  }
+
+  const reports = await readExport();
+  expect(reports.map(({ id }) => id).sort()).toEqual(
+    [...generalIds, roomId].sort(),
+  );
+  const general = reports.find(({ id }) => id === generalIds[0]);
+  const roomReport = reports.find(({ id }) => id === roomId);
+  expect(general).toEqual({
+    id: generalIds[0],
+    source: 'game',
+    game: 'pictionary',
+    gameTitle: 'Pictionary',
+    pathname: '/games/pictionary',
+    description: 'General bug',
+    at: expect.any(Number),
+    status: 'open',
+  });
+  expect(roomReport).toEqual({
+    id: roomId,
+    source: 'room',
+    game: 'connect4',
+    gameTitle: expect.any(String),
+    pathname: '/games/connect4',
+    description: 'Room bug',
+    at: expect.any(Number),
+    status: 'open',
+  });
+
+  function patch(
+    { source, id, at }: { source: string; id: string; at: number },
+    done: unknown,
+  ) {
+    return patchPublicReport(
+      new Request(
+        `http://test/api/game-bugs?source=${source}&id=${id}&at=${at}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ done, description: 'Unexpected change' }),
+        },
+      ),
+    );
+  }
+
+  expect((await patch(general, 'true')).status).toBe(400);
+  expect((await patch({ ...general, at: general.at + 1 }, true)).status).toBe(
+    404,
+  );
+  expect((await patch(general, true)).status).toBe(204);
+  expect((await patch(roomReport, true)).status).toBe(204);
+  expect(await readExport()).toEqual(
+    reports.map((entry) =>
+      [general.id, roomId].includes(entry.id)
+        ? { ...entry, status: 'done' }
+        : entry,
+    ),
+  );
+  expect((await patch(general, false)).status).toBe(204);
+  expect((await patch(roomReport, false)).status).toBe(204);
+  expect(await readExport()).toEqual(reports);
 });
 
 it('restricts capture and submission to the player who opened the report', async () => {

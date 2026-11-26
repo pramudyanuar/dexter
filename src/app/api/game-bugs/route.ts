@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { changeBugReport } from '@/lib/game-bugs/change';
 import { getBugReportStore } from '@/lib/game-bugs/store';
 import { BUG_DESCRIPTION_LIMIT, getBugReportGame } from '@/lib/game-bugs/types';
 import { readJson } from '@/lib/read-json';
@@ -7,6 +8,10 @@ import { cleanName } from '@/lib/rooms/player-name';
 import { createLimiter } from '@/lib/rooms/rate-limit';
 
 const limiter = createLimiter(10, 10 * 60_000);
+
+export function PATCH(req: Request) {
+  return changeBugReport(req, false);
+}
 
 export async function POST(req: Request) {
   const body = (await readJson(req, 16 * 1024)) as {
