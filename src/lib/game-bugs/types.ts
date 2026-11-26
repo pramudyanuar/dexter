@@ -42,3 +42,19 @@ export interface BugReport {
 export type BugReportTarget = Pick<BugReport, 'id' | 'at'>;
 export type BugReportAction = 'done' | 'reopen' | 'delete';
 export type AdminBugReport = BugReport & { snapshot?: RoomBugReport };
+
+export function formatRoomBugReport(snapshot: RoomBugReport): AdminBugReport {
+  const { room, id, description, submittedAt, playerName, done } = snapshot;
+  const game = GAME_PAGES.find(({ id }) => id === room.game);
+  return {
+    id,
+    game: room.game,
+    gameTitle: game?.title ?? room.game,
+    pathname: game?.href ?? `/games/${room.game}`,
+    description,
+    playerName,
+    at: submittedAt,
+    done: done ?? false,
+    snapshot,
+  };
+}

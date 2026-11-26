@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import {
-  access,
   mkdir,
   readdir,
   readFile,
@@ -151,10 +150,16 @@ export function getBugReportStore() {
         .sort((a, b) => b.at - a.at || b.id.localeCompare(a.id))
         .slice(offset, offset + count);
     },
-    async change({ id }: BugReportTarget, action: BugReportAction) {
+    async change({ id, at }: BugReportTarget, action: BugReportAction) {
       const dir = localDirectory();
       const report = join(dir, `${id}.json`);
       const done = join(dir, `${id}.done`);
+      const raw = await readFile(
+        /*turbopackIgnore: true*/ report,
+        'utf8',
+      ).catch(ignoreMissing);
+      if (raw === null || JSON.parse(raw).at !== at) return false;
+
       if (action === 'delete') {
         const removed = await unlink(/*turbopackIgnore: true*/ report).catch(
           ignoreMissing,
@@ -162,10 +167,6 @@ export function getBugReportStore() {
         await rm(/*turbopackIgnore: true*/ done, { force: true });
         return removed !== null;
       }
-      const exists = await access(/*turbopackIgnore: true*/ report).catch(
-        ignoreMissing,
-      );
-      if (exists === null) return false;
       if (action === 'done') {
         await writeFile(/*turbopackIgnore: true*/ done, '', { flush: true });
       } else {
