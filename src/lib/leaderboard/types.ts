@@ -8,6 +8,7 @@ export interface LeaderboardEntry {
   meta?: string;
   at: number;
   verified?: boolean;
+  usedUndo?: boolean;
 }
 
 export const MAX_LEADERBOARD_ENTRIES = 20;

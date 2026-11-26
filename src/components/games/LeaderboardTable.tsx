@@ -40,6 +40,11 @@ export default function LeaderboardTable({
             </td>
             <td className='px-4 py-2.5 font-medium text-ink'>
               {entry.name}
+              {game === '2048' && entry.usedUndo && (
+                <span className='ml-2 inline-block rounded-full border border-line-strong px-2 py-0.5 text-xs font-normal text-mute'>
+                  Undo
+                </span>
+              )}
               {showVerification && !entry.verified && (
                 <span className='block text-xs font-normal text-mute'>
                   Skor lama · belum diverifikasi

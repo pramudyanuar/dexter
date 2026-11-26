@@ -3,15 +3,12 @@
 import * as React from 'react';
 
 import {
-  addTile,
-  Board,
-  canMove,
+  Action2048,
   maxTile,
   Move,
-  move,
-  newBoard,
+  play2048,
+  start2048,
 } from '@/lib/games/game2048';
-import { seededRandom } from '@/lib/games/seeded-random';
 import useMounted from '@/lib/useMounted';
 import useStoredState from '@/lib/useStoredState';
 
@@ -21,12 +18,9 @@ import { shouldIgnoreGameKey } from '@/components/games/snake/controls';
 import SubmitScore from '@/components/games/SubmitScore';
 
 interface Game {
-  board: Board;
-  score: number;
-  over: boolean;
   seed: number;
-  moves: Move[];
-  rng: () => number;
+  moves: Action2048[];
+  run: ReturnType<typeof start2048>;
 }
 
 const KEYS: Record<string, Move> = {
@@ -42,8 +36,7 @@ const KEYS: Record<string, Move> = {
 
 function fresh(): Game {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-  const rng = seededRandom(seed);
-  return { seed, rng, board: newBoard(rng), score: 0, over: false, moves: [] };
+  return { seed, moves: [], run: start2048(seed) };
 }
 
 const TILE_BG: Record<number, string> = {
@@ -80,30 +73,25 @@ function Game2048() {
   const latest = React.useRef(game);
   const [best, setBest] = useStoredState<number>('g2048-best', 0);
   const touchStart = React.useRef<{ x: number; y: number } | null>(null);
-  const reached = maxTile(game.board);
+  const { board, score, over, previous } = game.run;
+  const reached = maxTile(board);
 
   const restart = () => {
     latest.current = fresh();
     setGame(latest.current);
   };
 
-  const play = (dir: Move) => {
+  const play = (action: Action2048) => {
     const current = latest.current;
-    if (current.over) return;
-    const result = move(current.board, dir);
-    if (!result.moved) return;
-
-    const board = addTile(result.board, current.rng);
-    const score = current.score + result.gained;
+    const run = play2048(current.run, action);
+    if (!run) return;
     latest.current = {
       ...current,
-      board,
-      score,
-      over: !canMove(board),
-      moves: [...current.moves, dir],
+      run,
+      moves: [...current.moves, action],
     };
     setGame(latest.current);
-    if (score > best) setBest(score);
+    if (run.score > best) setBest(run.score);
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -143,16 +131,26 @@ function Game2048() {
 
   return (
     <>
-      <div className='mb-3 flex items-center justify-between text-xs text-mute'>
+      <div className='mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-mute'>
         <span>
-          skor <span className='text-ink'>{game.score}</span>
+          skor <span className='text-ink'>{score}</span>
         </span>
-        <button type='button' onClick={restart} className='text-info'>
-          game baru
-        </button>
         <span>
           terbaik <span className='text-ink'>{best}</span>
         </span>
+        <div className='flex gap-2'>
+          <button
+            type='button'
+            disabled={!previous}
+            onClick={() => play('undo')}
+            className='text-mute'
+          >
+            Undo
+          </button>
+          <button type='button' onClick={restart} className='text-info'>
+            game baru
+          </button>
+        </div>
       </div>
 
       <div
@@ -167,7 +165,7 @@ function Game2048() {
         onTouchEnd={onTouchEnd}
         className='relative grid touch-none grid-cols-4 gap-2 rounded-sm border border-line bg-line/50 p-2'
       >
-        {game.board.flat().map((value, i) => (
+        {board.flat().map((value, i) => (
           <div
             key={`${i}-${value}`}
             role='gridcell'
@@ -182,11 +180,9 @@ function Game2048() {
           </div>
         ))}
 
-        {game.over && (
+        {over && (
           <div className='a-fade absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-sm bg-paper/80 backdrop-blur-[2px]'>
-            <p className='text-err'>
-              Tidak ada gerakan lagi. Skor {game.score}.
-            </p>
+            <p className='text-err'>Tidak ada gerakan lagi. Skor {score}.</p>
             <button
               type='button'
               onClick={restart}
@@ -205,10 +201,10 @@ function Game2048() {
           : 'Panah atau WASD, atau geser di papan.'}
       </p>
 
-      {game.over && game.score > 0 && (
+      {over && score > 0 && (
         <SubmitScore
           game='2048'
-          score={game.score}
+          score={score}
           replay={{ seed: game.seed, moves: game.moves }}
         />
       )}

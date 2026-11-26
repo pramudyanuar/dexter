@@ -53,6 +53,7 @@ export interface TableState {
   discards: number;
   offer: Offer | null;
   result: Result | null;
+  ready?: number[];
   revision: number;
   decisionSeconds?: number;
   lastDiscard: { seat: number; tile: number } | null;
@@ -163,7 +164,7 @@ function winningScore(s: TableState, seat: number) {
     : s.replacement
       ? 'replacement'
       : 'draw';
-  const score = scoreHand(s.offer ? [...p.hand, tile] : p.hand, p.melds, {
+  return scoreHand(s.offer ? [...p.hand, tile] : p.hand, p.melds, {
     wind: seatDistance(seat, s.dealer),
     flowers: p.flowers,
     source,
@@ -171,7 +172,6 @@ function winningScore(s: TableState, seat: number) {
     last: s.wall.length === 0,
     opening: openingHand(s, seat, source),
   });
-  return score && score.faan >= 3 ? score : null;
 }
 
 function settle(s: TableState, seat: number) {
@@ -196,8 +196,20 @@ function finished(s: TableState) {
   );
 }
 
+function voteToContinue(state: TableState, seat: number) {
+  const ready = state.ready ?? [];
+  const next = ready.includes(seat)
+    ? state
+    : { ...state, ready: [...ready, seat] };
+  return {
+    state: next,
+    unanimous: seats.every((seat) => next.ready?.includes(seat)),
+  };
+}
+
 function options(s: TableState, seat: number): Play[] {
-  if (s.result) return finished(s) ? [] : [{ type: 'next' }];
+  if (s.result)
+    return finished(s) || s.ready?.includes(seat) ? [] : [{ type: 'next' }];
   const p = s.players[seat];
   const moves: Play[] = [];
   if (s.offer) {
@@ -320,6 +332,8 @@ function move(
   if (!action)
     throw new RoomError('Aksi tidak tersedia pada giliran ini.', 409);
   if (action.type === 'next') {
+    const vote = voteToContinue(state, seat);
+    if (!vote.unanimous) return vote.state;
     const rotate =
       state.result?.kind === 'win' && state.result.seat !== state.dealer
         ? 1
@@ -371,6 +385,7 @@ export function tableView(s: TableState, seat: number | null) {
     revision: s.revision,
     decisionSeconds: s.decisionSeconds ?? DECISION_SECONDS,
     result: s.result,
+    ready: s.result ? (s.ready ?? []) : [],
     finished: finished(s),
     drawn: seat === s.turn && !s.result ? s.drawn : null,
     offer: s.offer && {
@@ -381,13 +396,12 @@ export function tableView(s: TableState, seat: number | null) {
     },
     actions: seat === null ? [] : options(s, seat),
     hand: seat === null ? [] : sorted(s.players[seat].hand),
-    players: s.players.map((p, i) => ({
+    players: s.players.map((p) => ({
       melds: p.melds,
       flowers: p.flowers,
       river: p.river,
       count: p.hand.length,
-      revealed:
-        s.result?.kind === 'win' && s.result.seat === i ? sorted(p.hand) : null,
+      revealed: s.result ? sorted(p.hand) : null,
     })),
   };
 }
@@ -421,6 +435,7 @@ export const hkMahjongGame: GameDef<TableState> = {
   move: (s, seat, input, rng, ctx) => move(s, seat, input, rng, ctx?.now),
   view: tableView,
   isOver: finished,
+  rematchVote: voteToContinue,
   fixedTurnClock: true,
   waiting: (s) =>
     s.offer || s.result
@@ -445,6 +460,7 @@ export const hkMahjongGame: GameDef<TableState> = {
     ...s,
     offer: null,
     result: emptyResult('left', seat),
+    ready: [],
     revision: s.revision + 1,
   }),
 };

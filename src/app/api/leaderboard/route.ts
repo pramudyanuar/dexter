@@ -132,6 +132,7 @@ export async function POST(req: Request) {
       name,
       score: verified.score,
       meta: mine?.level ?? solo?.meta,
+      usedUndo: solo?.usedUndo,
       at: Date.now(),
       verified: true,
     });

@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import * as React from 'react';
 
 import styles from './HongKongTable.module.css';
@@ -65,6 +66,38 @@ function Tile({ tile }: { tile: number }) {
     </span>
   );
 }
+function ExposedTiles({ player }: { player: TableView['players'][number] }) {
+  if (!player.melds.length && !player.flowers.length) return null;
+  return (
+    <div className={styles.exposed} aria-label='Set dan bunga'>
+      {player.melds.map((m, i) => (
+        <span key={i} title={m.concealed ? 'Kong tertutup' : m.kind}>
+          {meldTiles(m).map((t, j) => (
+            <Tile key={j} tile={t} />
+          ))}
+        </span>
+      ))}
+      {player.flowers.map((t) => (
+        <Tile key={t} tile={t} />
+      ))}
+    </div>
+  );
+}
+
+function rackTiles(hand: number[], drawn: number | null) {
+  // Distinguish copies of a tile so reordering never moves all of them together.
+  const tiles = hand.map((tile, i) => tile * 4 + i - hand.indexOf(tile));
+  const drawnIndex = drawn === null ? -1 : hand.lastIndexOf(drawn);
+  const drawnId = drawnIndex === -1 ? null : tiles[drawnIndex];
+  if (drawnId !== null) {
+    tiles.splice(drawnIndex, 1);
+    tiles.push(drawnId);
+  }
+  return { tiles, drawnId };
+}
+
+const tileOf = (id: number) => Math.floor(id / 4);
+
 function actionLabel(action: Play) {
   if (action.type === 'chow') return 'Chow';
   if (action.type === 'kong') return 'Kong';
@@ -73,7 +106,7 @@ function actionLabel(action: Play) {
     win: 'Mahjong!',
     pass: 'Lewati',
     pong: 'Pong',
-    next: 'Bagikan tangan berikutnya',
+    next: 'Siap lanjut',
     discard: 'Buang',
   }[action.type];
 }
@@ -84,6 +117,8 @@ export default function HongKongTable({
   busy,
   turnDeadline,
   onPlay,
+  onRematch,
+  completeTable = true,
 }: {
   v: TableView;
   you: number;
@@ -91,12 +126,20 @@ export default function HongKongTable({
   busy: boolean;
   turnDeadline?: number | null;
   onPlay: (move: Play & { revision: number }) => void;
+  onRematch?: () => void;
+  completeTable?: boolean;
 }) {
   const [pick, setPick] = React.useState<{
-    index: number;
+    id: number;
     revision: number;
   } | null>(null);
-  const selected = pick?.revision === v.revision ? pick.index : null;
+  const [order, setOrder] = React.useState<{
+    hand: number;
+    tiles: number[];
+  } | null>(null);
+  const [inspect, setInspect] = React.useState<number | null>(null);
+  const dragging = React.useRef<number | null>(null);
+  const detailsId = React.useId();
   const play = (move: Play) => onPlay({ ...move, revision: v.revision });
   const label = (seat: number) => seatLabel(seat, you, names);
   const spectating = you < 0;
@@ -106,13 +149,25 @@ export default function HongKongTable({
   const actions = v.actions.filter(
     (a) => a.type !== 'discard' && a.type !== 'next',
   );
-  const hand = [...v.hand];
-  // Offset the tile that just arrived from the sorted rack, as on a real table.
-  if (v.drawn !== null) {
-    hand.splice(hand.indexOf(v.drawn), 1);
-    hand.push(v.drawn);
+  const { tiles, drawnId } = rackTiles(v.hand, v.drawn);
+  const kept =
+    order?.hand === v.number
+      ? order.tiles.filter((id) => tiles.includes(id))
+      : [];
+  const hand = [...kept, ...tiles.filter((id) => !kept.includes(id))];
+  const selected = pick?.revision === v.revision ? hand.indexOf(pick.id) : -1;
+  function reorder(from: number, to: number) {
+    const next = [...hand];
+    const [id] = next.splice(from, 1);
+    next.splice(to, 0, id);
+    setOrder({ hand: v.number, tiles: next });
+    setPick({ id, revision: v.revision });
   }
   const result = v.result;
+  const ready = v.ready ?? [];
+  const canContinue = v.actions.some((a) => a.type === 'next');
+  const canVote = !spectating && completeTable && (!v.finished || !!onRematch);
+  const voted = ready.includes(you);
   const deadline = v.offer?.until ?? turnDeadline;
   const status = result
     ? result.kind === 'win'
@@ -132,6 +187,19 @@ export default function HongKongTable({
     const seat = (facing + offset) % 4;
     const p = v.players[seat];
     const active = !result && !v.offer && seat === v.turn;
+    const seatInfo = (
+      <>
+        <span className={styles.wind} title={WIND_NAMES[wind(seat)]}>
+          {WIND_GLYPHS[wind(seat)]}
+        </span>
+        <span className={styles.seatName}>
+          <strong>{label(seat)}</strong>
+          <small>
+            {WIND_NAMES[wind(seat)]} · {v.scores[seat]} poin
+          </small>
+        </span>
+      </>
+    );
     return (
       <section
         key={seat}
@@ -139,38 +207,31 @@ export default function HongKongTable({
         data-position={['self', 'right', 'across', 'left'][offset]}
         aria-label={`${label(seat)}, ${WIND_NAMES[wind(seat)]}`}
       >
-        <div className={styles.seatHead} data-active={active}>
-          <span className={styles.wind} title={WIND_NAMES[wind(seat)]}>
-            {WIND_GLYPHS[wind(seat)]}
-          </span>
-          <div>
-            <strong>{label(seat)}</strong>
-            <small>
-              {WIND_NAMES[wind(seat)]} · {v.scores[seat]} poin
-            </small>
+        {!result && seat !== you ? (
+          <button
+            type='button'
+            className={styles.seatHead}
+            data-active={active}
+            aria-label={`Lihat ubin ${label(seat)}`}
+            aria-expanded={inspect === seat}
+            aria-controls={inspect === seat ? detailsId : undefined}
+            onClick={() => setInspect(inspect === seat ? null : seat)}
+          >
+            {seatInfo}
+          </button>
+        ) : (
+          <div className={styles.seatHead} data-active={active}>
+            {seatInfo}
           </div>
-        </div>
-        {(spectating || offset !== 0) && (
+        )}
+        {!result && seat !== you && (
           <div className={styles.backs} aria-label={`${p.count} ubin tertutup`}>
             {Array.from({ length: p.count }, (_, i) => (
               <i key={i} />
             ))}
           </div>
         )}
-        {(p.melds.length > 0 || p.flowers.length > 0) && (
-          <div className={styles.exposed} aria-label='Set dan bunga'>
-            {p.melds.map((m, i) => (
-              <span key={i} title={m.concealed ? 'Kong tertutup' : m.kind}>
-                {meldTiles(m).map((t, j) => (
-                  <Tile key={j} tile={t} />
-                ))}
-              </span>
-            ))}
-            {p.flowers.map((t) => (
-              <Tile key={t} tile={t} />
-            ))}
-          </div>
-        )}
+        <ExposedTiles player={p} />
         <div className={styles.river} aria-label={`Buangan ${label(seat)}`}>
           {p.river.map((t, i) => (
             <span
@@ -226,7 +287,23 @@ export default function HongKongTable({
           </div>
         </div>
       </div>
-      {!spectating && (
+      {!result && inspect !== null && (
+        <section
+          className={styles.details}
+          id={detailsId}
+          aria-labelledby={`${detailsId}-title`}
+        >
+          <h2 id={`${detailsId}-title`}>{label(inspect)}</h2>
+          <p>{v.players[inspect].count} ubin tertutup</p>
+          <ExposedTiles player={v.players[inspect]} />
+          <div className={styles.river} aria-label='Buangan'>
+            {v.players[inspect].river.map((tile, i) => (
+              <Tile key={i} tile={tile} />
+            ))}
+          </div>
+        </section>
+      )}
+      {!spectating && !result && (
         <div className={styles.tray}>
           <div className={styles.trayTitle}>
             <strong>Ubin kamu</strong>
@@ -237,38 +314,86 @@ export default function HongKongTable({
                   ? 'Pilih klaim atau lewati'
                   : v.offer
                     ? 'Menunggu klaim'
-                    : result
-                      ? 'Tangan selesai'
-                      : 'Menunggu giliran'}
+                    : 'Menunggu giliran'}
             </span>
           </div>
           <div className={styles.rack} aria-label='Ubin kamu'>
-            {hand.map((tile, i) => (
+            {hand.map((id, i) => (
               <button
-                key={i}
+                key={id}
                 type='button'
-                aria-label={`Pilih ${tileLabel(tile)}`}
+                aria-label={`Pilih ${tileLabel(tileOf(id))}`}
                 aria-pressed={i === selected}
-                disabled={busy || !mayDiscard}
-                data-drawn={v.drawn !== null && i === hand.length - 1}
-                onClick={() => setPick({ index: i, revision: v.revision })}
+                disabled={busy}
+                draggable={!busy}
+                data-drawn={id === drawnId}
+                onClick={() => setPick({ id, revision: v.revision })}
+                onDragStart={(event) => {
+                  dragging.current = id;
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', String(id));
+                }}
+                onDragOver={(event) => {
+                  if (dragging.current === null) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const from = hand.indexOf(dragging.current ?? -1);
+                  if (!busy && from !== -1 && from !== i) reorder(from, i);
+                  dragging.current = null;
+                }}
+                onDragEnd={() => {
+                  dragging.current = null;
+                }}
               >
-                <Tile tile={tile} />
+                <Tile tile={tileOf(id)} />
               </button>
             ))}
+          </div>
+          <div
+            className={styles.rackControls}
+            role='group'
+            aria-label='Urutan ubin'
+          >
+            <button
+              type='button'
+              aria-label='Geser ubin ke kiri'
+              disabled={busy || selected <= 0}
+              onClick={() => reorder(selected, selected - 1)}
+            >
+              <ArrowLeft size={16} aria-hidden='true' />
+            </button>
+            <button
+              type='button'
+              disabled={!kept.length}
+              onClick={() => setOrder(null)}
+            >
+              Urutkan
+            </button>
+            <button
+              type='button'
+              aria-label='Geser ubin ke kanan'
+              disabled={busy || selected === -1 || selected === hand.length - 1}
+              onClick={() => reorder(selected, selected + 1)}
+            >
+              <ArrowRight size={16} aria-hidden='true' />
+            </button>
           </div>
           {(mayDiscard || actions.length > 0) && (
             <div className={styles.actions}>
               {mayDiscard && (
                 <button
                   type='button'
-                  disabled={busy || selected === null}
+                  disabled={busy || selected === -1}
                   onClick={() =>
-                    selected !== null &&
-                    play({ type: 'discard', tile: hand[selected] })
+                    selected !== -1 &&
+                    play({ type: 'discard', tile: tileOf(hand[selected]) })
                   }
                 >
-                  Buang {selected !== null ? tileLabel(hand[selected]) : 'ubin'}
+                  Buang{' '}
+                  {selected !== -1 ? tileLabel(tileOf(hand[selected])) : 'ubin'}
                 </button>
               )}
               {actions.map((a) => (
@@ -313,14 +438,6 @@ export default function HongKongTable({
                   .map((p) => `${p.label} +${p.faan}`)
                   .join(' · ')}
               </p>
-              <div className={styles.winningHand}>
-                {[
-                  ...v.players[result.seat!].melds.flatMap(meldTiles),
-                  ...(v.players[result.seat!].revealed ?? []),
-                ].map((t, i) => (
-                  <Tile key={i} tile={t} />
-                ))}
-              </div>
             </>
           )}
           {result.kind === 'left' && (
@@ -329,12 +446,25 @@ export default function HongKongTable({
               perpindahan poin.
             </p>
           )}
-          <ul>
-            {v.scores.map((score, i) => (
-              <li key={i}>
-                {label(i)} <strong>{score} poin</strong> (
+          <ul className={styles.resultPlayers}>
+            {v.players.map((player, i) => (
+              <li
+                key={i}
+                data-winner={result.seat === i && result.kind === 'win'}
+              >
+                <strong>{label(i)}</strong> · {v.scores[i]} poin (
                 {result.deltas[i] > 0 ? '+' : ''}
                 {result.deltas[i]})
+                <div
+                  role='group'
+                  className={styles.winningHand}
+                  aria-label={`Sisa ubin ${label(i)}`}
+                >
+                  {player.revealed?.map((tile, j) => (
+                    <Tile key={j} tile={tile} />
+                  ))}
+                </div>
+                <ExposedTiles player={player} />
               </li>
             ))}
           </ul>
@@ -348,13 +478,33 @@ export default function HongKongTable({
                 .join(', ')}
             </p>
           )}
-          {v.actions.some((a) => a.type === 'next') && (
-            <button
-              type='button'
-              disabled={busy}
-              onClick={() => play({ type: 'next' })}
-            >
-              Bagikan tangan berikutnya →
+          {canVote && (
+            <>
+              <p role='status'>
+                {ready.length}/4 siap. Menunggu{' '}
+                {v.players
+                  .flatMap((_, i) => (ready.includes(i) ? [] : [label(i)]))
+                  .join(', ')}
+                .
+              </p>
+              <button
+                type='button'
+                disabled={busy || voted || (!v.finished && !canContinue)}
+                onClick={() =>
+                  v.finished ? onRematch?.() : play({ type: 'next' })
+                }
+              >
+                {voted
+                  ? 'Sudah siap'
+                  : v.finished
+                    ? 'Siap main lagi'
+                    : 'Siap untuk tangan berikutnya'}
+              </button>
+            </>
+          )}
+          {onRematch && !completeTable && (
+            <button type='button' disabled={busy} onClick={onRematch}>
+              Kembali ke lobi
             </button>
           )}
         </section>

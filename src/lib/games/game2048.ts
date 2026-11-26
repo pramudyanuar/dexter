@@ -1,5 +1,16 @@
+import { nextRandom } from '@/lib/games/seeded-random';
+
 export type Board = number[][];
 export type Move = 'up' | 'down' | 'left' | 'right';
+export type Action2048 = Move | 'undo';
+
+interface Run2048 {
+  board: Board;
+  score: number;
+  over: boolean;
+  randomState: number;
+  previous: Run2048 | null;
+}
 
 export const SIZE = 4;
 
@@ -84,3 +95,37 @@ export function canMove(board: Board): boolean {
 }
 
 export const maxTile = (board: Board) => Math.max(...board.flat());
+
+function spawnForRun(randomState: number, spawn: (rng: () => number) => Board) {
+  const board = spawn(() => {
+    const [next, value] = nextRandom(randomState);
+    randomState = next;
+    return value;
+  });
+  return { board, randomState };
+}
+
+export function start2048(seed: number): Run2048 {
+  return {
+    ...spawnForRun(seed, newBoard),
+    score: 0,
+    over: false,
+    previous: null,
+  };
+}
+
+export function play2048(run: Run2048, action: Action2048): Run2048 | null {
+  if (action === 'undo') return run.previous;
+  if (run.over) return null;
+  const result = move(run.board, action);
+  if (!result.moved) return null;
+  const next = spawnForRun(run.randomState, (rng) =>
+    addTile(result.board, rng),
+  );
+  return {
+    ...next,
+    score: run.score + result.gained,
+    over: !canMove(next.board),
+    previous: run,
+  };
+}

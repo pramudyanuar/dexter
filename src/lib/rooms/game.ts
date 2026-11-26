@@ -47,6 +47,8 @@ export interface GameDef<S = unknown> {
     options?: unknown,
     now?: number,
   ): S;
+  /** Track consent before restarting a completed match with a full table. */
+  rematchVote?(state: S, seat: number): { state: S; unanimous: boolean };
   move(
     state: S,
     seat: number,

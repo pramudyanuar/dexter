@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { addTile, canMove, move, newBoard } from '@/lib/games/game2048';
+import { play2048, start2048 } from '@/lib/games/game2048';
 import type { Level } from '@/lib/games/minesweeper';
 import {
   chord,
@@ -21,7 +21,7 @@ export const seedSchema = z.int().min(0).max(0xffffffff);
 const MAX_MOVES = 20_000;
 const proof = z.object({ seed: seedSchema, moves: z.unknown() });
 const slides = z
-  .array(z.enum(['up', 'down', 'left', 'right']))
+  .array(z.enum(['up', 'down', 'left', 'right', 'undo']))
   .min(1)
   .max(MAX_MOVES);
 const tetrisMoves = z.array(z.enum(TETRIS_ACTIONS)).min(1).max(MAX_MOVES);
@@ -43,17 +43,19 @@ export function verifySoloReplay(game: string, input: unknown) {
     case '2048': {
       const replay = slides.safeParse(moves);
       if (!replay.success) return null;
-      let board = newBoard(rng);
-      let score = 0;
-      for (const dir of replay.data) {
-        const result = move(board, dir);
-        if (!result.moved) return null;
-        board = addTile(result.board, rng);
-        score += result.gained;
+      let run = start2048(seed);
+      for (const action of replay.data) {
+        const next = play2048(run, action);
+        if (!next) return null;
+        run = next;
       }
-      return canMove(board)
-        ? null
-        : { score, replay: { seed, moves: replay.data } };
+      return run.over
+        ? {
+            score: run.score,
+            usedUndo: replay.data.includes('undo') || undefined,
+            replay: { seed, moves: replay.data },
+          }
+        : null;
     }
     case 'tetris': {
       const replay = tetrisMoves.safeParse(moves);

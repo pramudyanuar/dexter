@@ -11,3 +11,29 @@ it('accepts arrow keys while the restart button still has focus', async () => {
   expect(fireEvent.keyDown(restart, { key: 'ArrowLeft' })).toBe(false);
   expect(fireEvent.keyDown(restart, { key: 'Enter' })).toBe(true);
 });
+
+it('undoes a move and restores the same next tile when that move is replayed', () => {
+  render(<Game2048Page />);
+  const undo = screen.getByRole('button', { name: 'Undo' });
+  const board = () =>
+    screen.getAllByRole('gridcell').map((tile) => tile.textContent);
+  const initial = board();
+  expect(undo).toBeDisabled();
+
+  const key = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].find(
+    (key) => {
+      fireEvent.keyDown(window, { key });
+      return !undo.hasAttribute('disabled');
+    },
+  );
+  expect(key).toBeDefined();
+  const after = board();
+  expect(after).not.toEqual(initial);
+  fireEvent.click(undo);
+  expect(board()).toEqual(initial);
+  expect(undo).toBeDisabled();
+  fireEvent.keyDown(window, { key });
+  expect(board()).toEqual(after);
+  fireEvent.click(screen.getByRole('button', { name: 'game baru' }));
+  expect(undo).toBeDisabled();
+});

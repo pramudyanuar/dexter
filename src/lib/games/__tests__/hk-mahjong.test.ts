@@ -46,8 +46,8 @@ const ordinary = flat(tiles('123'), low);
 
 describe('Hong Kong house scoring', () => {
   it('validates shape before scoring even on an opening win', () => {
-    expect(score(ordinary)).toMatchObject({ faan: 1, units: 0 });
-    expect(score(low, [openChow])).toMatchObject({ faan: 0, units: 0 });
+    expect(score(ordinary)).toMatchObject({ faan: 1, units: 8 });
+    expect(score(low, [openChow])).toMatchObject({ faan: 0, units: 8 });
     expect(score(ordinary.slice(1), [], { opening: 'Langit' })).toBeNull();
     expect(score([...tiles('12312312311'), 27, 28, 29])).toBeNull();
     expect(score([...tiles('12312312311'), 8, 9, 10])).toBeNull();
@@ -209,7 +209,10 @@ describe('four-seat Mahjong table', () => {
       units: 8,
     });
     s.players[0].flowers = [34];
-    expect(() => play(s, 0, { type: 'win' })).toThrow();
+    expect(play(s, 0, { type: 'win' }).result?.score).toMatchObject({
+      faan: 2,
+      units: 8,
+    });
     s.players[0].hand = [
       ...tiles('5555'),
       ...tiles('234'),
@@ -248,7 +251,33 @@ describe('four-seat Mahjong table', () => {
       { label: 'Manusia', faan: 10 },
     ]);
     s.players[0].melds = [openChow];
-    expect(() => play(s, 1, { type: 'win' })).toThrow();
+    expect(
+      play(s, 1, { type: 'win' }).result?.score?.patterns,
+    ).not.toContainEqual({ label: 'Manusia', faan: 10 });
+  });
+  it('lets a wall draw complete four sets and a pair and reveals all hands only once settled', () => {
+    let s = fixture();
+    s.players[0].hand = [5, 14];
+    s.players[1].hand = low.slice(0, -1);
+    s.players[1].melds = [openChow];
+    s.players[2].hand = [9];
+    s.players[3].hand = [18];
+    s.wall = [30, 8];
+    s = play(s, 0, { type: 'discard', tile: 5 });
+    expect(s.drawn).toBe(30);
+    expect(s.turn).toBe(1);
+    expect(tableView(s, 0).players[1].revealed).toBeNull();
+    expect(actions(s, 1)).toContainEqual({ type: 'win' });
+    s = play(s, 1, { type: 'win' });
+    expect(s.result).toMatchObject({
+      seat: 1,
+      payer: null,
+      kind: 'win',
+      score: { faan: 2, units: 8 },
+    });
+    expect(tableView(s, null).players.map((p) => p.revealed)).toEqual(
+      s.players.map((p) => [...p.hand].sort((a, b) => a - b)),
+    );
   });
   it('honours a submitted pong on timeout even if a possible winner never answers', () => {
     let s = fixture();
@@ -310,9 +339,10 @@ describe('four-seat Mahjong table', () => {
     tie = play(tie, 3, { type: 'win' });
     expect(play(tie, 1, { type: 'win' }).result?.seat).toBe(1);
   });
-  it('rejects an under-minimum win and an illegal or stale discard', () => {
+  it('rejects an incomplete hand and an illegal or stale discard', () => {
     let s = fixture();
-    s.players[0].hand = ordinary;
+    const incomplete = ordinary.slice(1);
+    s.players[0].hand = incomplete;
     s.players[0].flowers = [35];
     s.drawn = 30;
     expect(() => play(s, 0, { type: 'win' })).toThrow();
@@ -327,7 +357,7 @@ describe('four-seat Mahjong table', () => {
         revision: old.revision,
       }),
     ).toThrow();
-    expect(old.players[0].hand).toEqual(ordinary);
+    expect(old.players[0].hand).toEqual(incomplete);
   });
   it('passes unanswered claims at the deadline and chains replacement flowers from the tail', () => {
     let s = fixture();
@@ -407,7 +437,22 @@ describe('four-seat Mahjong table', () => {
     ).toContain('Buangan terakhir');
     s = play(s, 1, { type: 'pass' });
     expect(s.result?.kind).toBe('draw');
-    expect(play(s, 2, { type: 'next' })).toMatchObject({
+    expect(tableView(s, null).players.map((p) => p.revealed)).toEqual(
+      s.players.map((p) => [...p.hand].sort((a, b) => a - b)),
+    );
+    const firstVote = play(s, 2, { type: 'next' });
+    expect(firstVote).toMatchObject({
+      number: 1,
+      ready: [2],
+      revision: s.revision,
+    });
+    expect(actions(firstVote, 2)).toEqual([]);
+    const moreVotes = [0, 3].reduce(
+      (state, seat) => play(state, seat, { type: 'next' }),
+      firstVote,
+    );
+    expect(moreVotes.number).toBe(1);
+    expect(play(moreVotes, 1, { type: 'next' })).toMatchObject({
       number: 2,
       dealer: 0,
       rotation: 0,
@@ -420,13 +465,43 @@ describe('four-seat Mahjong table', () => {
     s.drawn = 4;
     s = play(s, 2, { type: 'win' });
     expect(s.scores).toEqual([-128, -128, 384, -128]);
-    expect(play(s, 3, { type: 'next' })).toMatchObject({
+    expect(
+      [3, 1, 0, 2].reduce(
+        (state, seat) => play(state, seat, { type: 'next' }),
+        s,
+      ),
+    ).toMatchObject({
       rotation: 1,
       dealer: 1,
       scores: s.scores,
     });
     expect(game.isOver({ ...s, rotation: 3 })).toBe(true);
     expect(game.isOver({ ...s, dealer: 2, rotation: 3 })).toBe(false);
+  });
+  it('waits for all four seats to agree to a rematch after the East round', () => {
+    const tokens = ['a', 'b', 'c', 'd'];
+    let room = newRoom('mahjong-hk', 'ABCDE', tokens[0], 1000);
+    for (const token of tokens.slice(1))
+      room = join(room, undefined, token).room;
+    const state = fixture();
+    state.rotation = 3;
+    state.turn = 1;
+    state.players[1].hand = tiles('11122233344455');
+    room = { ...room, status: 'over', state: play(state, 1, { type: 'win' }) };
+
+    room = rematch(room, 'b');
+    expect(rematch(room, 'b')).toBe(room);
+    expect(rematch(leaveRoom(room, 'c'), 'a').status).toBe('waiting');
+    room = rematch(rematch(room, 'c'), 'a');
+    expect(room.status).toBe('over');
+    expect(toView(room, 'a').state).toMatchObject({ ready: [1, 2, 0] });
+    room = rematch(room, 'd');
+    expect(room.status).toBe('playing');
+    expect(toView(room, 'a').state).toMatchObject({
+      ready: [],
+      number: 1,
+      scores: [0, 0, 0, 0],
+    });
   });
   it('runs a legal hand to completion with every physical tile accounted for', () => {
     let s = start();
