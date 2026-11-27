@@ -5,7 +5,7 @@ import { seededRandom } from '@/lib/games/seeded-random';
 
 import MinesweeperPage from '@/app/games/minesweeper/page';
 
-it('animates the triggered mine first and delays the other mine reveals', async () => {
+it('places reveal effects at the clicked or detonated square and clears them on restart', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
@@ -18,12 +18,27 @@ it('animates the triggered mine first and delays the other mine reveals', async 
     fireEvent.click(cells[0]);
     await screen.findByText('Permainan berlangsung');
     const initial = reveal(newGame('mudah'), 0, 0, seededRandom(222));
+    const grid = screen.getByRole('grid');
+    expect(grid.querySelector('[data-reveal-pulse="safe"]')).toHaveStyle({
+      gridColumn: '1 / span 1',
+      gridRow: '1 / span 1',
+    });
+    const lifted = initial.cells.findIndex(
+      (cell, i) => i > 0 && cell.state === 'open',
+    );
+    expect(
+      parseInt(cells[lifted].style.getPropertyValue('--reveal-delay'), 10),
+    ).toBeGreaterThan(0);
     const impact = initial.cells.findIndex((cell) => cell.mine);
     fireEvent.click(cells[impact]);
     await screen.findByText('Ranjau meledak');
 
     expect(cells[impact]).toHaveAttribute('data-detonated', 'true');
     expect(cells[impact].style.getPropertyValue('--reveal-delay')).toBe('0ms');
+    expect(grid.querySelector('[data-reveal-pulse="mine"]')).toHaveStyle({
+      gridColumn: `${(impact % initial.width) + 1} / span 1`,
+      gridRow: `${Math.floor(impact / initial.width) + 1} / span 1`,
+    });
     const following = cells.filter(
       (cell) => cell !== cells[impact] && cell.dataset.mine,
     );
@@ -34,6 +49,8 @@ it('animates the triggered mine first and delays the other mine reveals', async 
           parseInt(cell.style.getPropertyValue('--reveal-delay'), 10) > 0,
       ),
     ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Main lagi' }));
+    expect(grid.querySelectorAll('[data-reveal-pulse]')).toHaveLength(0);
   } finally {
     globalThis.fetch = originalFetch;
   }

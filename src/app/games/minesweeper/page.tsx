@@ -30,6 +30,7 @@ import GameShell from '@/components/games/GameShell';
 import SubmitScore from '@/components/games/SubmitScore';
 
 type Best = Partial<Record<Level, number>>;
+type RevealPulse = { id: number; cell: number; mine: boolean };
 const NO_BEST: Best = {};
 
 const NUMBER_COLOR = [
@@ -140,6 +141,7 @@ function Minesweeper() {
   const [pending, setPending] = React.useState<number | null>(null);
   const [focused, setFocused] = React.useState(0);
   const [reveals, setReveals] = React.useState<Record<number, number>>({});
+  const [pulses, setPulses] = React.useState<RevealPulse[]>([]);
   const [unflagged, setUnflagged] = React.useState<number | null>(null);
   const [seconds, setSeconds] = React.useState(0);
   const [best, setBest] = useStoredState<Best>('mines-best', NO_BEST);
@@ -178,6 +180,7 @@ function Minesweeper() {
     setPending(null);
     setFocused(0);
     setReveals({});
+    setPulses([]);
     setUnflagged(null);
   };
 
@@ -211,6 +214,12 @@ function Minesweeper() {
             : Math.min(280, distance * 22);
       });
       setReveals((previous) => ({ ...previous, ...additions }));
+      const pulse = {
+        id: active.moves.length,
+        cell: next.detonated ?? clicked,
+        mine: next.status === 'lost',
+      };
+      setPulses((previous) => [...previous.slice(-2), pulse]);
     }
     if (before.status === 'ready' && next.status !== 'ready')
       active.startClock();
@@ -507,6 +516,39 @@ function Minesweeper() {
               </button>
             );
           })}
+          {pulses.map(({ id, cell, mine }) => (
+            <svg
+              key={`reveal-${id}`}
+              aria-hidden='true'
+              className={styles.pulse}
+              data-reveal-pulse={mine ? 'mine' : 'safe'}
+              style={{
+                gridColumn: `${(cell % width) + 1} / span 1`,
+                gridRow: `${Math.floor(cell / width) + 1} / span 1`,
+              }}
+              viewBox='0 0 100 100'
+            >
+              <circle
+                className={styles.pulseRing}
+                cx='50'
+                cy='50'
+                r='28'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='1.5'
+              />
+              <g className={styles.pulseSparks}>
+                <path
+                  d='m46 17 2-10 5 8-3 7zM78 35l10-7-3 10-6 3zM71 72l8 4-2 6-9-6zM24 66l-9 9 2-12 6-3zM27 32l-8-3 4-5 7 5z'
+                  fill='currentColor'
+                />
+                <path
+                  d='m62 20 5-8 2 5-5 6zM88 53l8 2-1 4-9-3zM43 83l3 10-6-4-1-6zM17 47l-7 2 1-4 7-2z'
+                  fill='var(--hash)'
+                />
+              </g>
+            </svg>
+          ))}
         </div>
       </div>
 
