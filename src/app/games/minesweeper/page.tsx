@@ -31,6 +31,15 @@ import SubmitScore from '@/components/games/SubmitScore';
 
 type Best = Partial<Record<Level, number>>;
 const NO_BEST: Best = {};
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+const BOARD_SHAKE = [
+  { transform: 'translate(0, 0)' },
+  { transform: 'translate(-6px, 2px)' },
+  { transform: 'translate(6px, -2px)' },
+  { transform: 'translate(-4px, 1px)' },
+  { transform: 'translate(2px, 0)' },
+  { transform: 'translate(0, 0)' },
+];
 
 const NUMBER_COLOR = [
   '',
@@ -143,6 +152,8 @@ function Minesweeper() {
   const [game, setGame] = React.useState<MinesGame>(() => newGame('mudah'));
   const latest = React.useRef(game);
   const run = React.useRef<ReturnType<typeof newRun> | null>(null);
+  const boardFrame = React.useRef<HTMLDivElement>(null);
+  const boardShake = React.useRef<Animation | null>(null);
   const [ranked, setRanked] = React.useState<
     { receipt: string; score: number } | 'checking' | 'unavailable' | null
   >(null);
@@ -161,6 +172,7 @@ function Minesweeper() {
     run.current = newRun();
     return () => {
       run.current?.controller.abort();
+      boardShake.current?.cancel();
       if (holdTimer.current) clearTimeout(holdTimer.current);
     };
   }, []);
@@ -176,6 +188,8 @@ function Minesweeper() {
 
   const start = (next: Level) => {
     run.current?.controller.abort();
+    boardShake.current?.cancel();
+    boardShake.current = null;
     run.current = newRun();
     if (holdTimer.current !== null) clearTimeout(holdTimer.current);
     holdTimer.current = null;
@@ -204,7 +218,7 @@ function Minesweeper() {
       const i = y * next.width + x;
       const animateRemoval =
         next.cells[i].state === 'hidden' &&
-        !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        !window.matchMedia?.(REDUCED_MOTION).matches;
       setUnflagged((previous) =>
         animateRemoval
           ? [...previous, i]
@@ -228,6 +242,14 @@ function Minesweeper() {
             : Math.min(280, distance * 22);
       });
       setReveals((previous) => ({ ...previous, ...additions }));
+      if (
+        (next.opened - before.opened > 1 || next.status === 'lost') &&
+        !window.matchMedia?.(REDUCED_MOTION).matches
+      ) {
+        boardShake.current?.cancel();
+        boardShake.current =
+          boardFrame.current?.animate?.(BOARD_SHAKE, 320) ?? null;
+      }
       setUnflagged((previous) =>
         previous.length
           ? previous.filter((cell) => next.cells[cell].state === 'hidden')
@@ -432,6 +454,7 @@ function Minesweeper() {
       </div>
 
       <div
+        ref={boardFrame}
         className={`${styles.boardFrame} rounded-xl border border-line-strong bg-card p-1.5 shadow-xl sm:p-2`}
       >
         <div
@@ -516,6 +539,16 @@ function Minesweeper() {
                       } as React.CSSProperties)
                 }
               >
+                {isOpen && (
+                  <span className={styles.fragments} aria-hidden='true'>
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                )}
                 {wrongFlag ? (
                   <X aria-hidden='true' />
                 ) : cell.state === 'flag' ||

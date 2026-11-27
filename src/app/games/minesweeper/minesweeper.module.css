@@ -89,25 +89,74 @@
   display: inline-block;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .cell[data-state='open']:not([data-mine]) {
-    animation: reveal-hit 250ms ease-out var(--reveal-delay, 0ms);
-  }
+.fragments {
+  display: none;
+}
 
-  .cell[data-state='open']::before,
-  .cell[data-state='open']::after {
+@media (prefers-reduced-motion: no-preference) {
+  .fragments,
+  .fragments > span {
     position: absolute;
-    z-index: 1;
     inset: 0;
     border-radius: inherit;
-    background: var(--tile-cover);
+  }
+
+  .fragments {
+    z-index: 1;
+    display: block;
     pointer-events: none;
-    content: '';
-    animation: shatter 340ms var(--ease) var(--reveal-delay, 0ms) both;
+  }
+
+  .fragments > span {
+    background: var(--tile-cover);
+    animation: shatter var(--fragment-duration, 340ms) var(--ease)
+      var(--reveal-delay, 0ms) both;
   }
 
   .cell:nth-child(even) {
     --shard-direction: -1;
+  }
+
+  .fragments > span:nth-child(1) {
+    --fragment-x: -76%;
+    --fragment-y: -66%;
+    --fragment-angle: -31deg;
+    clip-path: polygon(0 0, 53% 0, 44% 28%, 31% 60%, 0 44%);
+  }
+
+  .fragments > span:nth-child(2) {
+    --fragment-x: 40%;
+    --fragment-y: -92%;
+    --fragment-angle: 29deg;
+    clip-path: polygon(53% 0, 100% 0, 100% 28%, 68% 42%, 44% 28%);
+  }
+
+  .fragments > span:nth-child(3) {
+    --fragment-x: 95%;
+    --fragment-y: -15%;
+    --fragment-angle: 42deg;
+    clip-path: polygon(100% 28%, 100% 74%, 55% 69%, 68% 42%);
+  }
+
+  .fragments > span:nth-child(4) {
+    --fragment-x: 72%;
+    --fragment-y: 56%;
+    --fragment-angle: -38deg;
+    clip-path: polygon(100% 74%, 100% 100%, 61% 100%, 55% 69%);
+  }
+
+  .fragments > span:nth-child(5) {
+    --fragment-x: -58%;
+    --fragment-y: 78%;
+    --fragment-angle: 26deg;
+    clip-path: polygon(61% 100%, 0 100%, 0 44%, 31% 60%, 55% 69%);
+  }
+
+  .fragments > span:nth-child(6) {
+    --fragment-x: -19%;
+    --fragment-y: -48%;
+    --fragment-angle: 56deg;
+    clip-path: polygon(44% 28%, 68% 42%, 55% 69%, 31% 60%);
   }
 
   .message {
@@ -129,7 +178,8 @@
   }
 
   .cell[data-mine='true'] {
-    animation: mine-hit 240ms var(--ease) var(--reveal-delay, 0ms) both;
+    --fragment-duration: 420ms;
+    animation: reveal-mine 240ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
   .mine {
@@ -144,46 +194,8 @@
     animation: burst 430ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
-  .cell[data-mine='true']::before,
-  .cell[data-mine='true']::after {
-    animation-duration: 420ms;
-  }
-
-  .cell[data-state='open']::before {
-    --fragment-x: -76%;
-    --fragment-y: -62%;
-    --fragment-angle: -30deg;
-
-    clip-path: polygon(0 0, 100% 0, 59% 42%, 35% 31%, 41% 63%, 0 100%);
-  }
-
-  .cell[data-state='open']::after {
-    --fragment-x: 80%;
-    --fragment-y: 66%;
-    --fragment-angle: 38deg;
-
-    clip-path: polygon(100% 0, 100% 100%, 0 100%, 41% 63%, 35% 31%, 59% 42%);
-  }
-
   .cell[data-pending='true'] {
     animation: wait-cell 650ms alternate infinite ease-in-out;
-  }
-}
-
-@keyframes reveal-hit {
-  22% {
-    z-index: 2;
-    transform: translate(-1.5px, 0.75px) scale(0.96);
-  }
-
-  48% {
-    z-index: 2;
-    transform: translate(1.5px, -1.5px) scale(1.04);
-  }
-
-  73% {
-    z-index: 2;
-    transform: translate(-0.75px, 0.5px);
   }
 }
 
@@ -224,18 +236,10 @@
   }
 }
 
-@keyframes mine-hit {
+@keyframes reveal-mine {
   from {
     border-color: var(--line-strong);
     background: var(--tile-cover);
-  }
-
-  25% {
-    transform: translateY(-2px) scale(1.08);
-  }
-
-  62% {
-    transform: translateY(1px) scale(0.97);
   }
 }
 
