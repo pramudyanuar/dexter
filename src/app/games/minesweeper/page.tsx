@@ -31,6 +31,15 @@ import SubmitScore from '@/components/games/SubmitScore';
 
 type Best = Partial<Record<Level, number>>;
 const NO_BEST: Best = {};
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+const BOARD_SHAKE = [
+  { transform: 'translate(0, 0)' },
+  { transform: 'translate(-6px, 2px)' },
+  { transform: 'translate(6px, -2px)' },
+  { transform: 'translate(-4px, 1px)' },
+  { transform: 'translate(2px, 0)' },
+  { transform: 'translate(0, 0)' },
+];
 
 const NUMBER_COLOR = [
   '',
@@ -47,13 +56,22 @@ const NUMBER_COLOR = [
 const pad = (n: number) =>
   `${n < 0 ? '-' : ''}${String(Math.min(Math.abs(n), 999)).padStart(3, '0')}`;
 
-function FlagArt({ exiting }: { exiting: boolean }) {
+function FlagArt({
+  exiting,
+  onExit,
+}: {
+  exiting: boolean;
+  onExit: () => void;
+}) {
   return (
     <svg
       aria-hidden='true'
       viewBox='0 0 24 24'
       className={styles.flag}
       data-exiting={exiting}
+      onAnimationEnd={(event) => {
+        if (exiting && event.target === event.currentTarget) onExit();
+      }}
     >
       <path
         d='M8 20V4'
@@ -63,6 +81,7 @@ function FlagArt({ exiting }: { exiting: boolean }) {
         strokeLinecap='round'
       />
       <path
+        className={styles.flagCloth}
         d='M9 4c4-2 5 2 11 0l-2.6 4L20 12c-6 2-7-2-11 0Z'
         fill='currentColor'
       />
@@ -76,7 +95,7 @@ function FlagArt({ exiting }: { exiting: boolean }) {
   );
 }
 
-function MineArt({ impact }: { impact: boolean }) {
+function MineArt() {
   return (
     <svg aria-hidden='true' viewBox='0 0 24 24' className={styles.mine}>
       <path
@@ -94,13 +113,10 @@ function MineArt({ impact }: { impact: boolean }) {
         strokeWidth='1.25'
         strokeLinecap='round'
       />
-      {impact && (
-        <path
-          className={styles.burst}
-          d='m12 0 2.5 7.4L21 3l-3.5 6.6L24 12l-7.4 2.5L21 21l-6.6-3.5L12 24l-2.5-7.4L3 21l3.5-6.6L0 12l7.4-2.5L3 3l6.6 3.5Z'
-          fill='var(--hash)'
-        />
-      )}
+      <g className={styles.burst}>
+        <path d='m6 4 3-2 1 4-3 1zM17 17l4-1-1 4-4 1z' fill='var(--hash)' />
+        <path d='m17 5 4 1-2 3-3-1zM3 15l4 1-1 4-3-2z' fill='currentColor' />
+      </g>
     </svg>
   );
 }
@@ -136,6 +152,8 @@ function Minesweeper() {
   const [game, setGame] = React.useState<MinesGame>(() => newGame('mudah'));
   const latest = React.useRef(game);
   const run = React.useRef<ReturnType<typeof newRun> | null>(null);
+  const boardFrame = React.useRef<HTMLDivElement>(null);
+  const boardShake = React.useRef<Animation | null>(null);
   const [ranked, setRanked] = React.useState<
     { receipt: string; score: number } | 'checking' | 'unavailable' | null
   >(null);
@@ -143,7 +161,7 @@ function Minesweeper() {
   const [pending, setPending] = React.useState<number | null>(null);
   const [focused, setFocused] = React.useState(0);
   const [reveals, setReveals] = React.useState<Record<number, number>>({});
-  const [unflagged, setUnflagged] = React.useState<number | null>(null);
+  const [unflagged, setUnflagged] = React.useState<number[]>([]);
   const [seconds, setSeconds] = React.useState(0);
   const [best, setBest] = useStoredState<Best>('mines-best', NO_BEST);
   const holdTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,6 +172,7 @@ function Minesweeper() {
     run.current = newRun();
     return () => {
       run.current?.controller.abort();
+      boardShake.current?.cancel();
       if (holdTimer.current) clearTimeout(holdTimer.current);
     };
   }, []);
@@ -169,6 +188,8 @@ function Minesweeper() {
 
   const start = (next: Level) => {
     run.current?.controller.abort();
+    boardShake.current?.cancel();
+    boardShake.current = null;
     run.current = newRun();
     if (holdTimer.current !== null) clearTimeout(holdTimer.current);
     holdTimer.current = null;
@@ -181,7 +202,7 @@ function Minesweeper() {
     setPending(null);
     setFocused(0);
     setReveals({});
-    setUnflagged(null);
+    setUnflagged([]);
   };
 
   const apply = (
@@ -195,29 +216,45 @@ function Minesweeper() {
     const [action, x, y] = move;
     if (action === 'flag') {
       const i = y * next.width + x;
-      setUnflagged(next.cells[i].state === 'hidden' ? i : null);
-    }
-    if (
-      next.status === 'lost' &&
-      !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    ) {
-      navigator.vibrate?.(35);
+      const animateRemoval =
+        next.cells[i].state === 'hidden' &&
+        !window.matchMedia?.(REDUCED_MOTION).matches;
+      setUnflagged((previous) =>
+        animateRemoval
+          ? [...previous, i]
+          : previous.filter((cell) => cell !== i),
+      );
     }
     if (action === 'open') {
       const additions: Record<number, number> = {};
+      const clicked = y * next.width + x;
       next.cells.forEach((cell, i) => {
-        if (
-          cell.state !== 'open' ||
-          cell.mine ||
-          before.cells[i].state === 'open'
-        )
-          return;
+        if (cell.state !== 'open' || before.cells[i].state === 'open') return;
+        const origin = cell.mine ? (next.detonated ?? clicked) : clicked;
         const distance =
-          Math.abs((i % next.width) - x) +
-          Math.abs(Math.floor(i / next.width) - y);
-        additions[i] = Math.min(150, distance * 14);
+          Math.abs((i % next.width) - (origin % next.width)) +
+          Math.abs(
+            Math.floor(i / next.width) - Math.floor(origin / next.width),
+          );
+        additions[i] =
+          cell.mine && distance > 0
+            ? 95 + distance * 45 + (i % 4) * 11
+            : Math.min(280, distance * 22);
       });
       setReveals((previous) => ({ ...previous, ...additions }));
+      if (
+        (next.opened - before.opened > 1 || next.status === 'lost') &&
+        !window.matchMedia?.(REDUCED_MOTION).matches
+      ) {
+        boardShake.current?.cancel();
+        boardShake.current =
+          boardFrame.current?.animate?.(BOARD_SHAKE, 320) ?? null;
+      }
+      setUnflagged((previous) =>
+        previous.length
+          ? previous.filter((cell) => next.cells[cell].state === 'hidden')
+          : previous,
+      );
     }
     if (before.status === 'ready' && next.status !== 'ready')
       active.startClock();
@@ -417,11 +454,11 @@ function Minesweeper() {
       </div>
 
       <div
+        ref={boardFrame}
         className={`${styles.boardFrame} rounded-xl border border-line-strong bg-card p-1.5 shadow-xl sm:p-2`}
       >
         <div
           role='grid'
-          data-lost={status === 'lost' || undefined}
           aria-label='Papan Minesweeper'
           aria-busy={pending !== null}
           onContextMenu={(e) => e.preventDefault()}
@@ -497,16 +534,35 @@ function Minesweeper() {
                 style={
                   reveals[i] === undefined
                     ? undefined
-                    : { animationDelay: `${reveals[i]}ms` }
+                    : ({
+                        '--reveal-delay': `${reveals[i]}ms`,
+                      } as React.CSSProperties)
                 }
               >
+                {isOpen && (
+                  <span className={styles.fragments} aria-hidden='true'>
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                )}
                 {wrongFlag ? (
                   <X aria-hidden='true' />
                 ) : cell.state === 'flag' ||
-                  (i === unflagged && cell.state === 'hidden') ? (
-                  <FlagArt exiting={cell.state !== 'flag'} />
+                  (unflagged.includes(i) && cell.state === 'hidden') ? (
+                  <FlagArt
+                    exiting={cell.state !== 'flag'}
+                    onExit={() =>
+                      setUnflagged((previous) =>
+                        previous.filter((cell) => cell !== i),
+                      )
+                    }
+                  />
                 ) : isOpen && cell.mine ? (
-                  <MineArt impact={game.detonated === i} />
+                  <MineArt />
                 ) : isOpen && cell.adjacent ? (
                   cell.adjacent
                 ) : null}

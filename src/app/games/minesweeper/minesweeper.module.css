@@ -1,6 +1,8 @@
 .boardFrame {
   width: min(100%, clamp(20rem, calc(100dvh - 15rem), 36rem));
   margin-inline: auto;
+  overflow: clip;
+  overflow-clip-margin: 0.75rem;
 }
 
 .board {
@@ -13,6 +15,8 @@
 }
 
 .cell {
+  --tile-cover: color-mix(in oklab, var(--card) 75%, var(--line-strong));
+
   position: relative;
   display: grid;
   aspect-ratio: 1;
@@ -32,7 +36,7 @@
 .cell:is([data-state='hidden'], [data-state='flag']) {
   cursor: pointer;
   border-color: var(--line-strong);
-  background: color-mix(in oklab, var(--card) 75%, var(--line-strong));
+  background: var(--tile-cover);
 }
 
 .flag {
@@ -45,8 +49,13 @@
 }
 
 .cell:is([data-state='hidden'], [data-state='flag']):hover {
-  border-color: var(--mute);
+  border-color: color-mix(in oklab, var(--accent) 50%, var(--line-strong));
   background: var(--line-strong);
+}
+
+.cell:is([data-state='hidden'], [data-state='flag']):active {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 18%, var(--tile-cover));
 }
 
 .cell:focus-visible {
@@ -80,70 +89,113 @@
   display: inline-block;
 }
 
+.fragments {
+  display: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .cell[data-state='open']:not([data-mine]) {
-    animation: open-cell 240ms ease-out both;
+  .fragments,
+  .fragments > span {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
   }
 
-  .flag:not([data-exiting='true']),
+  .fragments {
+    z-index: 1;
+    display: block;
+    pointer-events: none;
+  }
+
+  .fragments > span {
+    background: var(--tile-cover);
+    animation: shatter var(--fragment-duration, 340ms) var(--ease)
+      var(--reveal-delay, 0ms) both;
+  }
+
+  .cell:nth-child(even) {
+    --shard-direction: -1;
+  }
+
+  .fragments > span:nth-child(1) {
+    --fragment-x: -76%;
+    --fragment-y: -66%;
+    --fragment-angle: -31deg;
+    clip-path: polygon(0 0, 53% 0, 44% 28%, 31% 60%, 0 44%);
+  }
+
+  .fragments > span:nth-child(2) {
+    --fragment-x: 40%;
+    --fragment-y: -92%;
+    --fragment-angle: 29deg;
+    clip-path: polygon(53% 0, 100% 0, 100% 28%, 68% 42%, 44% 28%);
+  }
+
+  .fragments > span:nth-child(3) {
+    --fragment-x: 95%;
+    --fragment-y: -15%;
+    --fragment-angle: 42deg;
+    clip-path: polygon(100% 28%, 100% 74%, 55% 69%, 68% 42%);
+  }
+
+  .fragments > span:nth-child(4) {
+    --fragment-x: 72%;
+    --fragment-y: 56%;
+    --fragment-angle: -38deg;
+    clip-path: polygon(100% 74%, 100% 100%, 61% 100%, 55% 69%);
+  }
+
+  .fragments > span:nth-child(5) {
+    --fragment-x: -58%;
+    --fragment-y: 78%;
+    --fragment-angle: 26deg;
+    clip-path: polygon(61% 100%, 0 100%, 0 44%, 31% 60%, 55% 69%);
+  }
+
+  .fragments > span:nth-child(6) {
+    --fragment-x: -19%;
+    --fragment-y: -48%;
+    --fragment-angle: 56deg;
+    clip-path: polygon(44% 28%, 68% 42%, 55% 69%, 31% 60%);
+  }
+
   .message {
     animation: show-marker 220ms var(--ease-spring) both;
   }
 
-  .flag[data-exiting='true'] {
-    animation: lift-flag 180ms ease-in both;
+  .flag:not([data-exiting='true']) {
+    animation: plant-flag 210ms ease-out both;
   }
 
-  .board[data-lost='true'] {
-    animation: impact 270ms ease-out both;
+  .flag:not([data-exiting='true']) .flagCloth {
+    transform-box: view-box;
+    transform-origin: 9px 5px;
+    animation: unfurl-flag 185ms var(--ease) 65ms both;
+  }
+
+  .flag[data-exiting='true'] {
+    animation: lift-flag 180ms ease-out both;
+  }
+
+  .cell[data-mine='true'] {
+    --fragment-duration: 420ms;
+    animation: reveal-mine 240ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
   .mine {
     overflow: visible;
-    animation: show-marker 220ms var(--ease-spring) both;
+    animation: show-marker 220ms var(--ease-spring) var(--reveal-delay, 0ms)
+      both;
   }
 
   .burst {
     transform-origin: center;
-    animation: burst 430ms var(--ease) both;
-  }
-
-  .cell[data-detonated='true']::before,
-  .cell[data-detonated='true']::after {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: var(--line-strong);
-    pointer-events: none;
-    content: '';
-    animation: shatter 380ms var(--ease) both;
-  }
-
-  .cell[data-detonated='true']::before {
-    --fragment-x: -55%;
-    --fragment-y: -40%;
-    --fragment-angle: -30deg;
-
-    clip-path: polygon(0 0, 100% 0, 59% 42%, 35% 31%, 41% 63%, 0 100%);
-  }
-
-  .cell[data-detonated='true']::after {
-    --fragment-x: 55%;
-    --fragment-y: 44%;
-    --fragment-angle: 38deg;
-
-    clip-path: polygon(100% 0, 100% 100%, 0 100%, 41% 63%, 35% 31%, 59% 42%);
+    transform-box: view-box;
+    animation: burst 430ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
   .cell[data-pending='true'] {
     animation: wait-cell 650ms alternate infinite ease-in-out;
-  }
-}
-
-@keyframes open-cell {
-  from {
-    opacity: 0.36;
-    transform: scale(0.88);
   }
 }
 
@@ -154,48 +206,67 @@
   }
 }
 
-@keyframes lift-flag {
+@keyframes plant-flag {
   from {
+    opacity: 0;
+    transform: translateY(-30%);
+  }
+
+  65% {
+    opacity: 1;
+    transform: translateY(2%);
+  }
+}
+
+@keyframes unfurl-flag {
+  from {
+    transform: scaleX(0.15);
+  }
+}
+
+@keyframes lift-flag {
+  from,
+  45% {
     opacity: 1;
   }
 
   to {
     opacity: 0;
-    transform: translateY(-42%) rotate(14deg) scale(0.78);
+    transform: translateY(-36%);
   }
 }
 
-@keyframes impact {
-  18% {
-    transform: translate(-3px, 1px);
-  }
-  38% {
-    transform: translate(3px, -1px);
-  }
-  60% {
-    transform: translate(-2px, 0);
-  }
-  80% {
-    transform: translate(1px, 0);
+@keyframes reveal-mine {
+  from {
+    border-color: var(--line-strong);
+    background: var(--tile-cover);
   }
 }
 
 @keyframes burst {
   from {
     opacity: 1;
-    transform: scale(0.45);
+    transform: scale(0.55);
   }
   to {
     opacity: 0;
-    transform: scale(1.9) rotate(18deg);
+    transform: scale(2.6) rotate(24deg);
   }
 }
 
 @keyframes shatter {
+  45% {
+    opacity: 1;
+  }
+
   to {
     opacity: 0;
-    transform: translate(var(--fragment-x), var(--fragment-y))
-      rotate(var(--fragment-angle)) scale(0.48);
+    transform: translate(
+        calc(var(--fragment-x) * var(--shard-direction, 1)),
+        var(--fragment-y)
+      )
+      rotate(calc(var(--fragment-angle) * var(--shard-direction, 1)))
+      scale(0.48);
   }
 }
 
