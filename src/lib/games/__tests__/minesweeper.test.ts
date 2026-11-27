@@ -179,5 +179,6 @@ describe('chord', () => {
     g = toggleFlag(g, 2, 2); // wrong: the mine is at 0,0
     g = chord(g, 1, 1);
     expect(g.status).toBe('lost');
+    expect(g.detonated).toBe(0);
   });
 });

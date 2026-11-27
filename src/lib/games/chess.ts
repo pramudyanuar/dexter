@@ -30,7 +30,7 @@ export interface ChessState {
   ep: Point | null;
   /** Plies since the last capture or pawn move */
   half: number;
-  /** `resigned`: the loser left or kept missing turns */
+  /** `resigned`: the loser gave up, left, or kept missing turns */
   status: 'playing' | 'checkmate' | 'stalemate' | 'draw' | 'resigned';
   winner: 0 | 1 | null;
   check: boolean;
@@ -39,6 +39,7 @@ export interface ChessState {
   taken: Piece[];
   starter: 0 | 1;
   positions?: Record<string, number>;
+  drawOffer?: 0 | 1 | null;
 }
 
 export interface ChessView extends ChessState {
@@ -362,6 +363,7 @@ function applyMove(state: ChessState, chosen: ChessMove): ChessState {
     half: captured || piece[1] === 'P' ? 0 : state.half + 1,
     last: { from: chosen.from, to: chosen.to, promo: chosen.promo },
     taken: captured ? [...state.taken, captured] : state.taken,
+    drawOffer: state.drawOffer === state.turn ? state.drawOffer : null,
     turn: (1 - state.turn) as 0 | 1,
     check: false,
   };
@@ -371,6 +373,15 @@ function repeatsOnMove(previous: ChessState, next: ChessState) {
   return (
     next.half > 0 && (previous.positions?.[positionKey(next, [])] ?? 0) >= 2
   );
+}
+
+function resign(state: ChessState, seat: number): ChessState {
+  return {
+    ...state,
+    status: 'resigned',
+    winner: seat === 0 ? 1 : 0,
+    drawOffer: null,
+  };
 }
 
 export const chessGame: GameDef<ChessState> = {
@@ -384,8 +395,25 @@ export const chessGame: GameDef<ChessState> = {
   restart: (previous) => fresh(previous.starter),
 
   move(state, seat, move) {
-    if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
+    if (state.status !== 'playing')
+      throw new RoomError('Permainan sudah selesai', 409);
     const m = move as (ChessMove & { type?: unknown }) | null;
+    if (m?.type === 'resign') return resign(state, seat);
+    if (m?.type === 'offer_draw') {
+      if (state.drawOffer != null)
+        throw new RoomError('Tawaran remis masih menunggu jawaban', 409);
+      return { ...state, drawOffer: seat === 0 ? 0 : 1 };
+    }
+    if (m?.type === 'accept_draw' || m?.type === 'decline_draw') {
+      if (state.drawOffer == null || state.drawOffer === seat)
+        throw new RoomError('Tidak ada tawaran remis dari lawan', 409);
+      return {
+        ...state,
+        status: m.type === 'accept_draw' ? 'draw' : state.status,
+        drawOffer: null,
+      };
+    }
+    if (state.turn !== seat) throw new RoomError('Bukan giliranmu', 409);
     const legal = legalMoves(state, seat);
     const claiming = m?.type === 'claim_draw';
     if (claiming && m.from === undefined && m.to === undefined) {
@@ -436,6 +464,11 @@ export const chessGame: GameDef<ChessState> = {
     return next;
   },
 
+  passive(move) {
+    const type = (move as { type?: unknown } | null)?.type;
+    return type === 'offer_draw' || type === 'decline_draw';
+  },
+
   waiting: (state) =>
     state.status === 'playing' ? { seats: [state.turn], seconds: 120 } : null,
 
@@ -446,11 +479,7 @@ export const chessGame: GameDef<ChessState> = {
     return { from: m.from, to: m.to, promo: m.promo };
   },
 
-  eliminate: (state, seat) => ({
-    ...state,
-    status: 'resigned',
-    winner: (1 - seat) as 0 | 1,
-  }),
+  eliminate: resign,
 
   view(state, seat): ChessView {
     const { positions, ...view } = state;

@@ -684,12 +684,32 @@ function Checkers() {
 }
 
 function Chess() {
-  const s = 14;
-  const ox = 24;
-  const oy = 8;
+  const s = 11;
+  const ox = 36;
+  const oy = 6;
+  const pieces = {
+    king: 'M0-4.6v3.2M-1.2-3.6h2.4M-2.8 4.1v-1l1-1.1-1.1-2.7 1.3-.8L0-.5l1.6-1 1.3.8-1.1 2.7 1 1.1v1z',
+    rook: 'M-2.9 4.1V3l1-1.2.3-2.7-1.1-.8v-2.1h1.5v1.2h.6v-1.2H.6v1.2h.6v-1.2h1.5v2.1l-1.1.8.3 2.7 1 1.2v1.1z',
+    bishop:
+      'M-2.8 4.1V3l1.5-1.4.2-.9c-1.8-.5-1.9-2.4-.5-3.6L0-4.4l1.6 1.5C3-.5 2.7.2 1.1.7l.2.9L2.8 3v1.1zM.9-3.6-.5-1.8',
+    knight:
+      'M-3 4.1V2.9l2.2-2.5-1.7.4L-3.5-.4l2.8-2.7.6-1.2 1.1 1C3-3 3.7-.7 3.1 2.5l.3 1.6zM.1-1.9h.1',
+    pawn: 'M-2.6 4.1V3.2c1.4-.5 1.6-2 1.7-3.2a1.65 1.65 0 1 1 1.8 0c.1 1.2.3 2.7 1.7 3.2v.9z',
+  };
+  const placement = [
+    [0, 0, 'rook', false],
+    [4, 0, 'king', false],
+    [5, 2, 'knight', false],
+    [3, 3, 'pawn', false],
+    [4, 5, 'pawn', true],
+    [2, 6, 'bishop', true],
+    [4, 7, 'king', true],
+    [7, 7, 'rook', true],
+  ] as const;
   return (
     <Frame>
-      {Array.from({ length: 8 * 6 }, (_, i) => {
+      <rect x={ox - 2} y={oy - 2} width='92' height='92' rx='2' fill={LINE} />
+      {Array.from({ length: 64 }, (_, i) => {
         const c = i % 8;
         const r = Math.floor(i / 8);
         return (
@@ -703,43 +723,35 @@ function Chess() {
           />
         );
       })}
-      {/* a pawn and a knight, drawn as simple solids */}
-      <g className={move('group-hover:-translate-y-[14px]')}>
-        <circle
-          cx={ox + 2.5 * s}
-          cy={oy + 3.35 * s}
-          r='3.2'
-          fill='#f8f8f8'
-          stroke='#222'
-          strokeWidth='1'
-        />
-        <path
-          d={`M${ox + 2.5 * s - 4.5} ${oy + 4.6 * s}q4.5 -7 9 0z`}
-          fill='#f8f8f8'
-          stroke='#222'
-          strokeWidth='1'
-          strokeLinejoin='round'
-        />
-      </g>
-      <g>
-        <path
-          d={`M${ox + 5.2 * s} ${oy + 2.8 * s}l1.5 -6.5 4.2 -2.2 2 3.2 -3.2 1.3 1.2 4.4z`}
-          fill='#2b2d33'
-          stroke='#000'
-          strokeWidth='0.8'
-          strokeLinejoin='round'
-        />
-      </g>
       <rect
-        x={ox + 5 * s}
-        y={oy + 0 * s}
-        width={s}
-        height={s}
+        x={ox + 4 * s + 0.75}
+        y={oy + 4 * s + 0.75}
+        width={s - 1.5}
+        height={s - 1.5}
         fill='none'
         stroke={GOLD}
-        strokeWidth='1.6'
-        rx='1'
+        strokeWidth='1.25'
       />
+      {placement.map(([col, row, kind, white]) => (
+        <g
+          key={`${col}-${row}`}
+          transform={`translate(${ox + (col + 0.5) * s} ${oy + (row + 0.5) * s})`}
+        >
+          <path
+            d={pieces[kind]}
+            fill={white ? '#fff8e4' : '#252a25'}
+            stroke={white ? '#33372c' : '#121611'}
+            strokeWidth='0.7'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            className={
+              white && kind === 'pawn'
+                ? move('motion-safe:group-hover:-translate-y-[11px]')
+                : undefined
+            }
+          />
+        </g>
+      ))}
     </Frame>
   );
 }

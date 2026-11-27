@@ -5,6 +5,7 @@ import {
   legalMoves,
   Piece,
 } from '@/lib/games/chess';
+import { act, join, newRoom } from '@/lib/rooms/engine';
 
 const start = () => chessGame.start(2) as ChessState;
 
@@ -52,6 +53,71 @@ function custom(pieces: Record<string, Piece>, turn: 0 | 1 = 0): ChessState {
 }
 
 describe('chess', () => {
+  it('offers remis without extending the turn, then ends the room only when the opponent accepts', () => {
+    const room = join(
+      newRoom('chess', 'ABCDE', 'white', 1000),
+      null,
+      'black',
+      undefined,
+      'Black',
+      1000,
+    ).room;
+    const offered = act(room, 'white', { type: 'offer_draw' }, undefined, 2000);
+    expect(offered.stamp).toBe(room.stamp);
+    expect(offered.state).toMatchObject({ drawOffer: 0, turn: 0 });
+    expect(() =>
+      act(offered, 'white', { type: 'accept_draw' }, undefined, 2500),
+    ).toThrow(/tawaran/);
+    const moved = act(offered, 'white', mv('e2', 'e4'), undefined, 3000);
+    expect(moved.state).toMatchObject({ drawOffer: 0, turn: 1 });
+    const declined = act(
+      moved,
+      'black',
+      { type: 'decline_draw' },
+      undefined,
+      4000,
+    );
+    expect(declined.stamp).toBe(moved.stamp);
+    expect(declined.state).toMatchObject({
+      drawOffer: null,
+      status: 'playing',
+    });
+    const counter = act(
+      declined,
+      'black',
+      { type: 'offer_draw' },
+      undefined,
+      5000,
+    );
+    const played = act(
+      act(counter, 'black', mv('e7', 'e5'), undefined, 5100),
+      'white',
+      mv('d2', 'd4'),
+      undefined,
+      5200,
+    );
+    expect(played.state).toMatchObject({ drawOffer: null, status: 'playing' });
+    const draw = act(
+      counter,
+      'white',
+      { type: 'accept_draw' },
+      undefined,
+      6000,
+    );
+    expect(draw).toMatchObject({
+      status: 'over',
+      state: { status: 'draw', winner: null, drawOffer: null },
+    });
+  });
+
+  it('lets a player resign outside their turn', () => {
+    const state = chessGame.move(start(), 1, { type: 'resign' });
+    expect(state).toMatchObject({ status: 'resigned', winner: 0 });
+    expect(() => chessGame.move(state, 0, { type: 'offer_draw' })).toThrow(
+      /selesai/,
+    );
+  });
+
   it('draws when only kings and bishops on the same square color remain', () => {
     const pieces = { a1: 'wK', h8: 'bK', c1: 'wB' } as const;
     expect(play(custom({ ...pieces, f8: 'bB' }), ['c1', 'd2']).status).toBe(

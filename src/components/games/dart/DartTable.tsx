@@ -2,7 +2,13 @@
 
 import * as React from 'react';
 
-import { CRICKET, DARTS_PER_TURN, DartView, Throw } from '@/lib/games/dart';
+import {
+  CRICKET,
+  DARTS_PER_TURN,
+  DartView,
+  spreadFor,
+  Throw,
+} from '@/lib/games/dart';
 import type { DartMode } from '@/lib/games/dart-config';
 import { MODE_INFO } from '@/lib/games/dart-config';
 import type { RoomView } from '@/lib/rooms/types';
@@ -10,7 +16,6 @@ import type { useRoom } from '@/lib/rooms/useRoom';
 
 import Confetti from '@/components/games/Confetti';
 import Dartboard from '@/components/games/dart/Dartboard';
-import PowerMeter from '@/components/games/dart/PowerMeter';
 import { seatName } from '@/components/games/lang';
 import { seatColor } from '@/components/games/sekata/labels';
 import useSfx from '@/components/games/sekata/useSfx';
@@ -22,6 +27,18 @@ const mmss = (sec: number) =>
 
 /** How far the casual reticle drifts, by difficulty (board units). */
 const SWAY = { easy: 0.012, normal: 0.025, hard: 0.04 } as const;
+const BREATH_SECONDS = 2.65;
+type HoldInput = 'board' | 'button' | number;
+const MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+function subscribeToMotion(onChange: () => void) {
+  const preference = window.matchMedia?.(MOTION_QUERY);
+  preference?.addEventListener('change', onChange);
+  return () => preference?.removeEventListener('change', onChange);
+}
+
+const prefersReducedMotion = () =>
+  window.matchMedia?.(MOTION_QUERY).matches ?? false;
 
 function useClock(active: boolean) {
   const [now, setNow] = React.useState(() => Date.now());
@@ -158,44 +175,85 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
 
   // ------------------------------------------------------------- aiming
   const [aim, setAim] = React.useState<{ x: number; y: number } | null>(null);
-  const [drift, setDrift] = React.useState({ x: 0, y: 0 });
-  const powerRef = React.useRef(0.5);
+  const [frame, setFrame] = React.useState(0);
+  const [held, setHeld] = React.useState<{
+    at: number;
+    input: HoldInput;
+    key: string;
+  } | null>(null);
+  const aimKey = `${room.code}:${view.round}:${view.turn}:${view.seq}`;
+  const canThrow = canAim && !r.busy && !!aim;
+  const holding = canThrow && held?.key === aimKey ? held : null;
+  const reducedMotion = React.useSyncExternalStore(
+    subscribeToMotion,
+    prefersReducedMotion,
+    () => false,
+  );
 
-  const swaying = canAim && !!aim;
+  const animating = canAim && !!aim && (!reducedMotion || !!holding);
   React.useEffect(() => {
-    if (!swaying) return;
-    const amp = SWAY[cfg.difficulty] * (skill ? 1.65 : 1);
+    if (!animating) return;
     let raf = 0;
     const tick = (now: number) => {
-      const t = now / 1000;
-      setDrift({
-        x: (Math.sin(t * 2.3) + Math.sin(t * 5.1) * 0.4) * amp,
-        y: (Math.cos(t * 1.9) + Math.cos(t * 4.3) * 0.4) * amp,
-      });
+      setFrame(now);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [swaying, cfg.difficulty, skill]);
+  }, [animating]);
 
-  const withDrift = ({ x, y }: { x: number; y: number }) => ({
-    x: x + drift.x,
-    y: y + drift.y,
-  });
-  const shown = swaying && aim ? withDrift(aim) : aim;
-  const canThrow = canAim && !r.busy && !!aim;
+  const secondsHeld = holding ? Math.max(0, (frame - holding.at) / 1000) : 0;
+  const steady = Math.min(1, secondsHeld / 0.75);
+  const fatigue = Math.max(
+    0,
+    Math.min(1, (secondsHeld - 1.3) / (BREATH_SECONDS - 1.3)),
+  );
+  const quality = holding ? (0.25 + 0.75 * steady) * (1 - fatigue) : undefined;
+  const amplitude =
+    SWAY[cfg.difficulty] *
+    (skill ? 1.65 : 1) *
+    (1 - 0.9 * steady + 1.7 * fatigue);
+  const time = frame / 1000;
+  const shown =
+    aim && frame && !reducedMotion
+      ? {
+          x:
+            aim.x +
+            (Math.sin(time * 2.3) + Math.sin(time * 5.1) * 0.4) * amplitude,
+          y:
+            aim.y +
+            (Math.cos(time * 1.9) + Math.cos(time * 4.3) * 0.4) * amplitude,
+        }
+      : aim;
 
-  const throwDart = (at?: { x: number; y: number }) => {
-    if (!canAim || r.busy) return;
-    const target = at ? withDrift(at) : shown;
-    if (!target) return;
+  const throwDart = () => {
+    if (!canThrow || !shown) return;
+    setHeld(null);
     void r.move({
       type: 'throw',
-      x: target.x,
-      y: target.y,
-      power: skill ? powerRef.current : undefined,
+      x: shown.x,
+      y: shown.y,
+      power: quality,
     });
   };
+  const startHold = (input: HoldInput) => {
+    if (canThrow && !holding)
+      setHeld({ at: performance.now(), input, key: aimKey });
+  };
+  const releaseHold = (input: HoldInput) => {
+    if (holding?.input === input) throwDart();
+  };
+  const cancelHold = (input: HoldInput) => {
+    setHeld((current) => (current?.input === input ? null : current));
+  };
+  const holdKeys = (input: 'board' | 'button') => ({
+    onKeyUp: (e: React.KeyboardEvent) => {
+      if (e.key !== ' ') return;
+      e.preventDefault();
+      releaseHold(input);
+    },
+    onBlur: () => cancelHold(input),
+  });
 
   // sounds for what lands
   const heard = React.useRef(view.seq);
@@ -284,6 +342,7 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
           <div
             tabIndex={canAim ? 0 : -1}
             className='relative rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[#e0b84c]'
+            {...holdKeys('board')}
             onKeyDown={(e) => {
               if (!canAim) return;
               const step = e.shiftKey ? 0.08 : 0.025;
@@ -300,9 +359,14 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
                   x: cur.x + moves[e.key][0],
                   y: cur.y + moves[e.key][1],
                 });
-              } else if (e.key === 'Enter' || e.key === ' ') {
+              } else if (e.key === ' ') {
                 e.preventDefault();
-                if (aim) throwDart();
+                if (!e.repeat) startHold('board');
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (!e.repeat) throwDart();
+              } else if (e.key === 'Escape') {
+                cancelHold('board');
               }
             }}
           >
@@ -311,13 +375,9 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
               color={seatColor(view.turn)}
               aim={shown}
               active={canAim}
-              skill={skill}
+              aimRadius={0.025 + 1.35 * spreadFor(cfg, quality)}
               label={`Dartboard. ${view.throws.length} darts thrown this turn.`}
-              onAim={(x, y, touch) => setAim({ x, y: touch ? y - 0.16 : y })}
-              onPick={(x, y) => {
-                setAim({ x, y });
-                throwDart({ x, y });
-              }}
+              onPick={(x, y) => setAim({ x, y })}
             />
 
             {/* whose turn it is: slides in, then gets out of the way */}
@@ -342,22 +402,51 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
 
           {/* controls */}
           <div className='mt-3 space-y-3'>
-            {skill && canAim && <PowerMeter valueRef={powerRef} running />}
+            {canAim && (
+              <progress
+                aria-label='Breath remaining'
+                max={1}
+                value={Math.max(0, 1 - secondsHeld / BREATH_SECONDS)}
+                className='mx-auto block h-2 w-40 max-w-full accent-[#e0b84c]'
+              />
+            )}
 
             <div className='flex flex-wrap items-center justify-center gap-2'>
               {canAim && (
                 <>
                   <button
                     type='button'
-                    onClick={() => throwDart()}
                     disabled={!canThrow}
-                    className='rounded-full bg-[#e0b84c] px-9 py-2.5 text-sm font-black tracking-wider text-[#2a1f00] shadow-[0_3px_0_#9c7d2e] transition-[transform,box-shadow] hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40 disabled:shadow-none'
+                    {...holdKeys('button')}
+                    onPointerDown={(e) => {
+                      if (!e.isPrimary || e.button !== 0) return;
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      startHold(e.pointerId);
+                    }}
+                    onPointerUp={(e) => releaseHold(e.pointerId)}
+                    onPointerCancel={(e) => cancelHold(e.pointerId)}
+                    onLostPointerCapture={(e) => cancelHold(e.pointerId)}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ') {
+                        e.preventDefault();
+                        if (!e.repeat) startHold('button');
+                      } else if (e.key === 'Escape') {
+                        setHeld(null);
+                      }
+                    }}
+                    onClick={(e) => {
+                      if (e.detail === 0) throwDart();
+                    }}
+                    className='min-h-11 touch-none rounded-full bg-[#e0b84c] px-7 py-2.5 text-sm font-black tracking-wider text-[#2a1f00] shadow-[0_3px_0_#9c7d2e] transition-[transform,box-shadow] select-none hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40 disabled:shadow-none'
                   >
-                    THROW
+                    HOLD TO THROW
                   </button>
                   <button
                     type='button'
-                    onClick={() => setAim(null)}
+                    onClick={() => {
+                      setAim(null);
+                      setHeld(null);
+                    }}
                     disabled={!aim}
                     className='rounded-full border-2 border-line-strong px-5 py-2.5 text-sm font-semibold text-[var(--mute)] hover:border-[var(--mute)] disabled:opacity-40'
                   >
@@ -373,7 +462,7 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
                     void r.move({ type: 'next' });
                   }}
                   disabled={r.busy}
-                  className='a-bob rounded-full bg-[#e0b84c] px-9 py-2.5 text-sm font-black tracking-wider text-[#2a1f00] shadow-[0_3px_0_#9c7d2e] disabled:opacity-50'
+                  className='rounded-full bg-[#e0b84c] px-9 py-2.5 text-sm font-black tracking-wider text-[#2a1f00] shadow-[0_3px_0_#9c7d2e] disabled:opacity-50'
                 >
                   END TURN
                 </button>
@@ -386,10 +475,8 @@ export default function DartTable({ r, view }: { r: Api; view: DartView }) {
             </div>
             {canAim && (
               <p className='text-center text-xs text-[var(--mute)]'>
-                {skill
-                  ? 'Aim, then throw with good timing. Your hand shakes.'
-                  : 'The crosshair drifts as you aim. Click or tap THROW to release.'}{' '}
-                Arrow keys move the aim, Enter throws.
+                Tap the board to aim. Hold to steady your aim, then release to
+                throw. Arrow keys aim, Space holds, Enter throws.
               </p>
             )}
             {view.checkout && myTurn && (
