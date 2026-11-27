@@ -30,7 +30,6 @@ import GameShell from '@/components/games/GameShell';
 import SubmitScore from '@/components/games/SubmitScore';
 
 type Best = Partial<Record<Level, number>>;
-type RevealPulse = { id: number; cell: number; mine: boolean };
 const NO_BEST: Best = {};
 
 const NUMBER_COLOR = [
@@ -48,13 +47,22 @@ const NUMBER_COLOR = [
 const pad = (n: number) =>
   `${n < 0 ? '-' : ''}${String(Math.min(Math.abs(n), 999)).padStart(3, '0')}`;
 
-function FlagArt({ exiting }: { exiting: boolean }) {
+function FlagArt({
+  exiting,
+  onExit,
+}: {
+  exiting: boolean;
+  onExit: () => void;
+}) {
   return (
     <svg
       aria-hidden='true'
       viewBox='0 0 24 24'
       className={styles.flag}
       data-exiting={exiting}
+      onAnimationEnd={(event) => {
+        if (exiting && event.target === event.currentTarget) onExit();
+      }}
     >
       <path
         d='M8 20V4'
@@ -64,6 +72,7 @@ function FlagArt({ exiting }: { exiting: boolean }) {
         strokeLinecap='round'
       />
       <path
+        className={styles.flagCloth}
         d='M9 4c4-2 5 2 11 0l-2.6 4L20 12c-6 2-7-2-11 0Z'
         fill='currentColor'
       />
@@ -141,8 +150,7 @@ function Minesweeper() {
   const [pending, setPending] = React.useState<number | null>(null);
   const [focused, setFocused] = React.useState(0);
   const [reveals, setReveals] = React.useState<Record<number, number>>({});
-  const [pulses, setPulses] = React.useState<RevealPulse[]>([]);
-  const [unflagged, setUnflagged] = React.useState<number | null>(null);
+  const [unflagged, setUnflagged] = React.useState<number[]>([]);
   const [seconds, setSeconds] = React.useState(0);
   const [best, setBest] = useStoredState<Best>('mines-best', NO_BEST);
   const holdTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,8 +188,7 @@ function Minesweeper() {
     setPending(null);
     setFocused(0);
     setReveals({});
-    setPulses([]);
-    setUnflagged(null);
+    setUnflagged([]);
   };
 
   const apply = (
@@ -195,7 +202,14 @@ function Minesweeper() {
     const [action, x, y] = move;
     if (action === 'flag') {
       const i = y * next.width + x;
-      setUnflagged(next.cells[i].state === 'hidden' ? i : null);
+      const animateRemoval =
+        next.cells[i].state === 'hidden' &&
+        !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      setUnflagged((previous) =>
+        animateRemoval
+          ? [...previous, i]
+          : previous.filter((cell) => cell !== i),
+      );
     }
     if (action === 'open') {
       const additions: Record<number, number> = {};
@@ -214,12 +228,11 @@ function Minesweeper() {
             : Math.min(280, distance * 22);
       });
       setReveals((previous) => ({ ...previous, ...additions }));
-      const pulse = {
-        id: active.moves.length,
-        cell: next.detonated ?? clicked,
-        mine: next.status === 'lost',
-      };
-      setPulses((previous) => [...previous.slice(-2), pulse]);
+      setUnflagged((previous) =>
+        previous.length
+          ? previous.filter((cell) => next.cells[cell].state === 'hidden')
+          : previous,
+      );
     }
     if (before.status === 'ready' && next.status !== 'ready')
       active.startClock();
@@ -506,8 +519,15 @@ function Minesweeper() {
                 {wrongFlag ? (
                   <X aria-hidden='true' />
                 ) : cell.state === 'flag' ||
-                  (i === unflagged && cell.state === 'hidden') ? (
-                  <FlagArt exiting={cell.state !== 'flag'} />
+                  (unflagged.includes(i) && cell.state === 'hidden') ? (
+                  <FlagArt
+                    exiting={cell.state !== 'flag'}
+                    onExit={() =>
+                      setUnflagged((previous) =>
+                        previous.filter((cell) => cell !== i),
+                      )
+                    }
+                  />
                 ) : isOpen && cell.mine ? (
                   <MineArt />
                 ) : isOpen && cell.adjacent ? (
@@ -516,39 +536,6 @@ function Minesweeper() {
               </button>
             );
           })}
-          {pulses.map(({ id, cell, mine }) => (
-            <svg
-              key={`reveal-${id}`}
-              aria-hidden='true'
-              className={styles.pulse}
-              data-reveal-pulse={mine ? 'mine' : 'safe'}
-              style={{
-                gridColumn: `${(cell % width) + 1} / span 1`,
-                gridRow: `${Math.floor(cell / width) + 1} / span 1`,
-              }}
-              viewBox='0 0 100 100'
-            >
-              <circle
-                className={styles.pulseRing}
-                cx='50'
-                cy='50'
-                r='28'
-                fill='none'
-                stroke='currentColor'
-                strokeWidth='1.5'
-              />
-              <g className={styles.pulseSparks}>
-                <path
-                  d='m46 17 2-10 5 8-3 7zM78 35l10-7-3 10-6 3zM71 72l8 4-2 6-9-6zM24 66l-9 9 2-12 6-3zM27 32l-8-3 4-5 7 5z'
-                  fill='currentColor'
-                />
-                <path
-                  d='m62 20 5-8 2 5-5 6zM88 53l8 2-1 4-9-3zM43 83l3 10-6-4-1-6zM17 47l-7 2 1-4 7-2z'
-                  fill='var(--hash)'
-                />
-              </g>
-            </svg>
-          ))}
         </div>
       </div>
 

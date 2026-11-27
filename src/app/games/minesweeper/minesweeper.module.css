@@ -6,7 +6,6 @@
 }
 
 .board {
-  position: relative;
   display: grid;
   gap: clamp(1px, 0.3vw, 3px);
   container-type: inline-size;
@@ -90,17 +89,13 @@
   display: inline-block;
 }
 
-.pulse {
-  display: none;
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .cell[data-state='open']:not([data-mine]) {
     animation: reveal-hit 250ms ease-out var(--reveal-delay, 0ms);
   }
 
-  .cell[data-state='open']::after,
-  .cell[data-mine='true']::before {
+  .cell[data-state='open']::before,
+  .cell[data-state='open']::after {
     position: absolute;
     z-index: 1;
     inset: 0;
@@ -108,23 +103,29 @@
     background: var(--tile-cover);
     pointer-events: none;
     content: '';
-  }
-
-  .cell[data-state='open']:not([data-mine])::after {
-    animation: lift-tile 330ms var(--ease) var(--reveal-delay, 0ms) both;
+    animation: shatter 340ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
   .cell:nth-child(even) {
-    --lift-direction: -1;
+    --shard-direction: -1;
   }
 
-  .flag:not([data-exiting='true']),
   .message {
     animation: show-marker 220ms var(--ease-spring) both;
   }
 
+  .flag:not([data-exiting='true']) {
+    animation: plant-flag 210ms ease-out both;
+  }
+
+  .flag:not([data-exiting='true']) .flagCloth {
+    transform-box: view-box;
+    transform-origin: 9px 5px;
+    animation: unfurl-flag 185ms var(--ease) 65ms both;
+  }
+
   .flag[data-exiting='true'] {
-    animation: lift-flag 180ms ease-in both;
+    animation: lift-flag 180ms ease-out both;
   }
 
   .cell[data-mine='true'] {
@@ -145,20 +146,20 @@
 
   .cell[data-mine='true']::before,
   .cell[data-mine='true']::after {
-    animation: shatter 380ms var(--ease) var(--reveal-delay, 0ms) both;
+    animation-duration: 420ms;
   }
 
-  .cell[data-mine='true']::before {
-    --fragment-x: -55%;
-    --fragment-y: -40%;
+  .cell[data-state='open']::before {
+    --fragment-x: -76%;
+    --fragment-y: -62%;
     --fragment-angle: -30deg;
 
     clip-path: polygon(0 0, 100% 0, 59% 42%, 35% 31%, 41% 63%, 0 100%);
   }
 
-  .cell[data-mine='true']::after {
-    --fragment-x: 55%;
-    --fragment-y: 44%;
+  .cell[data-state='open']::after {
+    --fragment-x: 80%;
+    --fragment-y: 66%;
     --fragment-angle: 38deg;
 
     clip-path: polygon(100% 0, 100% 100%, 0 100%, 41% 63%, 35% 31%, 59% 42%);
@@ -166,35 +167,6 @@
 
   .cell[data-pending='true'] {
     animation: wait-cell 650ms alternate infinite ease-in-out;
-  }
-
-  .pulse {
-    position: absolute;
-    z-index: 4;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-    color: var(--accent);
-    pointer-events: none;
-  }
-
-  .pulse[data-reveal-pulse='mine'] {
-    color: var(--err);
-  }
-
-  .pulseRing,
-  .pulseSparks {
-    transform-origin: center;
-  }
-
-  .pulseRing {
-    animation: wave-ring 460ms var(--ease) both;
-  }
-
-  .pulseSparks {
-    animation: scatter-sparks 510ms var(--ease) both;
   }
 }
 
@@ -215,51 +187,6 @@
   }
 }
 
-@keyframes lift-tile {
-  38% {
-    transform: translate(calc(-18% * var(--lift-direction, 1)), -49%)
-      rotate(calc(-13deg * var(--lift-direction, 1))) scale(0.85);
-  }
-
-  to {
-    opacity: 0;
-    transform: translate(calc(68% * var(--lift-direction, 1)), 82%)
-      rotate(calc(22deg * var(--lift-direction, 1))) scale(0.48);
-  }
-}
-
-@keyframes wave-ring {
-  from {
-    opacity: 0.72;
-    transform: scale(0.58);
-  }
-
-  45% {
-    opacity: 0.48;
-  }
-
-  to {
-    opacity: 0;
-    transform: scale(4.3);
-  }
-}
-
-@keyframes scatter-sparks {
-  from {
-    opacity: 0;
-    transform: scale(0.48);
-  }
-
-  25% {
-    opacity: 0.96;
-  }
-
-  to {
-    opacity: 0;
-    transform: scale(2.8) rotate(19deg);
-  }
-}
-
 @keyframes show-marker {
   from {
     opacity: 0;
@@ -267,14 +194,33 @@
   }
 }
 
-@keyframes lift-flag {
+@keyframes plant-flag {
   from {
+    opacity: 0;
+    transform: translateY(-30%);
+  }
+
+  65% {
+    opacity: 1;
+    transform: translateY(2%);
+  }
+}
+
+@keyframes unfurl-flag {
+  from {
+    transform: scaleX(0.15);
+  }
+}
+
+@keyframes lift-flag {
+  from,
+  45% {
     opacity: 1;
   }
 
   to {
     opacity: 0;
-    transform: translateY(-42%) rotate(14deg) scale(0.78);
+    transform: translateY(-36%);
   }
 }
 
@@ -305,10 +251,18 @@
 }
 
 @keyframes shatter {
+  45% {
+    opacity: 1;
+  }
+
   to {
     opacity: 0;
-    transform: translate(var(--fragment-x), var(--fragment-y))
-      rotate(var(--fragment-angle)) scale(0.48);
+    transform: translate(
+        calc(var(--fragment-x) * var(--shard-direction, 1)),
+        var(--fragment-y)
+      )
+      rotate(calc(var(--fragment-angle) * var(--shard-direction, 1)))
+      scale(0.48);
   }
 }
 

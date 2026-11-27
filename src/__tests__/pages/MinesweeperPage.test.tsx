@@ -5,7 +5,7 @@ import { seededRandom } from '@/lib/games/seeded-random';
 
 import MinesweeperPage from '@/app/games/minesweeper/page';
 
-it('places reveal effects at the clicked or detonated square and clears them on restart', async () => {
+it('staggers tile breaks and starts a mine cascade at the triggered square', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = jest.fn().mockResolvedValue({
     ok: true,
@@ -19,10 +19,7 @@ it('places reveal effects at the clicked or detonated square and clears them on 
     await screen.findByText('Permainan berlangsung');
     const initial = reveal(newGame('mudah'), 0, 0, seededRandom(222));
     const grid = screen.getByRole('grid');
-    expect(grid.querySelector('[data-reveal-pulse="safe"]')).toHaveStyle({
-      gridColumn: '1 / span 1',
-      gridRow: '1 / span 1',
-    });
+    expect(grid.querySelector('circle')).toBeNull();
     const lifted = initial.cells.findIndex(
       (cell, i) => i > 0 && cell.state === 'open',
     );
@@ -35,10 +32,6 @@ it('places reveal effects at the clicked or detonated square and clears them on 
 
     expect(cells[impact]).toHaveAttribute('data-detonated', 'true');
     expect(cells[impact].style.getPropertyValue('--reveal-delay')).toBe('0ms');
-    expect(grid.querySelector('[data-reveal-pulse="mine"]')).toHaveStyle({
-      gridColumn: `${(impact % initial.width) + 1} / span 1`,
-      gridRow: `${Math.floor(impact / initial.width) + 1} / span 1`,
-    });
     const following = cells.filter(
       (cell) => cell !== cells[impact] && cell.dataset.mine,
     );
@@ -50,7 +43,7 @@ it('places reveal effects at the clicked or detonated square and clears them on 
       ),
     ).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Main lagi' }));
-    expect(grid.querySelectorAll('[data-reveal-pulse]')).toHaveLength(0);
+    expect(grid.querySelectorAll('[data-state="open"]')).toHaveLength(0);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -64,12 +57,22 @@ it('keeps the selected difficulty labeled and renders both flag animation states
   expect(screen.getAllByRole('gridcell')).toHaveLength(144);
 
   const cell = screen.getByRole('gridcell', { name: 'Baris 1, kolom 1' });
+  const other = screen.getByRole('gridcell', { name: 'Baris 1, kolom 2' });
+  fireEvent.contextMenu(other);
   fireEvent.contextMenu(cell);
   expect(cell).toHaveAccessibleName('Baris 1, kolom 1, bendera');
   expect(cell.querySelector('svg')).toHaveAttribute('data-exiting', 'false');
   fireEvent.contextMenu(cell);
   expect(cell).toHaveAccessibleName('Baris 1, kolom 1');
-  expect(cell.querySelector('svg')).toHaveAttribute('data-exiting', 'true');
+  fireEvent.contextMenu(other);
+  const lifted = cell.querySelector('svg')!;
+  expect(lifted).toHaveAttribute('data-exiting', 'true');
+  expect(other.querySelector('svg')).toHaveAttribute('data-exiting', 'true');
+  fireEvent.animationEnd(lifted.querySelector('path')!);
+  expect(lifted).toBeInTheDocument();
+  fireEvent.animationEnd(lifted);
+  expect(cell.querySelector('svg')).toBeNull();
+  expect(other.querySelector('svg')).toHaveAttribute('data-exiting', 'true');
 });
 
 it('places one flag when a long press also triggers the system context menu', async () => {
