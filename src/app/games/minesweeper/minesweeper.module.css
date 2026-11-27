@@ -1,6 +1,7 @@
 .boardFrame {
   width: min(100%, clamp(20rem, calc(100dvh - 15rem), 36rem));
   margin-inline: auto;
+  overflow: clip;
 }
 
 .board {
@@ -13,6 +14,8 @@
 }
 
 .cell {
+  --tile-cover: color-mix(in oklab, var(--card) 75%, var(--line-strong));
+
   position: relative;
   display: grid;
   aspect-ratio: 1;
@@ -32,7 +35,7 @@
 .cell:is([data-state='hidden'], [data-state='flag']) {
   cursor: pointer;
   border-color: var(--line-strong);
-  background: color-mix(in oklab, var(--card) 75%, var(--line-strong));
+  background: var(--tile-cover);
 }
 
 .flag {
@@ -81,8 +84,23 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .cell[data-state='open']:not([data-mine]) {
-    animation: open-cell 240ms ease-out both;
+  .cell[data-state='open']::after,
+  .cell[data-mine='true']::before {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--tile-cover);
+    pointer-events: none;
+    content: '';
+  }
+
+  .cell[data-state='open']:not([data-mine])::after {
+    animation: lift-tile 270ms var(--ease) var(--reveal-delay, 0ms) both;
+  }
+
+  .cell:nth-child(even) {
+    --lift-direction: -1;
   }
 
   .flag:not([data-exiting='true']),
@@ -94,32 +112,28 @@
     animation: lift-flag 180ms ease-in both;
   }
 
-  .board[data-lost='true'] {
-    animation: impact 270ms ease-out both;
+  .cell[data-mine='true'] {
+    animation: mine-hit 240ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
   .mine {
     overflow: visible;
-    animation: show-marker 220ms var(--ease-spring) both;
+    animation: show-marker 220ms var(--ease-spring) var(--reveal-delay, 0ms)
+      both;
   }
 
   .burst {
     transform-origin: center;
-    animation: burst 430ms var(--ease) both;
+    transform-box: view-box;
+    animation: burst 430ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
-  .cell[data-detonated='true']::before,
-  .cell[data-detonated='true']::after {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: var(--line-strong);
-    pointer-events: none;
-    content: '';
-    animation: shatter 380ms var(--ease) both;
+  .cell[data-mine='true']::before,
+  .cell[data-mine='true']::after {
+    animation: shatter 380ms var(--ease) var(--reveal-delay, 0ms) both;
   }
 
-  .cell[data-detonated='true']::before {
+  .cell[data-mine='true']::before {
     --fragment-x: -55%;
     --fragment-y: -40%;
     --fragment-angle: -30deg;
@@ -127,7 +141,7 @@
     clip-path: polygon(0 0, 100% 0, 59% 42%, 35% 31%, 41% 63%, 0 100%);
   }
 
-  .cell[data-detonated='true']::after {
+  .cell[data-mine='true']::after {
     --fragment-x: 55%;
     --fragment-y: 44%;
     --fragment-angle: 38deg;
@@ -140,10 +154,16 @@
   }
 }
 
-@keyframes open-cell {
-  from {
-    opacity: 0.36;
-    transform: scale(0.88);
+@keyframes lift-tile {
+  38% {
+    transform: translate(calc(-8% * var(--lift-direction, 1)), -30%)
+      rotate(calc(-13deg * var(--lift-direction, 1))) scale(0.85);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(calc(22% * var(--lift-direction, 1)), 43%)
+      rotate(calc(22deg * var(--lift-direction, 1))) scale(0.48);
   }
 }
 
@@ -165,29 +185,29 @@
   }
 }
 
-@keyframes impact {
-  18% {
-    transform: translate(-3px, 1px);
+@keyframes mine-hit {
+  from {
+    border-color: var(--line-strong);
+    background: var(--tile-cover);
   }
-  38% {
-    transform: translate(3px, -1px);
+
+  25% {
+    transform: translateY(-2px) scale(1.08);
   }
-  60% {
-    transform: translate(-2px, 0);
-  }
-  80% {
-    transform: translate(1px, 0);
+
+  62% {
+    transform: translateY(1px) scale(0.97);
   }
 }
 
 @keyframes burst {
   from {
     opacity: 1;
-    transform: scale(0.45);
+    transform: scale(0.55);
   }
   to {
     opacity: 0;
-    transform: scale(1.9) rotate(18deg);
+    transform: scale(2.6) rotate(24deg);
   }
 }
 

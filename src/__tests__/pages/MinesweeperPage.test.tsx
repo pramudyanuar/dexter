@@ -1,6 +1,43 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 
+import { newGame, reveal } from '@/lib/games/minesweeper';
+import { seededRandom } from '@/lib/games/seeded-random';
+
 import MinesweeperPage from '@/app/games/minesweeper/page';
+
+it('animates the triggered mine first and delays the other mine reveals', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ seed: 222, ticket: 'test' }),
+  });
+
+  try {
+    render(<MinesweeperPage />);
+    const cells = screen.getAllByRole('gridcell');
+    fireEvent.click(cells[0]);
+    await screen.findByText('Permainan berlangsung');
+    const initial = reveal(newGame('mudah'), 0, 0, seededRandom(222));
+    const impact = initial.cells.findIndex((cell) => cell.mine);
+    fireEvent.click(cells[impact]);
+    await screen.findByText('Ranjau meledak');
+
+    expect(cells[impact]).toHaveAttribute('data-detonated', 'true');
+    expect(cells[impact].style.getPropertyValue('--reveal-delay')).toBe('0ms');
+    const following = cells.filter(
+      (cell) => cell !== cells[impact] && cell.dataset.mine,
+    );
+    expect(following).toHaveLength(initial.mines - 1);
+    expect(
+      following.every(
+        (cell) =>
+          parseInt(cell.style.getPropertyValue('--reveal-delay'), 10) > 0,
+      ),
+    ).toBe(true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 it('keeps the selected difficulty labeled and renders both flag animation states', () => {
   render(<MinesweeperPage />);

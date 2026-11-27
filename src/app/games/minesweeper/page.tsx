@@ -76,7 +76,7 @@ function FlagArt({ exiting }: { exiting: boolean }) {
   );
 }
 
-function MineArt({ impact }: { impact: boolean }) {
+function MineArt() {
   return (
     <svg aria-hidden='true' viewBox='0 0 24 24' className={styles.mine}>
       <path
@@ -94,13 +94,10 @@ function MineArt({ impact }: { impact: boolean }) {
         strokeWidth='1.25'
         strokeLinecap='round'
       />
-      {impact && (
-        <path
-          className={styles.burst}
-          d='m12 0 2.5 7.4L21 3l-3.5 6.6L24 12l-7.4 2.5L21 21l-6.6-3.5L12 24l-2.5-7.4L3 21l3.5-6.6L0 12l7.4-2.5L3 3l6.6 3.5Z'
-          fill='var(--hash)'
-        />
-      )}
+      <g className={styles.burst}>
+        <path d='m6 4 3-2 1 4-3 1zM17 17l4-1-1 4-4 1z' fill='var(--hash)' />
+        <path d='m17 5 4 1-2 3-3-1zM3 15l4 1-1 4-3-2z' fill='currentColor' />
+      </g>
     </svg>
   );
 }
@@ -197,25 +194,21 @@ function Minesweeper() {
       const i = y * next.width + x;
       setUnflagged(next.cells[i].state === 'hidden' ? i : null);
     }
-    if (
-      next.status === 'lost' &&
-      !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    ) {
-      navigator.vibrate?.(35);
-    }
     if (action === 'open') {
       const additions: Record<number, number> = {};
+      const clicked = y * next.width + x;
       next.cells.forEach((cell, i) => {
-        if (
-          cell.state !== 'open' ||
-          cell.mine ||
-          before.cells[i].state === 'open'
-        )
-          return;
+        if (cell.state !== 'open' || before.cells[i].state === 'open') return;
+        const origin = cell.mine ? (next.detonated ?? clicked) : clicked;
         const distance =
-          Math.abs((i % next.width) - x) +
-          Math.abs(Math.floor(i / next.width) - y);
-        additions[i] = Math.min(150, distance * 14);
+          Math.abs((i % next.width) - (origin % next.width)) +
+          Math.abs(
+            Math.floor(i / next.width) - Math.floor(origin / next.width),
+          );
+        additions[i] =
+          cell.mine && distance > 0
+            ? 95 + distance * 45 + (i % 4) * 11
+            : Math.min(280, distance * 22);
       });
       setReveals((previous) => ({ ...previous, ...additions }));
     }
@@ -421,7 +414,6 @@ function Minesweeper() {
       >
         <div
           role='grid'
-          data-lost={status === 'lost' || undefined}
           aria-label='Papan Minesweeper'
           aria-busy={pending !== null}
           onContextMenu={(e) => e.preventDefault()}
@@ -497,7 +489,9 @@ function Minesweeper() {
                 style={
                   reveals[i] === undefined
                     ? undefined
-                    : { animationDelay: `${reveals[i]}ms` }
+                    : ({
+                        '--reveal-delay': `${reveals[i]}ms`,
+                      } as React.CSSProperties)
                 }
               >
                 {wrongFlag ? (
@@ -506,7 +500,7 @@ function Minesweeper() {
                   (i === unflagged && cell.state === 'hidden') ? (
                   <FlagArt exiting={cell.state !== 'flag'} />
                 ) : isOpen && cell.mine ? (
-                  <MineArt impact={game.detonated === i} />
+                  <MineArt />
                 ) : isOpen && cell.adjacent ? (
                   cell.adjacent
                 ) : null}
