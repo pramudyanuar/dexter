@@ -86,7 +86,9 @@ describe('DartTable', () => {
 
   it('cannot throw until you have aimed', () => {
     setup();
-    expect(screen.getByRole('button', { name: 'THROW' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'HOLD TO THROW' }),
+    ).toBeDisabled();
   });
 
   it('aims with the arrow keys and throws at the crosshair', () => {
@@ -94,7 +96,7 @@ describe('DartTable', () => {
     fireEvent.keyDown(focusBoard(), { key: 'ArrowUp' });
     fireEvent.keyDown(focusBoard(), { key: 'ArrowUp' });
     expect(screen.getByTestId('crosshair')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'THROW' }));
+    fireEvent.click(screen.getByRole('button', { name: 'HOLD TO THROW' }));
     expect(r.move).toHaveBeenCalledWith({
       type: 'throw',
       x: 0,
@@ -110,7 +112,9 @@ describe('DartTable', () => {
     expect(r.move).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Reset aim' }));
     expect(screen.queryByTestId('crosshair')).toBeNull();
-    expect(screen.getByRole('button', { name: 'THROW' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'HOLD TO THROW' }),
+    ).toBeDisabled();
   });
 
   it('uses the animated reticle for a casual throw', () => {
@@ -136,7 +140,7 @@ describe('DartTable', () => {
 
   it('is not your turn: no throw button, and the board is not aimable', () => {
     setup({}, 1);
-    expect(screen.queryByRole('button', { name: 'THROW' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'HOLD TO THROW' })).toBeNull();
     expect(screen.getByText(/Waiting for Ani/)).toBeInTheDocument();
     expect(screen.getByTestId('current-player')).toHaveTextContent('is up');
     fireEvent.keyDown(focusBoard(), { key: 'ArrowUp' });
@@ -172,7 +176,7 @@ describe('DartTable', () => {
         cur = dartGame.move(cur, 0, { type: 'throw', x: 3, y: 3 }, exact);
       return cur;
     });
-    expect(screen.queryByRole('button', { name: 'THROW' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'HOLD TO THROW' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'END TURN' }));
     expect(r.move).toHaveBeenCalledWith({ type: 'next' });
   });
@@ -212,9 +216,37 @@ describe('DartTable', () => {
     expect(screen.getByTestId('score-0')).toHaveTextContent('1');
   });
 
-  it('needs a timing meter in Skill mode', () => {
-    setup({ throwMode: 'skill' });
-    expect(screen.getByLabelText('Timing meter')).toBeInTheDocument();
+  it('tightens the reticle, throws on release and loses accuracy when breath runs out', () => {
+    jest.useFakeTimers();
+    try {
+      const r = setup({ throwMode: 'skill' });
+      const target = focusBoard();
+      fireEvent.keyDown(target, { key: 'ArrowRight' });
+      const reticle = screen.getByTestId('crosshair');
+      const radius = () =>
+        Number(reticle.querySelector('circle')?.getAttribute('r'));
+      const resting = radius();
+      fireEvent.keyDown(target, { key: ' ' });
+      act(() => jest.advanceTimersByTime(1000));
+      expect(radius()).toBeLessThan(resting);
+      expect(r.move).not.toHaveBeenCalled();
+      fireEvent.keyUp(target, { key: ' ' });
+      expect(r.move).toHaveBeenLastCalledWith(
+        expect.objectContaining({ power: 1 }),
+      );
+      fireEvent.keyDown(target, { key: ' ' });
+      act(() => jest.advanceTimersByTime(3000));
+      expect(
+        screen.getByRole('progressbar', { name: 'Breath remaining' }),
+      ).toHaveValue(0);
+      expect(radius()).toBeGreaterThan(resting);
+      fireEvent.keyUp(target, { key: ' ' });
+      expect(r.move).toHaveBeenLastCalledWith(
+        expect.objectContaining({ power: 0 }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('keeps the previous rounds', () => {

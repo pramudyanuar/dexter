@@ -16,6 +16,7 @@ export interface MinesGame {
   /** Row-major, index = y * width + x */
   cells: Cell[];
   status: Status;
+  detonated: number | null;
   flags: number;
   /** Cells opened so far */
   opened: number;
@@ -76,6 +77,7 @@ export function newGame(level: Level): MinesGame {
       state: 'hidden' as CellState,
     })),
     status: 'ready',
+    detonated: null,
     flags: 0,
     opened: 0,
   };
@@ -151,6 +153,7 @@ export function reveal(
   const start = g.cells[idx(g, x, y)];
   if (start.mine) {
     g.status = 'lost';
+    g.detonated = idx(g, x, y);
     g.cells.forEach((c) => {
       if (c.mine && c.state !== 'flag') c.state = 'open';
     });
@@ -229,6 +232,7 @@ export function fromLayout(rows: string[]): MinesGame {
         state: 'hidden' as CellState,
       })),
     status: 'playing',
+    detonated: null,
     flags: 0,
     opened: 0,
   };

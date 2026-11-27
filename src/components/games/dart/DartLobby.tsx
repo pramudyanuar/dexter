@@ -264,12 +264,12 @@ export default function DartLobby({ r }: { r: Api }) {
                 {
                   id: 'casual',
                   title: 'Casual',
-                  hint: 'The dart goes almost exactly where you aim, with a tiny wobble.',
+                  hint: 'Less sway and a tighter spread.',
                 },
                 {
                   id: 'skill',
                   title: 'Skill',
-                  hint: 'Your aim shakes and you must time the throw. Better timing, tighter darts.',
+                  hint: 'More sway and a wider spread.',
                 },
               ]}
             />

@@ -175,13 +175,6 @@ function Dart({
   );
 }
 
-export interface BoardHandlers {
-  /** The pointer moved over the board (mouse), in board units */
-  onAim: (x: number, y: number, touch: boolean) => void;
-  /** The board was clicked or tapped */
-  onPick: (x: number, y: number, touch: boolean) => void;
-}
-
 /**
  * The dartboard: the face, the darts in it, the crosshair, and what just
  * happened (a ripple where the dart landed, a score that floats up).
@@ -191,9 +184,8 @@ export default function Dartboard({
   color,
   aim,
   active,
-  onAim,
   onPick,
-  skill,
+  aimRadius,
   label,
 }: {
   throws: Throw[];
@@ -201,12 +193,13 @@ export default function Dartboard({
   aim: { x: number; y: number } | null;
   /** Whether the board takes aim from the pointer right now */
   active: boolean;
-  skill: boolean;
+  aimRadius: number;
   label: string;
-} & BoardHandlers) {
+  onPick: (x: number, y: number) => void;
+}) {
   const ref = React.useRef<SVGSVGElement>(null);
 
-  const toBoard = (e: React.PointerEvent | React.MouseEvent) => {
+  const toBoard = (e: React.MouseEvent) => {
     const rect = ref.current!.getBoundingClientRect();
     return {
       x: ((e.clientX - rect.left) / rect.width) * 2 * VIEW - VIEW,
@@ -223,24 +216,11 @@ export default function Dartboard({
         role='img'
         aria-label={label}
         data-testid='dartboard'
-        className={`size-full touch-none select-none ${active ? 'cursor-crosshair' : ''}`}
-        onPointerMove={(e) => {
-          if (!active) return;
-          const p = toBoard(e);
-          onAim(p.x, p.y, e.pointerType === 'touch');
-        }}
-        onPointerDown={(e) => {
-          if (!active) return;
-          const p = toBoard(e);
-          // a finger aims; the throw button throws. A mouse click throws.
-          if (e.pointerType === 'touch') onAim(p.x, p.y, true);
-        }}
+        className={`size-full touch-manipulation select-none ${active ? 'cursor-crosshair' : ''}`}
         onClick={(e) => {
           if (!active) return;
-          // a touch has already aimed; a click from a mouse throws
-          if ((e.nativeEvent as PointerEvent).pointerType === 'touch') return;
           const p = toBoard(e);
-          onPick(p.x, p.y, false);
+          onPick(p.x, p.y);
         }}
       >
         <defs>
@@ -263,14 +243,14 @@ export default function Dartboard({
             transform={`translate(${f(aim.x)} ${f(aim.y)})`}
           >
             <circle
-              r={skill ? 0.055 : 0.04}
+              r={aimRadius}
               fill='none'
               stroke='#fff'
               strokeWidth='0.012'
               opacity='0.95'
             />
             <circle
-              r={skill ? 0.055 : 0.04}
+              r={aimRadius}
               fill='none'
               stroke='#000'
               strokeWidth='0.004'

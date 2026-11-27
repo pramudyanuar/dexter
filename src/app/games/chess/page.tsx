@@ -2,10 +2,11 @@
 
 import * as React from 'react';
 
-import { ChessMove, ChessView, Piece, Promo } from '@/lib/games/chess';
+import { ChessMove, ChessView, Piece, Point, Promo } from '@/lib/games/chess';
 import { useRoom } from '@/lib/rooms/useRoom';
 import useMounted from '@/lib/useMounted';
 
+import ConfirmDialog from '@/components/ConfirmDialog';
 import Confetti from '@/components/games/Confetti';
 import GameShell from '@/components/games/GameShell';
 import RoomChat from '@/components/games/RoomChat';
@@ -23,8 +24,7 @@ const GLYPH: Record<string, string> = {
 const NAME = ['putih', 'hitam'] as const;
 const PROMOS: Promo[] = ['Q', 'R', 'B', 'N'];
 
-const same = (a: [number, number], b: [number, number]) =>
-  a[0] === b[0] && a[1] === b[1];
+const same = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1];
 
 function Glyph({ piece, small }: { piece: Piece; small?: boolean }) {
   const white = piece[0] === 'w';
@@ -53,9 +53,24 @@ const label = (piece: Piece) =>
 
 function Chess() {
   const r = useRoom<ChessView>('chess');
-  const [from, setFrom] = React.useState<[number, number] | null>(null);
+  const [from, setFrom] = React.useState<Point | null>(null);
   const [promoting, setPromoting] = React.useState<ChessMove | null>(null);
   const [claimAt, setClaimAt] = React.useState<number | null>(null);
+  const [confirmResign, setConfirmResign] = React.useState<string | null>(null);
+  const drag = React.useRef<{
+    square: Point;
+    piece: Piece;
+    id: number;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClick = React.useRef(false);
+  const [ghost, setGhost] = React.useState<{
+    piece: Piece;
+    x: number;
+    y: number;
+  } | null>(null);
 
   return (
     <RoomGate
@@ -74,35 +89,56 @@ function Chess() {
         const mine: 'w' | 'b' = you === 0 ? 'w' : 'b';
         const claiming = myTurn && claimAt === room.version;
         const legal = claiming ? (s.drawMoves ?? []) : s.legal;
+        const promotion =
+          promoting &&
+          legal.some(
+            (m) => same(m.from, promoting.from) && same(m.to, promoting.to),
+          )
+            ? promoting
+            : null;
+        const roomVersion = `${room.code}:${room.version}`;
 
         const fromsWithMoves = new Set(
           legal.map((m) => `${m.from[0]},${m.from[1]}`),
         );
         const targets = from ? legal.filter((m) => same(m.from, from)) : [];
 
-        const click = (row: number, col: number) => {
-          if (!myTurn || r.busy) return;
-          const options = targets.filter(
-            (m) => m.to[0] === row && m.to[1] === col,
+        const moveTo = (origin: Point, row: number, col: number) => {
+          if (!myTurn || r.busy || promotion) return false;
+          const options = legal.filter(
+            (m) => same(m.from, origin) && same(m.to, [row, col]),
           );
-          if (options.length) {
-            const m = options[0];
-            if (claiming) {
-              r.move({ type: 'claim_draw', from: m.from, to: m.to });
-              setClaimAt(null);
-              setFrom(null);
-            } else if (options.length > 1) {
-              setPromoting(m); // pawn reaches the last rank: ask what to become
-            } else {
-              r.move({ from: m.from, to: m.to });
-              setFrom(null);
-            }
-          } else if (fromsWithMoves.has(`${row},${col}`)) {
+          const move = options[0];
+          if (!move) return false;
+          if (claiming) {
+            r.move({ type: 'claim_draw', from: move.from, to: move.to });
+            setClaimAt(null);
+            setFrom(null);
+          } else if (options.length > 1) {
+            setPromoting(move); // pawn reaches the last rank: ask what to become
+          } else {
+            r.move({ from: move.from, to: move.to });
+            setFrom(null);
+          }
+          return true;
+        };
+
+        const click = (row: number, col: number) => {
+          if (!myTurn || r.busy || promotion) return;
+          if (from && moveTo(from, row, col)) return;
+          if (fromsWithMoves.has(`${row},${col}`)) {
             setFrom([row, col]);
-            setPromoting(null);
           } else {
             setFrom(null);
           }
+        };
+
+        const clearDrag = (pointerId: number) => {
+          const active = drag.current;
+          if (active?.id !== pointerId) return null;
+          drag.current = null;
+          setGhost(null);
+          return active;
         };
 
         const kingInCheck = s.check
@@ -124,9 +160,13 @@ function Chess() {
         } else if (s.status === 'resigned') {
           status =
             s.winner === you ? (
-              <span className='text-accent'>Lawan keluar. Kamu menang!</span>
+              <span className='text-accent'>
+                Lawan menyerah atau keluar. Kamu menang!
+              </span>
             ) : (
-              <span className='text-err'>Kamu keluar dari permainan.</span>
+              <span className='text-err'>
+                Kamu menyerah atau keluar dari permainan.
+              </span>
             );
         } else if (s.status === 'stalemate') status = 'Pat (stalemate). Seri.';
         else if (s.status === 'draw') status = 'Seri.';
@@ -188,6 +228,58 @@ function Chess() {
               role='grid'
               aria-label='Papan chess'
               className='relative mx-auto grid w-full max-w-[30rem] grid-cols-8 overflow-hidden rounded-md border-2 border-hash/60 shadow-lg'
+              onPointerDownCapture={() => {
+                suppressClick.current = false;
+              }}
+              onPointerMove={(event) => {
+                const active = drag.current;
+                if (active?.id !== event.pointerId) return;
+                if (!active.moved) {
+                  if (
+                    Math.hypot(
+                      event.clientX - active.x,
+                      event.clientY - active.y,
+                    ) < 6
+                  )
+                    return;
+                  active.moved = true;
+                  setFrom(active.square);
+                }
+                const board = event.currentTarget.getBoundingClientRect();
+                setGhost({
+                  piece: active.piece,
+                  x: event.clientX - board.left,
+                  y: event.clientY - board.top,
+                });
+              }}
+              onPointerUp={(event) => {
+                const active = clearDrag(event.pointerId);
+                if (!active?.moved) return;
+                suppressClick.current = true;
+                const target = document
+                  .elementFromPoint(event.clientX, event.clientY)
+                  ?.closest<HTMLElement>('[data-square]');
+                if (
+                  target?.dataset.square &&
+                  event.currentTarget.contains(target)
+                ) {
+                  const [row, col] = target.dataset.square
+                    .split(',')
+                    .map(Number);
+                  if (moveTo(active.square, row, col)) return;
+                }
+                setFrom(null);
+              }}
+              onPointerCancel={(event) => {
+                if (clearDrag(event.pointerId)?.moved) setFrom(null);
+              }}
+              onLostPointerCapture={(event) => {
+                if (clearDrag(event.pointerId)?.moved) setFrom(null);
+              }}
+              onClickCapture={(event) => {
+                if (suppressClick.current && event.detail > 0)
+                  event.stopPropagation();
+              }}
             >
               {order.flatMap((row) =>
                 order.map((col) => {
@@ -197,6 +289,12 @@ function Chess() {
                     (m) => m.to[0] === row && m.to[1] === col,
                   );
                   const isFrom = from && from[0] === row && from[1] === col;
+                  const draggable =
+                    myTurn &&
+                    !r.busy &&
+                    !promotion &&
+                    !!piece &&
+                    fromsWithMoves.has(`${row},${col}`);
                   const wasLast =
                     s.last &&
                     (same(s.last.from, [row, col]) ||
@@ -208,13 +306,31 @@ function Chess() {
                       type='button'
                       role='gridcell'
                       data-piece={piece ?? ''}
+                      data-square={`${row},${col}`}
                       aria-label={`${String.fromCharCode(97 + col)}${8 - row}${piece ? ` ${label(piece)}` : ''}`}
                       onClick={() => click(row, col)}
+                      onPointerDown={(event) => {
+                        if (
+                          !draggable ||
+                          !event.isPrimary ||
+                          event.button !== 0
+                        )
+                          return;
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        drag.current = {
+                          square: [row, col],
+                          piece,
+                          id: event.pointerId,
+                          x: event.clientX,
+                          y: event.clientY,
+                          moved: false,
+                        };
+                      }}
                       className={`relative flex aspect-square items-center justify-center ${
                         light ? 'bg-[#ebecd0]' : 'bg-[#739552]'
                       } ${wasLast ? 'brightness-110 saturate-150' : ''} ${
                         isFrom ? 'ring-4 ring-accent ring-inset' : ''
-                      }`}
+                      } ${draggable ? 'cursor-grab touch-none active:cursor-grabbing' : ''}`}
                     >
                       {checked && (
                         <span className='a-glow absolute inset-0 bg-err/50' />
@@ -231,13 +347,7 @@ function Chess() {
                       {piece && (
                         <span
                           key={`${piece}-${row}-${col}`}
-                          className={`a-pop relative ${
-                            myTurn &&
-                            piece[0] === mine &&
-                            fromsWithMoves.has(`${row},${col}`)
-                              ? 'cursor-pointer'
-                              : ''
-                          }`}
+                          className={`a-pop relative ${isFrom && ghost ? 'invisible' : ''}`}
                         >
                           <Glyph piece={piece} />
                         </span>
@@ -247,7 +357,17 @@ function Chess() {
                 }),
               )}
 
-              {promoting && (
+              {ghost && (
+                <span
+                  aria-hidden='true'
+                  className='pointer-events-none absolute z-20 grid -translate-x-1/2 -translate-y-1/2 place-items-center'
+                  style={{ left: ghost.x, top: ghost.y }}
+                >
+                  <Glyph piece={ghost.piece} />
+                </span>
+              )}
+
+              {promotion && (
                 <div className='a-fade absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-paper/85 backdrop-blur-sm'>
                   <p className='text-sm'>Promosikan pion menjadi:</p>
                   <div className='flex gap-2'>
@@ -258,8 +378,8 @@ function Chess() {
                         aria-label={`Promosi ${p}`}
                         onClick={() => {
                           r.move({
-                            from: promoting.from,
-                            to: promoting.to,
+                            from: promotion.from,
+                            to: promotion.to,
                             promo: p,
                           });
                           setPromoting(null);
@@ -290,10 +410,71 @@ function Chess() {
               {status}
             </p>
 
+            {room.status === 'playing' && (
+              <div className='mt-3 flex flex-wrap items-center justify-center gap-2 text-sm'>
+                {s.drawOffer == null ? (
+                  <button
+                    type='button'
+                    className='text-mute'
+                    disabled={r.busy}
+                    onClick={() => r.move({ type: 'offer_draw' })}
+                  >
+                    Tawarkan remis
+                  </button>
+                ) : s.drawOffer === you ? (
+                  <span role='status' className='text-mute'>
+                    Menunggu jawaban tawaran remis
+                  </span>
+                ) : (
+                  <>
+                    <span role='status'>Lawan menawarkan remis</span>
+                    <button
+                      type='button'
+                      className='text-info'
+                      disabled={r.busy}
+                      onClick={() => r.move({ type: 'accept_draw' })}
+                    >
+                      Terima remis
+                    </button>
+                    <button
+                      type='button'
+                      className='text-mute'
+                      disabled={r.busy}
+                      onClick={() => r.move({ type: 'decline_draw' })}
+                    >
+                      Tolak remis
+                    </button>
+                  </>
+                )}
+                <button
+                  type='button'
+                  className='text-err'
+                  disabled={r.busy}
+                  onClick={() => setConfirmResign(roomVersion)}
+                >
+                  Menyerah
+                </button>
+                {confirmResign === roomVersion && (
+                  <ConfirmDialog
+                    title='Menyerah?'
+                    message='Pertandingan berakhir dengan kemenangan lawan.'
+                    confirmLabel='Menyerah'
+                    cancelLabel='Batal'
+                    danger
+                    onCancel={() => setConfirmResign(null)}
+                    onConfirm={() => {
+                      setConfirmResign(null);
+                      r.move({ type: 'resign' });
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
             {room.status === 'over' && <Rematch r={r} />}
             <p className='mt-auto pt-4 text-center text-xs text-mute'>
-              Klik bidak lalu petak tujuan; titik hijau menandai langkah yang
-              sah. Room hilang sendiri setelah 2 jam.
+              Geser bidak atau klik bidak lalu petak tujuan. Titik hijau
+              menandai langkah yang sah. Room hilang sendiri setelah 2 jam.
             </p>
           </>
         );

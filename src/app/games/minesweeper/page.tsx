@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Bomb,
   Clock3,
   Flag,
   MousePointer2,
@@ -48,6 +47,64 @@ const NUMBER_COLOR = [
 const pad = (n: number) =>
   `${n < 0 ? '-' : ''}${String(Math.min(Math.abs(n), 999)).padStart(3, '0')}`;
 
+function FlagArt({ exiting }: { exiting: boolean }) {
+  return (
+    <svg
+      aria-hidden='true'
+      viewBox='0 0 24 24'
+      className={styles.flag}
+      data-exiting={exiting}
+    >
+      <path
+        d='M8 20V4'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='1.8'
+        strokeLinecap='round'
+      />
+      <path
+        d='M9 4c4-2 5 2 11 0l-2.6 4L20 12c-6 2-7-2-11 0Z'
+        fill='currentColor'
+      />
+      <path
+        d='M5 21h7'
+        stroke='currentColor'
+        strokeWidth='1.8'
+        strokeLinecap='round'
+      />
+    </svg>
+  );
+}
+
+function MineArt({ impact }: { impact: boolean }) {
+  return (
+    <svg aria-hidden='true' viewBox='0 0 24 24' className={styles.mine}>
+      <path
+        d='M12 2v20M2 12h20M5 5l14 14M19 5 5 19'
+        fill='none'
+        stroke='currentColor'
+        strokeWidth='1.7'
+        strokeLinecap='round'
+      />
+      <circle cx='12' cy='12' r='6.1' fill='currentColor' />
+      <path
+        d='M8.6 12a3.4 3.4 0 0 1 3.4-3.4'
+        fill='none'
+        stroke='var(--paper)'
+        strokeWidth='1.25'
+        strokeLinecap='round'
+      />
+      {impact && (
+        <path
+          className={styles.burst}
+          d='m12 0 2.5 7.4L21 3l-3.5 6.6L24 12l-7.4 2.5L21 21l-6.6-3.5L12 24l-2.5-7.4L3 21l3.5-6.6L0 12l7.4-2.5L3 3l6.6 3.5Z'
+          fill='var(--hash)'
+        />
+      )}
+    </svg>
+  );
+}
+
 function newRun() {
   let startedAt = 0;
   return {
@@ -86,6 +143,7 @@ function Minesweeper() {
   const [pending, setPending] = React.useState<number | null>(null);
   const [focused, setFocused] = React.useState(0);
   const [reveals, setReveals] = React.useState<Record<number, number>>({});
+  const [unflagged, setUnflagged] = React.useState<number | null>(null);
   const [seconds, setSeconds] = React.useState(0);
   const [best, setBest] = useStoredState<Best>('mines-best', NO_BEST);
   const holdTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,6 +181,7 @@ function Minesweeper() {
     setPending(null);
     setFocused(0);
     setReveals({});
+    setUnflagged(null);
   };
 
   const apply = (
@@ -133,11 +192,26 @@ function Minesweeper() {
     const before = latest.current;
     if (next === before) return;
     active.moves.push(move);
-    if (move[0] === 'open') {
-      const [, x, y] = move;
+    const [action, x, y] = move;
+    if (action === 'flag') {
+      const i = y * next.width + x;
+      setUnflagged(next.cells[i].state === 'hidden' ? i : null);
+    }
+    if (
+      next.status === 'lost' &&
+      !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      navigator.vibrate?.(35);
+    }
+    if (action === 'open') {
       const additions: Record<number, number> = {};
       next.cells.forEach((cell, i) => {
-        if (cell.state !== 'open' || before.cells[i].state === 'open') return;
+        if (
+          cell.state !== 'open' ||
+          cell.mine ||
+          before.cells[i].state === 'open'
+        )
+          return;
         const distance =
           Math.abs((i % next.width) - x) +
           Math.abs(Math.floor(i / next.width) - y);
@@ -268,7 +342,7 @@ function Minesweeper() {
               type='button'
               onClick={() => start(name)}
               aria-pressed={name === level}
-              className='min-h-9 rounded-lg px-2.5 text-xs font-medium text-mute capitalize transition-colors hover:text-ink aria-pressed:bg-info aria-pressed:text-paper'
+              className='min-h-11 rounded-lg px-3 text-xs font-semibold text-ink capitalize transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-pressed:bg-accent aria-pressed:text-paper aria-pressed:hover:bg-accent'
             >
               {name}
             </button>
@@ -347,6 +421,7 @@ function Minesweeper() {
       >
         <div
           role='grid'
+          data-lost={status === 'lost' || undefined}
           aria-label='Papan Minesweeper'
           aria-busy={pending !== null}
           onContextMenu={(e) => e.preventDefault()}
@@ -377,6 +452,7 @@ function Minesweeper() {
                 role='gridcell'
                 data-state={wrongFlag ? 'wrong' : cell.state}
                 data-mine={isOpen && cell.mine ? 'true' : undefined}
+                data-detonated={game.detonated === i || undefined}
                 data-pending={pending === i ? 'true' : undefined}
                 aria-label={`Baris ${y + 1}, kolom ${x + 1}${stateLabel ? `, ${stateLabel}` : ''}`}
                 tabIndex={focused === i ? 0 : -1}
@@ -426,10 +502,11 @@ function Minesweeper() {
               >
                 {wrongFlag ? (
                   <X aria-hidden='true' />
-                ) : cell.state === 'flag' ? (
-                  <Flag aria-hidden='true' />
+                ) : cell.state === 'flag' ||
+                  (i === unflagged && cell.state === 'hidden') ? (
+                  <FlagArt exiting={cell.state !== 'flag'} />
                 ) : isOpen && cell.mine ? (
-                  <Bomb aria-hidden='true' />
+                  <MineArt impact={game.detonated === i} />
                 ) : isOpen && cell.adjacent ? (
                   cell.adjacent
                 ) : null}

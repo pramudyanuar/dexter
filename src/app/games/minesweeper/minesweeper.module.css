@@ -13,6 +13,7 @@
 }
 
 .cell {
+  position: relative;
   display: grid;
   aspect-ratio: 1;
   min-width: 0;
@@ -34,8 +35,13 @@
   background: color-mix(in oklab, var(--card) 75%, var(--line-strong));
 }
 
-.cell[data-state='flag'] {
+.flag {
   color: var(--hash);
+}
+
+.flag[data-exiting='true'],
+.burst {
+  opacity: 0;
 }
 
 .cell:is([data-state='hidden'], [data-state='flag']):hover {
@@ -60,6 +66,11 @@
   background: color-mix(in oklab, var(--err) 16%, var(--surface));
 }
 
+.cell[data-detonated='true'] {
+  border-color: var(--err);
+  background: color-mix(in oklab, var(--err) 30%, var(--surface));
+}
+
 .cell svg {
   width: 62%;
   height: 62%;
@@ -70,13 +81,58 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .cell[data-state='open'] {
+  .cell[data-state='open']:not([data-mine]) {
     animation: open-cell 240ms ease-out both;
   }
 
-  .cell[data-state='flag'] svg,
+  .flag:not([data-exiting='true']),
   .message {
     animation: show-marker 220ms var(--ease-spring) both;
+  }
+
+  .flag[data-exiting='true'] {
+    animation: lift-flag 180ms ease-in both;
+  }
+
+  .board[data-lost='true'] {
+    animation: impact 270ms ease-out both;
+  }
+
+  .mine {
+    overflow: visible;
+    animation: show-marker 220ms var(--ease-spring) both;
+  }
+
+  .burst {
+    transform-origin: center;
+    animation: burst 430ms var(--ease) both;
+  }
+
+  .cell[data-detonated='true']::before,
+  .cell[data-detonated='true']::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--line-strong);
+    pointer-events: none;
+    content: '';
+    animation: shatter 380ms var(--ease) both;
+  }
+
+  .cell[data-detonated='true']::before {
+    --fragment-x: -55%;
+    --fragment-y: -40%;
+    --fragment-angle: -30deg;
+
+    clip-path: polygon(0 0, 100% 0, 59% 42%, 35% 31%, 41% 63%, 0 100%);
+  }
+
+  .cell[data-detonated='true']::after {
+    --fragment-x: 55%;
+    --fragment-y: 44%;
+    --fragment-angle: 38deg;
+
+    clip-path: polygon(100% 0, 100% 100%, 0 100%, 41% 63%, 35% 31%, 59% 42%);
   }
 
   .cell[data-pending='true'] {
@@ -95,6 +151,51 @@
   from {
     opacity: 0;
     transform: translateY(3px) scale(0.88);
+  }
+}
+
+@keyframes lift-flag {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-42%) rotate(14deg) scale(0.78);
+  }
+}
+
+@keyframes impact {
+  18% {
+    transform: translate(-3px, 1px);
+  }
+  38% {
+    transform: translate(3px, -1px);
+  }
+  60% {
+    transform: translate(-2px, 0);
+  }
+  80% {
+    transform: translate(1px, 0);
+  }
+}
+
+@keyframes burst {
+  from {
+    opacity: 1;
+    transform: scale(0.45);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9) rotate(18deg);
+  }
+}
+
+@keyframes shatter {
+  to {
+    opacity: 0;
+    transform: translate(var(--fragment-x), var(--fragment-y))
+      rotate(var(--fragment-angle)) scale(0.48);
   }
 }
 

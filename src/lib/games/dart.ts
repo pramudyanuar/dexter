@@ -23,8 +23,8 @@ export const DARTS_PER_TURN = 3;
 /** How far a dart strays from where it was aimed (a standard deviation, in board units). */
 const SPREAD = {
   casual: 0.012,
-  /** Perfect timing leaves this much, the worst timing adds `skillRange` on top */
-  skillBase: 0.02,
+  /** A steady release leaves this much; an exhausted release adds `skillRange`. */
+  skillBase: 0.014,
   skillRange: 0.085,
 };
 const DIFFICULTY_FACTOR = { easy: 0.6, normal: 1, hard: 1.6 } as const;
@@ -115,13 +115,19 @@ function gauss(rng: () => number) {
 }
 
 /**
- * The spread of a throw. In casual play it is small and fixed. In skill play
- * it depends on timing (`power` from 0, badly timed, to 1, perfectly timed).
+ * The spread of a throw. `power` is the release quality, from 0 to 1.
+ * A steady release tightens both modes; Skill is less forgiving.
  */
 export function spreadFor(config: DartConfig, power: number | undefined) {
   const factor = DIFFICULTY_FACTOR[config.difficulty];
-  if (config.throwMode === 'casual') return SPREAD.casual * factor;
-  const quality = Math.min(1, Math.max(0, power ?? 0.3));
+  const quality =
+    typeof power === 'number' && Number.isFinite(power)
+      ? Math.min(1, Math.max(0, power))
+      : config.throwMode === 'casual'
+        ? 0
+        : 0.3;
+  if (config.throwMode === 'casual')
+    return SPREAD.casual * (1 - quality * 0.65) * factor;
   return (SPREAD.skillBase + (1 - quality) * SPREAD.skillRange) * factor;
 }
 
@@ -442,7 +448,8 @@ export function suggestCheckout(
   darts: number,
   doubleOut: boolean,
 ): string[] | null {
-  if (left < 1 || left > 170 || darts < 1) return null;
+  if (left < 1 || left > darts * 60 - (doubleOut ? 10 : 0) || darts < 1)
+    return null;
   const finishes = (rem: number, k: number): string[] | null => {
     // the last dart
     for (const shot of [...SHOTS].reverse()) {

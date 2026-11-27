@@ -412,6 +412,37 @@ describe('301 and 501', () => {
       expect(s.winner).toBe(0);
     });
 
+    it.each(['301', '501'] as const)(
+      'can play a complete %s game and win in Skill mode',
+      (mode) => {
+        let state = game({ mode, throwMode: 'skill', difficulty: 'hard' }, 1);
+        const throwAt = (aim: Aim) => {
+          state = g.move(
+            state,
+            0,
+            { type: 'throw', ...spot(aim), power: 1 },
+            exact,
+          );
+        };
+        const triple20: Aim = [20, 'triple'];
+        for (let round = 0; round < (mode === '301' ? 1 : 2); round++) {
+          [triple20, triple20, triple20].forEach(throwAt);
+          state = next(state, 0);
+        }
+        const finish: Aim[] =
+          mode === '301'
+            ? [triple20, [11, 'single'], 'bull']
+            : [triple20, [19, 'triple'], [12, 'double']];
+        finish.forEach(throwAt);
+        expect(state).toMatchObject({
+          winner: 0,
+          over: true,
+          scores: [0],
+          endReason: 'checkout',
+        });
+      },
+    );
+
     it('the other player can still win by a better finish', () => {
       let s = near(40);
       s.scores[1] = 32;
@@ -426,6 +457,7 @@ describe('301 and 501', () => {
     expect(suggestCheckout(40, 3, true)).toEqual(['D20']);
     expect(suggestCheckout(50, 1, true)).toEqual(['Bull']);
     expect(suggestCheckout(170, 3, true)).toEqual(['T20', 'T20', 'Bull']);
+    expect(suggestCheckout(180, 3, false)).toEqual(['T20', 'T20', 'T20']);
     expect(suggestCheckout(100, 2, true)).toEqual(['T20', 'D20']);
     expect(suggestCheckout(169, 3, true)).toBeNull();
     expect(suggestCheckout(41, 1, true)).toBeNull();
