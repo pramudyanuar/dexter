@@ -1745,7 +1745,94 @@ function Gelud() {
   );
 }
 
+function TvArena() {
+  return (
+    <Frame>
+      {/* TV frame */}
+      <rect
+        x='18'
+        y='10'
+        width='124'
+        height='62'
+        rx='6'
+        fill={CELL}
+        stroke={LINE}
+        strokeWidth='2'
+      />
+      {/* Oval track inside TV */}
+      <ellipse
+        cx='80'
+        cy='41'
+        rx='44'
+        ry='20'
+        fill='none'
+        stroke='#334155'
+        strokeWidth='8'
+      />
+      <ellipse
+        cx='80'
+        cy='41'
+        rx='44'
+        ry='20'
+        fill='none'
+        stroke={BLUE}
+        strokeWidth='1'
+        opacity='0.6'
+      />
+      {/* Racing karts */}
+      <rect
+        x='56'
+        y='18'
+        width='12'
+        height='7'
+        rx='2'
+        fill={RED}
+        className={move('group-hover:translate-x-2')}
+      />
+      <rect
+        x='84'
+        y='55'
+        width='12'
+        height='7'
+        rx='2'
+        fill={GREEN}
+        className={move('group-hover:-translate-x-2')}
+      />
+      {/* Two phone controllers below TV */}
+      <g className={move('group-hover:-translate-y-1')}>
+        <rect
+          x='36'
+          y='76'
+          width='34'
+          height='18'
+          rx='3'
+          fill='#111827'
+          stroke={RED}
+          strokeWidth='1.2'
+        />
+        <circle cx='45' cy='85' r='3' fill={INK} opacity='0.7' />
+        <circle cx='61' cy='85' r='2.5' fill={GREEN} />
+      </g>
+      <g className={move('group-hover:-translate-y-1')}>
+        <rect
+          x='90'
+          y='76'
+          width='34'
+          height='18'
+          rx='3'
+          fill='#111827'
+          stroke={BLUE}
+          strokeWidth='1.2'
+        />
+        <circle cx='99' cy='85' r='3' fill={INK} opacity='0.7' />
+        <circle cx='115' cy='85' r='2.5' fill={GOLD} />
+      </g>
+    </Frame>
+  );
+}
+
 const ART: Record<string, () => React.JSX.Element> = {
+  tv: TvArena,
   wordle: Wordle,
   snake: Snake,
   'snake-daily': SnakeDaily,

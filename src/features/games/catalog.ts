@@ -35,6 +35,19 @@ export type GameCategory = keyof typeof GAME_CATEGORIES;
 
 const ALL_GAMES: readonly GameEntry[] = [
   {
+    id: 'tv',
+    categories: ['arcade', 'party'],
+    minutes: [2, 10],
+    players: '1–4',
+    online: true,
+    solo: true,
+    title: 'Turbo TV Arena',
+    href: '/games/tv',
+    description:
+      'Balap arena 1–4 pemain di layar TV/PC menggunakan HP masing-masing sebagai controller via QR code.',
+    controls: 'scan QR dari HP untuk D-Pad & Gas/Rem (atau Panah/WASD di PC)',
+  },
+  {
     id: 'wordle',
     categories: ['puzzle', 'casual'],
     minutes: [3, 10],

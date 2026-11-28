@@ -5,6 +5,11 @@
  * the game itself.
  */
 export const GAME_HINTS: Record<string, string[]> = {
+  tv: [
+    'Buka halaman ini di layar besar (TV/laptop), lalu pindai QR Code dari HP masing-masing pemain.',
+    'Gunakan tombol Kiri/Kanan di HP untuk belok, tombol A untuk Gas, dan B untuk Rem.',
+    'Injak petak petir kuning untuk mendapat dorongan turbo dan selesaikan 3 lap lebih dulu.',
+  ],
   snake: [
     'Makan apel untuk memanjangkan ular, hindari dinding dan tubuh ular lain.',
     'Bertahan paling lama atau paksa lawan menabrak untuk menang.',
