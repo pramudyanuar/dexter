@@ -24,7 +24,9 @@ import useMounted from '@/hooks/useMounted';
 
 import {
   createInitialMatch,
+  DEFAULT_TEAM_COLORS,
   drawPixelSoccer,
+  JERSEY_PALETTE,
   PIXEL_H,
   PIXEL_W,
   type ScreenMode,
@@ -32,6 +34,7 @@ import {
   type SoccerSetup,
   stepSoccer,
   type Team,
+  type TeamColors,
 } from '@/features/pixel-soccer/game';
 import { encodeQrMatrix, qrToSvg } from '@/features/tools/qr';
 import {
@@ -69,6 +72,8 @@ export default function PixelSoccerHost() {
   const [pads, setPads] = React.useState<ConnectedPad[]>([]);
   const [format, setFormat] = React.useState<'1v1' | '2v2'>('2v2');
   const [screenMode, setScreenMode] = React.useState<ScreenMode>('split');
+  const [teamColors, setTeamColors] =
+    React.useState<TeamColors>(DEFAULT_TEAM_COLORS);
   const [muted, setMuted] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [score, setScore] = React.useState<{
@@ -82,6 +87,7 @@ export default function PixelSoccerHost() {
   const padsRef = React.useRef<ConnectedPad[]>([]);
   const phaseRef = React.useRef<RacePhase>('lobby');
   const screenModeRef = React.useRef<ScreenMode>('split');
+  const teamColorsRef = React.useRef<TeamColors>(DEFAULT_TEAM_COLORS);
   const mutedRef = React.useRef(false);
   const audioRef = React.useRef<AudioContext | null>(null);
   const matchRef = React.useRef<SoccerMatchState>(createInitialMatch([]));
@@ -93,8 +99,9 @@ export default function PixelSoccerHost() {
     padsRef.current = pads;
     phaseRef.current = phase;
     screenModeRef.current = screenMode;
+    teamColorsRef.current = teamColors;
     mutedRef.current = muted;
-  }, [muted, pads, phase, screenMode]);
+  }, [muted, pads, phase, screenMode, teamColors]);
 
   const playBeep = React.useCallback((freq: number, dur = 0.08) => {
     if (mutedRef.current || typeof window === 'undefined') return;
@@ -279,7 +286,13 @@ export default function PixelSoccerHost() {
       }
 
       const ctx = canvasRef.current?.getContext('2d');
-      if (ctx) drawPixelSoccer(ctx, next, screenModeRef.current);
+      if (ctx)
+        drawPixelSoccer(
+          ctx,
+          next,
+          screenModeRef.current,
+          teamColorsRef.current,
+        );
 
       if (next.winner !== null) {
         setScore({
@@ -481,6 +494,8 @@ export default function PixelSoccerHost() {
                 {SLOT_TEAMS.slice(0, format === '1v1' ? 2 : 4).map(
                   (info, slot) => {
                     const pad = pads.find((p) => p.slot === slot);
+                    const jersey =
+                      info.team === 'red' ? teamColors.red : teamColors.blue;
                     return (
                       <li
                         key={slot}
@@ -491,8 +506,8 @@ export default function PixelSoccerHost() {
                         }`}
                       >
                         <span
-                          className='flex size-10 shrink-0 items-center justify-center rounded-lg font-bold text-white'
-                          style={{ backgroundColor: info.color }}
+                          className='flex size-10 shrink-0 items-center justify-center rounded-lg font-bold text-slate-950'
+                          style={{ backgroundColor: jersey.shirt }}
                         >
                           P{slot + 1}
                         </span>
@@ -505,7 +520,7 @@ export default function PixelSoccerHost() {
                                 : `Bot ${slot + 1}`}
                           </p>
                           <p className='text-xs text-mute'>
-                            {info.label} ·{' '}
+                            Tim {jersey.label} ·{' '}
                             {pad ? (
                               <span className='inline-flex items-center gap-1 text-accent'>
                                 <Smartphone aria-hidden className='size-3' /> HP
@@ -527,6 +542,56 @@ export default function PixelSoccerHost() {
                   },
                 )}
               </ul>
+
+              {/* Custom Jersey Color Picker */}
+              <div className='mt-4 grid gap-3 rounded-xl border border-line bg-paper/40 p-3.5 sm:grid-cols-2'>
+                {(
+                  [
+                    { key: 'red', title: 'Jersey Tim Kiri' },
+                    { key: 'blue', title: 'Jersey Tim Kanan' },
+                  ] as const
+                ).map(({ key, title }) => {
+                  const active = teamColors[key];
+                  const other = teamColors[key === 'red' ? 'blue' : 'red'];
+                  return (
+                    <div key={key}>
+                      <p className='text-xs font-semibold text-mute'>
+                        {title}:{' '}
+                        <span className='text-ink'>{active.label}</span>
+                      </p>
+                      <div className='mt-2 flex flex-wrap gap-1.5'>
+                        {JERSEY_PALETTE.map((opt) => {
+                          const selected = opt.id === active.id;
+                          const taken = opt.id === other.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type='button'
+                              disabled={taken}
+                              aria-label={`${title} ${opt.label}`}
+                              aria-pressed={selected}
+                              onClick={() =>
+                                setTeamColors((prev) => ({
+                                  ...prev,
+                                  [key]: opt,
+                                }))
+                              }
+                              className={`size-6 rounded-md border-2 transition-transform ${
+                                selected
+                                  ? 'scale-110 border-white ring-2 ring-accent'
+                                  : taken
+                                    ? 'cursor-not-allowed border-transparent opacity-25'
+                                    : 'border-white/20 hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: opt.shirt }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className='mt-6 space-y-3 border-t border-line pt-4'>
@@ -570,9 +635,13 @@ export default function PixelSoccerHost() {
                 </h2>
                 <p className='mt-1 text-base font-bold'>
                   {score.winner === 'red' ? (
-                    <span className='text-red-400'>Tim Merah Menang!</span>
+                    <span style={{ color: teamColors.red.trim }}>
+                      Tim {teamColors.red.label} Menang!
+                    </span>
                   ) : (
-                    <span className='text-blue-400'>Tim Biru Menang!</span>
+                    <span style={{ color: teamColors.blue.trim }}>
+                      Tim {teamColors.blue.label} Menang!
+                    </span>
                   )}
                 </p>
                 <p className='mt-2 font-mono text-3xl font-black text-ink'>

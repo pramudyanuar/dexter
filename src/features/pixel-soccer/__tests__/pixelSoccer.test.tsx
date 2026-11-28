@@ -40,6 +40,21 @@ describe('pixel-soccer engine', () => {
     expect(step2.scoreRed).toBe(1);
   });
 
+  it('unstucks a bot when the ball is pinned in a corner', () => {
+    const state = createInitialMatch([
+      { slot: 0, team: 'red', name: 'P1', isBot: false },
+      { slot: 1, team: 'blue', name: 'Bot', isBot: true },
+    ]);
+    state.ball.x = PITCH.left + 4;
+    state.ball.y = PITCH.top + 4;
+    state.players[1].x = PITCH.left + 10;
+    state.players[1].y = PITCH.top + 10;
+
+    const next = stepSoccer(state, {}, 0.03);
+    expect(next.ball.vx).toBeGreaterThan(0);
+    expect(next.ball.vy).toBeGreaterThan(0);
+  });
+
   it('awards a goal to Red when the ball enters the right goal mouth', () => {
     const state = createInitialMatch([
       { slot: 0, team: 'red', name: 'P1', isBot: false },

@@ -22,6 +22,34 @@ export const PITCH = {
 
 export type Team = 'red' | 'blue';
 
+export interface JerseyOption {
+  id: string;
+  label: string;
+  shirt: string;
+  trim: string;
+}
+
+export const JERSEY_PALETTE: readonly JerseyOption[] = [
+  { id: 'red', label: 'Merah', shirt: '#ef4444', trim: '#fca5a5' },
+  { id: 'blue', label: 'Biru', shirt: '#3b82f6', trim: '#93c5fd' },
+  { id: 'green', label: 'Hijau', shirt: '#22c55e', trim: '#86efac' },
+  { id: 'yellow', label: 'Kuning', shirt: '#eab308', trim: '#fef08a' },
+  { id: 'purple', label: 'Ungu', shirt: '#a855f7', trim: '#d8b4fe' },
+  { id: 'orange', label: 'Oranye', shirt: '#f97316', trim: '#fdba74' },
+  { id: 'pink', label: 'Pink', shirt: '#ec4899', trim: '#f9a8d4' },
+  { id: 'white', label: 'Putih', shirt: '#e2e8f0', trim: '#94a3b8' },
+] as const;
+
+export interface TeamColors {
+  red: JerseyOption;
+  blue: JerseyOption;
+}
+
+export const DEFAULT_TEAM_COLORS: TeamColors = {
+  red: JERSEY_PALETTE[0],
+  blue: JERSEY_PALETTE[1],
+};
+
 export interface SoccerPlayer {
   slot: number;
   team: Team;
@@ -160,12 +188,36 @@ function botSoccerInput(bot: SoccerPlayer, ball: BallState): ControllerInput {
   const targetGoalX = bot.team === 'red' ? PITCH.right : PITCH.left;
   const ownGoalX = bot.team === 'red' ? PITCH.left : PITCH.right;
   const goalCenterY = (PITCH.goalTop + PITCH.goalBottom) / 2;
+  const distToBall = Math.hypot(ball.x - bot.x, ball.y - bot.y);
+
+  // If ball is pinned in a corner, move slightly inward and kick it free
+  const nearSideWall = ball.x < PITCH.left + 16 || ball.x > PITCH.right - 16;
+  const nearTopBottom = ball.y < PITCH.top + 16 || ball.y > PITCH.bottom - 16;
+  if (nearSideWall && nearTopBottom) {
+    const midX = (PITCH.left + PITCH.right) / 2;
+    const dx = (distToBall < 18 ? midX : ball.x) - bot.x;
+    const dy = (distToBall < 18 ? goalCenterY : ball.y) - bot.y;
+    return {
+      left: dx < -2,
+      right: dx > 2,
+      up: dy < -2,
+      down: dy > 2,
+      a: distToBall < 18,
+      b: distToBall > 55 && bot.dashCooldown <= 0,
+    };
+  }
 
   const toGoalX = targetGoalX - ball.x;
   const toGoalY = goalCenterY - ball.y;
   const gLen = Math.hypot(toGoalX, toGoalY) || 1;
-  const approachX = ball.x - (toGoalX / gLen) * 11;
-  const approachY = ball.y - (toGoalY / gLen) * 11;
+  const approachX = Math.max(
+    PITCH.left + 8,
+    Math.min(PITCH.right - 8, ball.x - (toGoalX / gLen) * 11),
+  );
+  const approachY = Math.max(
+    PITCH.top + 8,
+    Math.min(PITCH.bottom - 8, ball.y - (toGoalY / gLen) * 11),
+  );
 
   const defend = bot.team === 'red' ? ball.x < bot.x - 20 : ball.x > bot.x + 20;
   const tx = defend ? (ball.x + ownGoalX) / 2 : approachX;
@@ -173,7 +225,6 @@ function botSoccerInput(bot: SoccerPlayer, ball: BallState): ControllerInput {
 
   const dx = tx - bot.x;
   const dy = ty - bot.y;
-  const distToBall = Math.hypot(ball.x - bot.x, ball.y - bot.y);
 
   return {
     left: dx < -3,
@@ -341,8 +392,28 @@ export function stepSoccer(
     const hitDist = 12;
 
     if (input.a && p.kickCooldown <= 0 && dist < 19) {
-      const kx = dist > 0.5 ? dx / dist : p.dirX;
-      const ky = dist > 0.5 ? dy / dist : p.dirY;
+      let kx = dist > 0.5 ? dx / dist : p.dirX;
+      let ky = dist > 0.5 ? dy / dist : p.dirY;
+      // Nudge kicks away from corner walls so the ball never stays pinned
+      if (
+        ball.x <= PITCH.left + 8 &&
+        kx < 0.2 &&
+        (ball.y < PITCH.goalTop || ball.y > PITCH.goalBottom)
+      ) {
+        kx = 0.55;
+      } else if (
+        ball.x >= PITCH.right - 8 &&
+        kx > -0.2 &&
+        (ball.y < PITCH.goalTop || ball.y > PITCH.goalBottom)
+      ) {
+        kx = -0.55;
+      }
+      if (ball.y <= PITCH.top + 8 && ky < 0.2) ky = 0.55;
+      else if (ball.y >= PITCH.bottom - 8 && ky > -0.2) ky = -0.55;
+      const kLen = Math.hypot(kx, ky) || 1;
+      kx /= kLen;
+      ky /= kLen;
+
       ball.vx = kx * 265 + p.vx * 0.4;
       ball.vy = ky * 265 + p.vy * 0.4;
       p.kickCooldown = 0.24;
@@ -458,6 +529,7 @@ export function stepSoccer(
 function drawPitchScene(
   ctx: CanvasRenderingContext2D,
   state: SoccerMatchState,
+  teamColors: TeamColors,
 ) {
   // Stadium stands & dark pixel backdrop
   ctx.fillStyle = '#090e17';
@@ -524,7 +596,7 @@ function drawPitchScene(
     ctx.fillRect(PITCH.left - PITCH.goalDepth, ny, PITCH.goalDepth, 1);
     ctx.fillRect(PITCH.right, ny, PITCH.goalDepth, 1);
   }
-  ctx.fillStyle = '#ef4444';
+  ctx.fillStyle = teamColors.red.shirt;
   ctx.fillRect(PITCH.left - PITCH.goalDepth, PITCH.goalTop, PITCH.goalDepth, 2);
   ctx.fillRect(
     PITCH.left - PITCH.goalDepth,
@@ -532,7 +604,7 @@ function drawPitchScene(
     PITCH.goalDepth,
     2,
   );
-  ctx.fillStyle = '#3b82f6';
+  ctx.fillStyle = teamColors.blue.shirt;
   ctx.fillRect(PITCH.right, PITCH.goalTop, PITCH.goalDepth, 2);
   ctx.fillRect(PITCH.right, PITCH.goalBottom - 2, PITCH.goalDepth, 2);
 
@@ -553,15 +625,15 @@ function drawPitchScene(
   for (const p of state.players) {
     const px = Math.round(p.x);
     const py = Math.round(p.y);
-    const shirt = p.team === 'red' ? '#ef4444' : '#3b82f6';
-    const trim = p.team === 'red' ? '#fca5a5' : '#93c5fd';
+    const jersey = p.team === 'red' ? teamColors.red : teamColors.blue;
+    const shirt = jersey.shirt;
+    const trim = jersey.trim;
     const moving = Math.hypot(p.vx, p.vy) > 5;
     const step = moving ? Math.round(Math.sin(p.walkPhase)) : 0;
 
     // Dash ghost afterimage
     if (p.dashTimer > 0) {
-      ctx.fillStyle =
-        p.team === 'red' ? 'rgba(239,68,68,0.4)' : 'rgba(59,130,246,0.4)';
+      ctx.fillStyle = `${shirt}66`;
       ctx.fillRect(
         px - Math.round(p.dirX * 6) - 4,
         py - Math.round(p.dirY * 6) - 6,
@@ -628,6 +700,7 @@ function drawScoreHud(
   ctx: CanvasRenderingContext2D,
   state: SoccerMatchState,
   screenMode: ScreenMode,
+  teamColors: TeamColors,
 ) {
   const midX = Math.floor(PIXEL_W / 2);
   const midY = Math.floor((PITCH.top + PITCH.bottom) / 2);
@@ -637,9 +710,13 @@ function drawScoreHud(
   ctx.font = 'bold 10px monospace';
   ctx.textBaseline = 'middle';
 
-  ctx.fillStyle = '#f87171';
+  ctx.fillStyle = teamColors.red.trim;
   ctx.textAlign = 'right';
-  ctx.fillText(`MERAH ${state.scoreRed}`, midX - 24, 9);
+  ctx.fillText(
+    `${teamColors.red.label.toUpperCase()} ${state.scoreRed}`,
+    midX - 24,
+    9,
+  );
 
   ctx.fillStyle = '#f8fafc';
   ctx.textAlign = 'center';
@@ -648,19 +725,27 @@ function drawScoreHud(
   const ss = String(sec % 60).padStart(2, '0');
   ctx.fillText(state.goldenGoal ? 'GOLDEN' : `${mm}:${ss}`, midX, 9);
 
-  ctx.fillStyle = '#60a5fa';
+  ctx.fillStyle = teamColors.blue.trim;
   ctx.textAlign = 'left';
-  ctx.fillText(`${state.scoreBlue} BIRU`, midX + 24, 9);
+  ctx.fillText(
+    `${state.scoreBlue} ${teamColors.blue.label.toUpperCase()}`,
+    midX + 24,
+    9,
+  );
 
   if (screenMode === 'split') {
-    ctx.fillStyle = '#ef4444';
+    ctx.fillStyle = teamColors.red.trim;
     ctx.font = 'bold 7px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('LAYAR 1 · MERAH', 6, 26);
+    ctx.fillText(`LAYAR 1 · ${teamColors.red.label.toUpperCase()}`, 6, 26);
 
-    ctx.fillStyle = '#60a5fa';
+    ctx.fillStyle = teamColors.blue.trim;
     ctx.textAlign = 'right';
-    ctx.fillText('LAYAR 2 · BIRU', PIXEL_W - 6, 26);
+    ctx.fillText(
+      `LAYAR 2 · ${teamColors.blue.label.toUpperCase()}`,
+      PIXEL_W - 6,
+      26,
+    );
 
     // Center mini radar
     const rw = 64;
@@ -675,7 +760,8 @@ function drawScoreHud(
     for (const p of state.players) {
       const px = rx + ((p.x - PITCH.left) / (PITCH.right - PITCH.left)) * rw;
       const py = ry + ((p.y - PITCH.top) / (PITCH.bottom - PITCH.top)) * rh;
-      ctx.fillStyle = p.team === 'red' ? '#ef4444' : '#3b82f6';
+      ctx.fillStyle =
+        p.team === 'red' ? teamColors.red.shirt : teamColors.blue.shirt;
       ctx.fillRect(Math.round(px) - 1, Math.round(py) - 1, 3, 3);
     }
     const bx =
@@ -689,7 +775,10 @@ function drawScoreHud(
   if (state.goalBannerTimer > 0) {
     ctx.fillStyle = 'rgba(9, 13, 20, 0.82)';
     ctx.fillRect(midX - 64, midY - 18, 128, 36);
-    ctx.strokeStyle = state.lastScorerTeam === 'red' ? '#f87171' : '#60a5fa';
+    ctx.strokeStyle =
+      state.lastScorerTeam === 'red'
+        ? teamColors.red.shirt
+        : teamColors.blue.shirt;
     ctx.lineWidth = 2;
     ctx.strokeRect(midX - 64, midY - 18, 128, 36);
     ctx.fillStyle = '#fde047';
@@ -703,6 +792,7 @@ export function drawPixelSoccer(
   ctx: CanvasRenderingContext2D,
   state: SoccerMatchState,
   screenMode: ScreenMode = 'single',
+  teamColors: TeamColors = DEFAULT_TEAM_COLORS,
 ) {
   ctx.imageSmoothingEnabled = false;
   const sx = state.shakeTimer > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
@@ -711,9 +801,9 @@ export function drawPixelSoccer(
   if (screenMode === 'single') {
     ctx.save();
     ctx.translate(sx, sy);
-    drawPitchScene(ctx, state);
+    drawPitchScene(ctx, state, teamColors);
     ctx.restore();
-    drawScoreHud(ctx, state, 'single');
+    drawScoreHud(ctx, state, 'single', teamColors);
     return;
   }
 
@@ -741,7 +831,7 @@ export function drawPixelSoccer(
     ctx.translate(clipX + sx, 18 + sy);
     ctx.scale(zoom, zoom);
     ctx.translate(-camX, -camY);
-    drawPitchScene(ctx, state);
+    drawPitchScene(ctx, state, teamColors);
     ctx.restore();
   };
 
@@ -754,5 +844,5 @@ export function drawPixelSoccer(
   ctx.fillStyle = '#f8fafc';
   ctx.fillRect(halfW - 1, 18, 2, PIXEL_H - 18);
 
-  drawScoreHud(ctx, state, 'split');
+  drawScoreHud(ctx, state, 'split', teamColors);
 }
