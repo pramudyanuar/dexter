@@ -11,7 +11,7 @@ import * as React from 'react';
 export default function FitBox({ children }: { children: React.ReactNode }) {
   return (
     <div className='flex w-full flex-1 flex-col'>
-      <div className='flex w-full flex-col'>{children}</div>
+      <div className='flex w-full flex-1 flex-col'>{children}</div>
     </div>
   );
 }

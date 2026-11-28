@@ -1,42 +1,19 @@
 'use client';
 
-import Link from 'next/link';
 import * as React from 'react';
 
 import useMounted from '@/hooks/useMounted';
 import useStoredState from '@/hooks/useStoredState';
 
-import GameArt from '@/features/games/components/GameArt';
+import GameModeEntry, {
+  type GameModeOption,
+} from '@/features/games/components/GameModeEntry';
 import GameShell from '@/features/games/components/GameShell';
 import UnoGame from '@/features/games/components/uno/UnoGame';
+import { UNO_PLAYERS } from '@/features/games/logic/uno-rules';
 import type { RoomSession } from '@/features/rooms/useRoom';
 
-const MODES = [
-  {
-    id: 'uno',
-    title: 'Classic',
-    blurb:
-      'The Uno you know. Match colour or number, stack equal numbers, challenge a wild +4.',
-    href: null,
-  },
-  {
-    id: 'unoflip',
-    title: 'Flip',
-    blurb:
-      'Double-sided cards. One FLIP turns everything to a darker, crueller side.',
-    href: '/games/unoflip',
-  },
-  {
-    id: 'unomercy',
-    title: 'No Mercy',
-    blurb:
-      'Stack penalties, swap hands with a 7, pass them on with a 0. Reach the room’s card limit and you are out.',
-    href: '/games/unomercy',
-  },
-] as const;
-
-const card =
-  'group flex w-full items-center gap-4 rounded-xl border border-line bg-card/60 p-3 text-left transition-[transform,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-[var(--mute)] hover:bg-card active:scale-[0.99]';
+const PLAYER_RANGE = `${UNO_PLAYERS.min}–${UNO_PLAYERS.max} pemain`;
 
 /**
  * The front of Uno: pick which Uno to play. Classic opens in place (so the
@@ -56,53 +33,83 @@ export default function UnoEntry() {
     mounted && new URLSearchParams(window.location.search).has('room');
   const inClassic = classic || !!session || invited;
 
+  const modes: GameModeOption[] = [
+    {
+      id: 'uno',
+      artId: 'uno',
+      title: 'Classic',
+      badge: 'Klasik',
+      meta: '10–25 menit',
+      blurb:
+        'Uno klasik yang kamu kenal. Cocokkan warna atau angka, tumpuk angka kembar, dan tantang Wild +4.',
+      highlights: [
+        'Aturan standar yang cepat dipahami',
+        'Bisa stack angka yang sama sekaligus',
+        'Challenge Wild +4 bila mencurigai gertakan',
+      ],
+      onSelect: () => setClassic(true),
+      cta: 'Main Classic',
+    },
+    {
+      id: 'unoflip',
+      artId: 'unoflip',
+      title: 'Flip',
+      badge: 'Dua Sisi',
+      meta: '10–25 menit',
+      blurb:
+        'Kartu dua sisi. Satu kartu FLIP membalik semua tangan dan dek ke sisi gelap yang jauh lebih kejam.',
+      highlights: [
+        'Light Side & Dark Side dalam satu dek',
+        'Penalti lebih berat (+5 & Skip Everyone)',
+        'Ritme permainan berubah drastis tiap FLIP',
+      ],
+      href: '/games/unoflip',
+      cta: 'Main Flip',
+    },
+    {
+      id: 'unomercy',
+      artId: 'unomercy',
+      title: 'No Mercy',
+      badge: 'Ekstrem',
+      meta: '15–35 menit',
+      blurb:
+        'Tumpuk kartu penalti, tukar tangan dengan angka 7, oper semua kartu dengan 0, dan hindari eliminasi.',
+      highlights: [
+        'Stack penalti hingga +6 dan +10',
+        'Aturan 7-0 untuk tukar atau oper tangan',
+        'Mercy rule: sentuh batas kartu langsung gugur',
+      ],
+      href: '/games/unomercy',
+      cta: 'Main No Mercy',
+    },
+  ];
+
   return (
     <GameShell name='uno' fit>
       {inClassic ? (
         <UnoGame game='uno' shell={false} />
       ) : mounted ? (
-        <div className='a-slide-up mx-auto w-full max-w-xl pt-2'>
-          <h1 className='mb-1 text-lg font-semibold tracking-tight'>
-            Which Uno?
-          </h1>
-          <p className='mb-4 text-sm text-[var(--mute)]'>
-            Pick a version. You can invite friends once you are in.
-          </p>
-          <ul className='space-y-3'>
-            {MODES.map((m) => {
-              const inner = (
-                <>
-                  <div className='h-20 w-32 shrink-0 overflow-hidden rounded-lg border border-line bg-paper/60 p-1.5'>
-                    <GameArt id={m.id} />
-                  </div>
-                  <span className='min-w-0'>
-                    <span className='block font-semibold'>{m.title}</span>
-                    <span className='mt-0.5 block text-sm text-[var(--mute)]'>
-                      {m.blurb}
-                    </span>
-                  </span>
-                </>
-              );
-              return (
-                <li key={m.id}>
-                  {m.href ? (
-                    <Link href={m.href} className={card}>
-                      {inner}
-                    </Link>
-                  ) : (
-                    <button
-                      type='button'
-                      onClick={() => setClassic(true)}
-                      className={card}
-                    >
-                      {inner}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        <GameModeEntry
+          eyebrow={`Kartu & Pesta · ${PLAYER_RANGE}`}
+          title='Pilih Mode Uno'
+          description='Pilih varian Uno yang ingin dimainkan. Kamu bisa buat room atau undang teman lewat link setelah masuk.'
+          modes={modes}
+          secondaryLinks={[
+            { label: 'Info & Aturan', href: '/games/info/uno' },
+            { label: 'Semua Game', href: '/games' },
+          ]}
+          footerNote={
+            <>
+              <span>
+                Semua mode mendukung <strong>{PLAYER_RANGE}</strong> secara
+                online maupun dengan bot.
+              </span>
+              <span>
+                Punya link atau kode room? Buka langsung untuk bergabung.
+              </span>
+            </>
+          }
+        />
       ) : null}
     </GameShell>
   );

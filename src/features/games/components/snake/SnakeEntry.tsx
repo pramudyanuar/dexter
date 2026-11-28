@@ -1,67 +1,86 @@
 'use client';
 
-import Link from 'next/link';
 import * as React from 'react';
 
-import GameArt from '@/features/games/components/GameArt';
+import GameModeEntry, {
+  type GameModeOption,
+} from '@/features/games/components/GameModeEntry';
 import GameShell from '@/features/games/components/GameShell';
 
-const MODES = [
+const MODES: readonly GameModeOption[] = [
   {
     id: 'classic',
+    artId: 'snake',
     title: 'Classic',
+    badge: 'Solo',
+    meta: 'Tanpa batas waktu',
     blurb:
-      'Main solo klasik. Makan apel, hindari tabrakan, dan kejar skor tertinggi.',
+      'Main solo klasik. Makan apel sebanyak mungkin, hindari dinding dan ekor sendiri, lalu kejar skor tertinggi.',
+    highlights: [
+      'Kecepatan bertahap seiring panjang ular',
+      'Skor terbaik tersimpan lokal & leaderboard',
+      'Cocok untuk pemanasan atau rekor baru',
+    ],
     href: '/games/snake/classic',
+    cta: 'Main Classic',
   },
   {
     id: 'daily',
+    artId: 'snake-daily',
     title: 'Harian',
+    badge: 'Tantangan 120s',
+    meta: 'Seed harian',
     blurb:
-      'Tantangan harian 120 detik dengan papan yang sama untuk semua pemain.',
+      'Tantangan harian 120 detik dengan posisi apel dan papan yang sama untuk semua pemain hari ini.',
+    highlights: [
+      'Satu papan yang adil untuk semua pemain',
+      'Batas waktu 2 menit untuk skor maksimal',
+      'Peringkat harian di-reset setiap hari',
+    ],
     href: '/games/snake/daily',
+    cta: 'Main Harian',
   },
   {
     id: 'duel',
+    artId: 'snake-duel',
     title: 'Duel',
+    badge: 'Online 1v1',
+    meta: 'Real-time',
     blurb:
-      'Duel ular 1 lawan 1 real-time. Cari lawan otomatis atau buat room bersama teman.',
+      'Duel ular 1 lawan 1 secara real-time. Cari lawan otomatis atau buat room kode untuk main bareng teman.',
+    highlights: [
+      'Matchmaking cepat atau room privat',
+      'Rebut apel lebih cepat dari lawan',
+      'Bertahan paling lama untuk menang',
+    ],
     href: '/games/snake/duel',
+    cta: 'Main Duel',
   },
-] as const;
-
-const card =
-  'group flex w-full items-center gap-4 rounded-xl border border-line bg-card/60 p-3 text-left transition-[transform,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-[var(--mute)] hover:bg-card active:scale-[0.99]';
+];
 
 /** Front menu for Snake: pick Classic, Daily, or Duel. */
 export default function SnakeEntry() {
   return (
     <GameShell name='snake' fit>
-      <div className='a-slide-up mx-auto w-full max-w-xl pt-2'>
-        <h1 className='mb-1 text-lg font-semibold tracking-tight'>
-          Pilih mode Snake
-        </h1>
-        <p className='mb-4 text-sm text-[var(--mute)]'>
-          Main solo klasik, tantangan harian, atau duel 1 lawan 1.
-        </p>
-        <ul className='space-y-3'>
-          {MODES.map((m) => (
-            <li key={m.id}>
-              <Link href={m.href} className={card}>
-                <div className='h-20 w-32 shrink-0 overflow-hidden rounded-lg border border-line bg-paper/60 p-1.5'>
-                  <GameArt id='snake' />
-                </div>
-                <span className='min-w-0'>
-                  <span className='block font-semibold'>{m.title}</span>
-                  <span className='mt-0.5 block text-sm text-[var(--mute)]'>
-                    {m.blurb}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <GameModeEntry
+        eyebrow='Arcade · 1–2 Pemain'
+        title='Pilih Mode Snake'
+        description='Main solo klasik tanpa batas waktu, adu cepat di tantangan harian 120 detik, atau duel 1 lawan 1 secara real-time.'
+        modes={MODES}
+        secondaryLinks={[
+          { label: 'Leaderboard', href: '/games/leaderboard' },
+          { label: 'Info Game', href: '/games/info/snake' },
+        ]}
+        footerNote={
+          <>
+            <span>
+              <strong>Kontrol:</strong> Tombol panah, WASD, atau geser layar di
+              perangkat sentuh.
+            </span>
+            <span>Tekan Spasi untuk jeda saat bermain solo.</span>
+          </>
+        }
+      />
     </GameShell>
   );
 }

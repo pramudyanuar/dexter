@@ -1014,7 +1014,7 @@ function Hand({
 }
 
 const narrow = (node: React.ReactNode) => (
-  <div className='mx-auto w-full max-w-xl pt-2'>{node}</div>
+  <div className='mx-auto w-full max-w-5xl pt-2'>{node}</div>
 );
 
 function Uno({ game }: { game: UnoKind }) {

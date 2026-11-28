@@ -151,148 +151,157 @@ export function WaitingRoom({
   const host = room.host;
 
   return (
-    <div className='mx-auto w-full max-w-md'>
-      <div className='mb-4 flex items-center justify-end gap-3'>
-        {guide}
-        <button
-          type='button'
-          onClick={r.leave}
-          className={`${outline} hover:border-err hover:text-err`}
-        >
-          Keluar
-        </button>
-      </div>
-
-      <section className='rounded-xl border border-line bg-surface/50 p-5 text-center'>
-        <p className='text-xs text-[var(--mute)]'>
-          Bagikan kode ini ke temanmu
-        </p>
-        <button
-          type='button'
-          onClick={() => copy('code', code)}
-          aria-label={`Salin kode room ${code}`}
-          className='mt-2 font-mono text-4xl font-medium tracking-[0.3em] text-ink transition-opacity hover:opacity-80'
-        >
-          {code}
-        </button>
-        <p className='mt-1 h-4 text-xs text-[var(--mute)]' aria-live='polite'>
-          {copied === 'code' ? 'Kode tersalin' : 'Ketuk kode untuk menyalin'}
-        </p>
-        <button
-          type='button'
-          onClick={() => copy('link', inviteLink(code))}
-          className={`${outline} mt-3`}
-        >
-          {copied === 'link' ? 'Link tersalin' : 'Salin link undangan'}
-        </button>
-        <RoomInviteQr code={code} />
-      </section>
-
-      <div className='mt-6 flex items-baseline justify-between'>
-        <h2 className='text-sm font-semibold'>Pemain</h2>
-        <span className='text-xs text-[var(--mute)]' aria-live='polite'>
-          {seats.length} dari {room.capacity}
+    <div className='relative left-1/2 my-auto w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 py-4 pb-6'>
+      <div className='mb-4 flex items-center justify-between gap-3'>
+        <span className='text-xs font-medium tracking-wider text-[var(--mute)] uppercase'>
+          Menunggu pemain · {seats.length}/{room.capacity}
         </span>
+        <div className='flex items-center gap-3'>
+          {guide}
+          <button
+            type='button'
+            onClick={r.leave}
+            className={`${outline} hover:border-err hover:text-err`}
+          >
+            Keluar
+          </button>
+        </div>
       </div>
 
-      <ul className='mt-2 space-y-2'>
-        {seats.map((seat) => {
-          const label = room.names[seat] || `Pemain ${seat + 1}`;
-          return (
-            <li
-              key={seat}
-              data-seat={seat}
-              className='a-pop flex items-center gap-3 rounded-lg border border-line bg-surface/50 px-3 py-2'
-            >
-              <span
-                aria-hidden
-                className='flex size-8 shrink-0 items-center justify-center rounded-full border border-line-strong bg-card text-sm font-medium uppercase'
-              >
-                {label.charAt(0)}
-              </span>
-              <span className='min-w-0 flex-1 truncate text-sm'>
-                {label}
-                {seat === you && (
-                  <span className='ml-1.5 text-xs text-[var(--mute)]'>
-                    (kamu)
+      <div className='grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]'>
+        <section className='rounded-xl border border-line bg-surface/50 p-5 text-center'>
+          <p className='text-xs text-[var(--mute)]'>
+            Bagikan kode ini ke temanmu
+          </p>
+          <button
+            type='button'
+            onClick={() => copy('code', code)}
+            aria-label={`Salin kode room ${code}`}
+            className='mt-2 font-mono text-4xl font-medium tracking-[0.3em] text-ink transition-opacity hover:opacity-80'
+          >
+            {code}
+          </button>
+          <p className='mt-1 h-4 text-xs text-[var(--mute)]' aria-live='polite'>
+            {copied === 'code' ? 'Kode tersalin' : 'Ketuk kode untuk menyalin'}
+          </p>
+          <button
+            type='button'
+            onClick={() => copy('link', inviteLink(code))}
+            className={`${outline} mt-3`}
+          >
+            {copied === 'link' ? 'Link tersalin' : 'Salin link undangan'}
+          </button>
+          <RoomInviteQr code={code} />
+        </section>
+
+        <section className='rounded-xl border border-line bg-surface/50 p-5'>
+          <div className='flex items-baseline justify-between'>
+            <h2 className='text-sm font-semibold'>Pemain</h2>
+            <span className='text-xs text-[var(--mute)]' aria-live='polite'>
+              {seats.length} dari {room.capacity}
+            </span>
+          </div>
+
+          <ul className='mt-3 space-y-2'>
+            {seats.map((seat) => {
+              const label = room.names[seat] || `Pemain ${seat + 1}`;
+              return (
+                <li
+                  key={seat}
+                  data-seat={seat}
+                  className='a-pop flex items-center gap-3 rounded-lg border border-line bg-paper/40 px-3 py-2'
+                >
+                  <span
+                    aria-hidden
+                    className='flex size-8 shrink-0 items-center justify-center rounded-full border border-line-strong bg-card text-sm font-medium uppercase'
+                  >
+                    {label.charAt(0)}
                   </span>
-                )}
-              </span>
-              {seat === host ? (
-                <span className='shrink-0 rounded border border-line-strong px-1.5 py-px text-[11px] text-[var(--mute)]'>
-                  admin
+                  <span className='min-w-0 flex-1 truncate text-sm'>
+                    {label}
+                    {seat === you && (
+                      <span className='ml-1.5 text-xs text-[var(--mute)]'>
+                        (kamu)
+                      </span>
+                    )}
+                  </span>
+                  {seat === host ? (
+                    <span className='shrink-0 rounded border border-line-strong px-1.5 py-px text-[11px] text-[var(--mute)]'>
+                      admin
+                    </span>
+                  ) : (
+                    you === host && (
+                      <button
+                        type='button'
+                        onClick={() => r.kick(seat)}
+                        disabled={r.busy}
+                        className={`${outline} hover:border-err hover:text-err`}
+                      >
+                        Keluarkan
+                      </button>
+                    )
+                  )}
+                </li>
+              );
+            })}
+            {empty > 0 && (
+              <li className='flex items-center gap-3 rounded-lg border border-dashed border-line-strong px-3 py-2 text-sm text-[var(--mute)]'>
+                <span
+                  aria-hidden
+                  className='flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong'
+                >
+                  +
                 </span>
-              ) : (
-                you === host && (
+                <span className='a-bob-soft'>
+                  {empty === 1
+                    ? 'Menunggu satu pemain lagi…'
+                    : `Menunggu pemain… (${empty} kursi kosong)`}
+                </span>
+              </li>
+            )}
+          </ul>
+
+          <div className='mt-5 text-center'>
+            {flexible ? (
+              you === host ? (
+                <>
                   <button
                     type='button'
-                    onClick={() => r.kick(seat)}
-                    disabled={r.busy}
-                    className={`${outline} hover:border-err hover:text-err`}
+                    onClick={r.start}
+                    disabled={r.busy || seats.length < room.minPlayers}
+                    className='w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-paper transition-[transform,opacity] hover:opacity-90 active:scale-[0.99] disabled:opacity-40'
                   >
-                    Keluarkan
+                    Mulai main · {seats.length} pemain
                   </button>
-                )
-              )}
-            </li>
-          );
-        })}
-        {empty > 0 && (
-          <li className='flex items-center gap-3 rounded-lg border border-dashed border-line-strong px-3 py-2 text-sm text-[var(--mute)]'>
-            <span
-              aria-hidden
-              className='flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong'
-            >
-              +
-            </span>
-            <span className='a-bob-soft'>
-              {empty === 1
-                ? 'Menunggu satu pemain lagi…'
-                : `Menunggu pemain… (${empty} kursi kosong)`}
-            </span>
-          </li>
-        )}
-      </ul>
-
-      <div className='mt-5 text-center'>
-        {flexible ? (
-          you === host ? (
-            <>
-              <button
-                type='button'
-                onClick={r.start}
-                disabled={r.busy || seats.length < room.minPlayers}
-                className='w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-paper transition-[transform,opacity] hover:opacity-90 active:scale-[0.99] disabled:opacity-40'
-              >
-                Mulai main · {seats.length} pemain
-              </button>
-              {seats.length < room.minPlayers && (
-                <p className='mt-1.5 text-xs text-[var(--mute)]'>
-                  Butuh minimal {room.minPlayers} pemain untuk mulai.
+                  {seats.length < room.minPlayers && (
+                    <p className='mt-1.5 text-xs text-[var(--mute)]'>
+                      Butuh minimal {room.minPlayers} pemain untuk mulai.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className='text-sm text-[var(--mute)]'>
+                  Menunggu admin room memulai…
                 </p>
-              )}
-            </>
-          ) : (
-            <p className='text-sm text-[var(--mute)]'>
-              Menunggu admin room memulai…
-            </p>
-          )
-        ) : (
-          <p className='text-sm text-[var(--mute)]'>
-            Game mulai otomatis begitu semua pemain masuk.
-          </p>
-        )}
-      </div>
+              )
+            ) : (
+              <p className='text-sm text-[var(--mute)]'>
+                Game mulai otomatis begitu semua pemain masuk.
+              </p>
+            )}
+          </div>
 
-      <NameEditor r={r} />
-      {r.error && (
-        <p
-          role='alert'
-          className='mt-4 rounded-lg border border-err/50 bg-err/10 px-3 py-2 text-center text-sm text-err'
-        >
-          {r.error}
-        </p>
-      )}
+          <NameEditor r={r} />
+          {r.error && (
+            <p
+              role='alert'
+              className='mt-4 rounded-lg border border-err/50 bg-err/10 px-3 py-2 text-center text-sm text-err'
+            >
+              {r.error}
+            </p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

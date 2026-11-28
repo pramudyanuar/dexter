@@ -138,6 +138,168 @@ function Snake() {
   );
 }
 
+function SnakeDaily() {
+  const body = [
+    [24, 68],
+    [36, 68],
+    [48, 68],
+    [60, 68],
+    [60, 56],
+    [72, 56],
+    [84, 56],
+    [96, 56],
+  ];
+  return (
+    <Frame>
+      {Array.from({ length: 12 }, (_, i) => (
+        <line
+          key={`v${i}`}
+          x1={i * 14 + 6}
+          y1='0'
+          x2={i * 14 + 6}
+          y2='100'
+          stroke={LINE}
+          strokeWidth='0.6'
+        />
+      ))}
+      {Array.from({ length: 8 }, (_, i) => (
+        <line
+          key={`h${i}`}
+          x1='0'
+          y1={i * 14 + 8}
+          x2='160'
+          y2={i * 14 + 8}
+          stroke={LINE}
+          strokeWidth='0.6'
+        />
+      ))}
+      {body.map(([x, y], i) => (
+        <rect
+          key={i}
+          x={x - 5}
+          y={y - 5}
+          width='10'
+          height='10'
+          rx='3'
+          fill={GREEN}
+          opacity={0.45 + (i / body.length) * 0.55}
+        />
+      ))}
+      <circle cx='102' cy='53.5' r='1.3' fill='#10201a' />
+      <circle cx='102' cy='58.5' r='1.3' fill='#10201a' />
+      <g className={move('group-hover:scale-110')}>
+        <circle cx='126' cy='56' r='6' fill={GOLD} />
+        <circle
+          cx='126'
+          cy='56'
+          r='9'
+          fill='none'
+          stroke={GOLD}
+          strokeWidth='1'
+          opacity='0.45'
+        />
+      </g>
+      <rect
+        x='14'
+        y='12'
+        width='40'
+        height='16'
+        rx='4'
+        fill={CELL}
+        stroke={GOLD}
+        strokeWidth='1'
+      />
+      <text
+        x='34'
+        y='23'
+        textAnchor='middle'
+        fontSize='9'
+        fontWeight='700'
+        fill={GOLD}
+      >
+        120s
+      </text>
+    </Frame>
+  );
+}
+
+function SnakeDuel() {
+  const p1 = [
+    [20, 32],
+    [32, 32],
+    [44, 32],
+    [56, 32],
+    [56, 44],
+  ];
+  const p2 = [
+    [140, 68],
+    [128, 68],
+    [116, 68],
+    [104, 68],
+    [104, 56],
+  ];
+  return (
+    <Frame>
+      {Array.from({ length: 12 }, (_, i) => (
+        <line
+          key={`v${i}`}
+          x1={i * 14 + 6}
+          y1='0'
+          x2={i * 14 + 6}
+          y2='100'
+          stroke={LINE}
+          strokeWidth='0.6'
+        />
+      ))}
+      {Array.from({ length: 8 }, (_, i) => (
+        <line
+          key={`h${i}`}
+          x1='0'
+          y1={i * 14 + 8}
+          x2='160'
+          y2={i * 14 + 8}
+          stroke={LINE}
+          strokeWidth='0.6'
+        />
+      ))}
+      {p1.map(([x, y], i) => (
+        <rect
+          key={`p1-${i}`}
+          x={x - 5}
+          y={y - 5}
+          width='10'
+          height='10'
+          rx='3'
+          fill={GREEN}
+          opacity={0.45 + (i / p1.length) * 0.55}
+        />
+      ))}
+      {p2.map(([x, y], i) => (
+        <rect
+          key={`p2-${i}`}
+          x={x - 5}
+          y={y - 5}
+          width='10'
+          height='10'
+          rx='3'
+          fill={BLUE}
+          opacity={0.45 + (i / p2.length) * 0.55}
+        />
+      ))}
+      <g className={move('group-hover:scale-110')}>
+        <circle cx='80' cy='50' r='5.5' fill={RED} />
+        <path
+          d='M80 44.5c1-3 3-4 5-4'
+          stroke={GREEN}
+          strokeWidth='1.6'
+          fill='none'
+          strokeLinecap='round'
+        />
+      </g>
+    </Frame>
+  );
+}
+
 function Game2048() {
   const tiles: [number, string, string][] = [
     [2, '#eee4da', '#776e65'],
@@ -1586,6 +1748,8 @@ function Gelud() {
 const ART: Record<string, () => React.JSX.Element> = {
   wordle: Wordle,
   snake: Snake,
+  'snake-daily': SnakeDaily,
+  'snake-duel': SnakeDuel,
   '2048': Game2048,
   minesweeper: Minesweeper,
   tetris: Tetris,

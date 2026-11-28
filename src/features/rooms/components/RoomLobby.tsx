@@ -118,24 +118,123 @@ export default function RoomLobby({
   const padding = compact ? 'py-4' : 'p-4';
   const primary = compact ? 'min-h-11 bg-accent' : 'bg-ink';
 
+  const splitShowcase = !compact && !showRoomList;
+
+  const formFields = (
+    <>
+      <label className='block'>
+        <span className='mb-1.5 flex items-baseline justify-between text-sm'>
+          Namamu
+          <span className='text-xs text-[var(--mute)]'>
+            dipakai di semua game
+          </span>
+        </span>
+        <input
+          value={name}
+          onChange={(e) => onName(e.target.value.slice(0, NAME_MAX))}
+          placeholder='mis. Budi'
+          aria-label='Username'
+          autoComplete='nickname'
+          maxLength={NAME_MAX}
+          className={field}
+        />
+      </label>
+
+      {/* an invite link fills the code in, so joining comes first then */}
+      <div className={invited ? 'flex flex-col-reverse' : ''}>
+        <div className='mt-5'>
+          <button
+            type='button'
+            onClick={() => onCreate(isPublic)}
+            disabled={disabled}
+            className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-50 ${
+              invited
+                ? 'border border-line-strong text-ink hover:border-[var(--mute)]'
+                : `${primary} text-paper hover:opacity-90`
+            }`}
+          >
+            Buat room baru
+          </button>
+          <label className='mt-2.5 flex items-center justify-center gap-2 text-xs text-[var(--mute)]'>
+            <input
+              type='checkbox'
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+            />
+            Room publik (bisa langsung di-join orang lain)
+          </label>
+        </div>
+
+        <div className='mt-5 flex items-center gap-3 text-xs text-[var(--mute)]'>
+          <span className='h-px flex-1 bg-line' />
+          {invited ? 'kamu diundang ke room ini' : 'atau gabung pakai kode'}
+          <span className='h-px flex-1 bg-line' />
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!disabled && invited) onJoin(code);
+          }}
+          className='mt-4 flex gap-2'
+        >
+          <input
+            value={code}
+            onChange={(e) =>
+              setCode(normalizeCode(e.target.value).slice(0, CODE_LENGTH))
+            }
+            placeholder='ABCDE'
+            aria-label='Kode room'
+            autoCapitalize='characters'
+            autoCorrect='off'
+            spellCheck={false}
+            maxLength={CODE_LENGTH}
+            className={`min-w-0 flex-1 text-center font-mono text-lg tracking-[0.35em] uppercase ${field}`}
+          />
+          <button
+            type='submit'
+            disabled={disabled || !invited}
+            className={`shrink-0 rounded-lg px-5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-40 ${
+              invited
+                ? `${primary} text-paper hover:opacity-90`
+                : 'border border-line-strong text-ink'
+            }`}
+          >
+            Gabung
+          </button>
+        </form>
+      </div>
+
+      {actions?.(disabled)}
+      {error && (
+        <p
+          role='alert'
+          className='mt-4 rounded-lg border border-err/50 bg-err/10 px-3 py-2 text-center text-sm text-err'
+        >
+          {error}
+        </p>
+      )}
+    </>
+  );
+
   return (
     <div
       className={
         compact
           ? 'grid w-full items-start gap-x-12 gap-y-6 md:grid-cols-[minmax(0,30rem)_minmax(14rem,1fr)]'
-          : showRoomList
-            ? 'relative left-1/2 grid w-[min(56rem,calc(100vw-2rem))] -translate-x-1/2 items-stretch gap-5 pb-6 md:grid-cols-2'
-            : 'mx-auto w-full max-w-md pb-6'
+          : 'relative left-1/2 my-auto grid w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 items-stretch gap-5 py-4 pb-6 md:grid-cols-2'
       }
     >
       <div className={`flex flex-col ${panel}`}>
-        <section className='group'>
+        <section className='group flex flex-1 flex-col'>
           {game && !compact && (
-            <div className='aspect-[8/3] border-b border-line bg-[#0e1015]'>
+            <div
+              className={`${splitShowcase ? 'aspect-[8/5]' : 'aspect-[8/3]'} border-b border-line bg-[#0e1015]`}
+            >
               <GameArt id={game.id} />
             </div>
           )}
-          <div className={padding}>
+          <div className={`flex flex-1 flex-col ${padding}`}>
             <div className='flex items-baseline justify-between gap-3'>
               <Heading className='text-lg font-semibold tracking-tight'>
                 {heading ?? game?.title ?? 'Main online'}
@@ -150,127 +249,64 @@ export default function RoomLobby({
               {blurb.replace(/^#\s*/, '')}
             </p>
             {guide && <div className='mt-3'>{guide}</div>}
-            {!guide && hints.length > 0 && (
-              <details className='group mt-3 rounded-lg border border-line bg-surface/50'>
-                <summary className='flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium select-none'>
-                  Cara main
-                  <span
-                    aria-hidden
-                    className='text-[var(--mute)] transition-transform group-open:rotate-90'
-                  >
-                    ›
-                  </span>
-                </summary>
-                <ul className='space-y-1.5 px-3 pb-3 text-sm text-[var(--mute)]'>
-                  {hints.map((h, i) => (
-                    <li key={i} className='flex gap-2'>
-                      <span aria-hidden className='text-[var(--mute)]'>
-                        •
-                      </span>
-                      <span>{h}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
+            {!guide &&
+              hints.length > 0 &&
+              (splitShowcase ? (
+                <div className='mt-4 border-t border-line pt-3'>
+                  <h2 className='mb-2 text-xs font-semibold tracking-wider text-accent uppercase'>
+                    Cara main
+                  </h2>
+                  <ul className='space-y-1.5 text-sm text-[var(--mute)]'>
+                    {hints.map((h, i) => (
+                      <li key={i} className='flex gap-2'>
+                        <span aria-hidden className='text-accent'>
+                          •
+                        </span>
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <details className='group mt-3 rounded-lg border border-line bg-surface/50'>
+                  <summary className='flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium select-none'>
+                    Cara main
+                    <span
+                      aria-hidden
+                      className='text-[var(--mute)] transition-transform group-open:rotate-90'
+                    >
+                      ›
+                    </span>
+                  </summary>
+                  <ul className='space-y-1.5 px-3 pb-3 text-sm text-[var(--mute)]'>
+                    {hints.map((h, i) => (
+                      <li key={i} className='flex gap-2'>
+                        <span aria-hidden className='text-[var(--mute)]'>
+                          •
+                        </span>
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ))}
           </div>
         </section>
 
-        <div className={`flex flex-1 flex-col border-t border-line ${padding}`}>
-          <label className='block'>
-            <span className='mb-1.5 flex items-baseline justify-between text-sm'>
-              Namamu
-              <span className='text-xs text-[var(--mute)]'>
-                dipakai di semua game
-              </span>
-            </span>
-            <input
-              value={name}
-              onChange={(e) => onName(e.target.value.slice(0, NAME_MAX))}
-              placeholder='mis. Budi'
-              aria-label='Username'
-              autoComplete='nickname'
-              maxLength={NAME_MAX}
-              className={field}
-            />
-          </label>
-
-          {/* an invite link fills the code in, so joining comes first then */}
-          <div className={invited ? 'flex flex-col-reverse' : ''}>
-            <div className='mt-5'>
-              <button
-                type='button'
-                onClick={() => onCreate(isPublic)}
-                disabled={disabled}
-                className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-50 ${
-                  invited
-                    ? 'border border-line-strong text-ink hover:border-[var(--mute)]'
-                    : `${primary} text-paper hover:opacity-90`
-                }`}
-              >
-                Buat room baru
-              </button>
-              <label className='mt-2.5 flex items-center justify-center gap-2 text-xs text-[var(--mute)]'>
-                <input
-                  type='checkbox'
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                />
-                Room publik (bisa langsung di-join orang lain)
-              </label>
-            </div>
-
-            <div className='mt-5 flex items-center gap-3 text-xs text-[var(--mute)]'>
-              <span className='h-px flex-1 bg-line' />
-              {invited ? 'kamu diundang ke room ini' : 'atau gabung pakai kode'}
-              <span className='h-px flex-1 bg-line' />
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!disabled && invited) onJoin(code);
-              }}
-              className='mt-4 flex gap-2'
-            >
-              <input
-                value={code}
-                onChange={(e) =>
-                  setCode(normalizeCode(e.target.value).slice(0, CODE_LENGTH))
-                }
-                placeholder='ABCDE'
-                aria-label='Kode room'
-                autoCapitalize='characters'
-                autoCorrect='off'
-                spellCheck={false}
-                maxLength={CODE_LENGTH}
-                className={`min-w-0 flex-1 text-center font-mono text-lg tracking-[0.35em] uppercase ${field}`}
-              />
-              <button
-                type='submit'
-                disabled={disabled || !invited}
-                className={`shrink-0 rounded-lg px-5 text-sm font-medium transition-[transform,opacity] active:scale-[0.99] disabled:opacity-40 ${
-                  invited
-                    ? `${primary} text-paper hover:opacity-90`
-                    : 'border border-line-strong text-ink'
-                }`}
-              >
-                Gabung
-              </button>
-            </form>
+        {!splitShowcase && (
+          <div
+            className={`flex flex-1 flex-col border-t border-line ${padding}`}
+          >
+            {formFields}
           </div>
-
-          {actions?.(disabled)}
-          {error && (
-            <p
-              role='alert'
-              className='mt-4 rounded-lg border border-err/50 bg-err/10 px-3 py-2 text-center text-sm text-err'
-            >
-              {error}
-            </p>
-          )}
-        </div>
+        )}
       </div>
+
+      {splitShowcase && (
+        <div className={`flex flex-col justify-center ${panel} p-5`}>
+          {formFields}
+        </div>
+      )}
 
       {showRoomList && (
         <aside className={`flex flex-col ${panel} ${padding}`}>

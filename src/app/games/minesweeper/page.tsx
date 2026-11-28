@@ -361,7 +361,7 @@ function Minesweeper() {
             : 'Permainan berlangsung';
 
   return (
-    <div className='mx-auto w-full max-w-xl space-y-3'>
+    <div className='mx-auto w-full max-w-4xl space-y-3'>
       {status === 'won' && <Confetti />}
 
       <header className='flex flex-wrap items-center justify-between gap-3'>
