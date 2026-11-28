@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import * as React from 'react';
 
 /**
@@ -1584,6 +1585,17 @@ function Gelud() {
 }
 
 const ART: Record<string, () => React.JSX.Element> = {
+  'trap-tails': () => (
+    <Image
+      src='/games/trap-tails/thumbnail.webp'
+      alt=''
+      role='presentation'
+      width={640}
+      height={360}
+      unoptimized
+      className='size-full object-cover'
+    />
+  ),
   wordle: Wordle,
   snake: Snake,
   '2048': Game2048,

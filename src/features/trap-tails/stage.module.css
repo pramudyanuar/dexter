@@ -1,0 +1,192 @@
+.frame {
+  --wood-ink: #fff2d3;
+  --wood-dark: #2e272b;
+  --wood-accent: #f3bd7e;
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  place-items: center;
+  background: #201b23;
+}
+
+.stage {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, calc(100dvh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  color: var(--wood-ink);
+  background: #bd887a url('/games/trap-tails/orchard.webp') center / cover;
+}
+
+.stage > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.header,
+.footer {
+  position: absolute;
+  inset-inline: clamp(10px, 3vw, 42px);
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header {
+  top: clamp(10px, 3vw, 30px);
+}
+
+.footer {
+  bottom: clamp(8px, 2.5vw, 23px);
+  align-items: center;
+}
+
+.masthead {
+  color: #33272b;
+  text-shadow: 0 1px #ffd6af60;
+}
+
+.masthead p {
+  margin: 0 0 3px 2px;
+  font-size: clamp(8px, 0.93vw, 13px);
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.masthead h1 {
+  margin: 0;
+  font:
+    900 clamp(1.45rem, 4.3vw, 4.65rem) / 0.97 Georgia,
+    serif;
+  letter-spacing: -0.065em;
+}
+
+.tools,
+.options,
+.keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tools button,
+.options button,
+.options select,
+.notice button {
+  display: inline-grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid #fff0d34d;
+  border-radius: 4px;
+  background: var(--wood-dark);
+  color: var(--wood-ink);
+  box-shadow: 0 2px 0 #34252b55;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.options select,
+.notice button {
+  padding: 0 9px;
+  font:
+    650 12px system-ui,
+    sans-serif;
+}
+
+.tools button:hover,
+.options button:hover,
+.options select:hover,
+.notice button:hover {
+  background: #564049;
+}
+
+.stage :is(button, select):focus-visible {
+  outline: 3px solid var(--wood-accent);
+  outline-offset: 2px;
+}
+
+.tools button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.options button[aria-pressed='true'] {
+  background: var(--wood-ink);
+  color: var(--wood-dark);
+}
+
+.keys {
+  gap: 13px;
+  border: 1px solid #fff0d345;
+  border-radius: 4px;
+  padding: 8px 13px;
+  color: var(--wood-ink);
+  background: #2e272bf0;
+  font:
+    600 12px system-ui,
+    sans-serif;
+  white-space: nowrap;
+}
+
+.keys kbd {
+  border: 1px solid #f9dcb966;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: var(--wood-accent);
+  font:
+    700 11px system-ui,
+    sans-serif;
+}
+
+.status {
+  position: absolute;
+  inset: 16% 16%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.status > span,
+.notice {
+  border: 1px solid #d2a982;
+  border-radius: 3px;
+  background-color: #32282ef5;
+  box-shadow: 0 5px 20px #28212b55;
+  padding: 12px 20px;
+}
+
+.notice p {
+  margin: 0 0 8px;
+  font:
+    700 clamp(1rem, 3vw, 2.2rem) Georgia,
+    serif;
+}
+
+.notice button {
+  pointer-events: auto;
+}
+
+@media (max-width: 700px) {
+  .keys {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage button,
+  .stage select {
+    transition: none;
+  }
+}
