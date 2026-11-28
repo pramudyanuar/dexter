@@ -5,6 +5,11 @@
  * the game itself.
  */
 export const GAME_HINTS: Record<string, string[]> = {
+  sumo: [
+    'Main solo (lawan 1–3 Bot AI) atau pindai QR Code dari HP untuk bertarung hingga 4 orang di 1 layar TV.',
+    'Gunakan Analog untuk bergerak, tombol A (atau Spasi) untuk Seruduk keras, dan B (atau Shift) untuk Dash menghindar.',
+    'Ring dohyo terus menyusut! Ambil kotak emas untuk ukuran raksasa, dan raih 3 poin ronde untuk menang.',
+  ],
   bola: [
     'Main solo (1v1/2v2 melawan Bot AI) atau pindai QR Code dari HP untuk bermain bersama hingga 4 orang.',
     'Gunakan D-Pad untuk menggiring bola, tombol A (atau Spasi) untuk menendang keras, dan tombol B (atau Shift) untuk dash.',

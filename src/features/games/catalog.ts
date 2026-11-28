@@ -35,6 +35,20 @@ export type GameCategory = keyof typeof GAME_CATEGORIES;
 
 const ALL_GAMES: readonly GameEntry[] = [
   {
+    id: 'sumo',
+    categories: ['arcade', 'party'],
+    minutes: [2, 6],
+    players: '1–4',
+    online: true,
+    solo: true,
+    title: 'Sumo Bumper Arena',
+    href: '/games/sumo',
+    description:
+      'Dorong lawan keluar ring yang terus menyusut! Main solo lawan Bot atau rame-rame pakai controller HP.',
+    controls:
+      'HP via QR (Analog, A Seruduk, B Dash) atau PC (WASD/Panah, Spasi, Shift)',
+  },
+  {
     id: 'bola',
     categories: ['arcade', 'party'],
     minutes: [2, 5],

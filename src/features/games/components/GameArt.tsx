@@ -1901,7 +1901,39 @@ function BolaPixel() {
   );
 }
 
+function SumoArenaArt() {
+  return (
+    <Frame>
+      {/* Water */}
+      <rect x='0' y='0' width='160' height='100' fill='#0c2340' />
+      {/* Dohyo ring */}
+      <circle cx='80' cy='50' r='36' fill='#d97706' />
+      <circle cx='80' cy='50' r='32' fill='#e7c68b' />
+      <circle
+        cx='80'
+        cy='50'
+        r='28'
+        fill='none'
+        stroke='#b45309'
+        strokeWidth='1.5'
+      />
+      {/* Two sumo fighters */}
+      <g className={move('group-hover:translate-x-3')}>
+        <rect x='54' y='42' width='16' height='14' rx='2' fill='#fbbf24' />
+        <rect x='54' y='50' width='16' height='6' fill={RED} />
+        <rect x='57' y='35' width='10' height='7' fill='#fde68a' />
+      </g>
+      <g className={move('group-hover:-translate-x-3')}>
+        <rect x='90' y='42' width='16' height='14' rx='2' fill='#fbbf24' />
+        <rect x='90' y='50' width='16' height='6' fill={BLUE} />
+        <rect x='93' y='35' width='10' height='7' fill='#fde68a' />
+      </g>
+    </Frame>
+  );
+}
+
 const ART: Record<string, () => React.JSX.Element> = {
+  sumo: SumoArenaArt,
   bola: BolaPixel,
   tv: TvArena,
   wordle: Wordle,
