@@ -15,15 +15,35 @@ import {
   WebGLRenderer,
 } from 'three';
 
-import atlas from './atlas.json';
+import { artSheets, seatsArt, spriteFrame } from './art';
 import { ASPECT, frameRunners, WIDE } from './camera';
-import { type Course, courses, SAW_RADIUS, WIDTH } from './content';
+import {
+  type Course,
+  courses,
+  SAW_RADIUS,
+  WIDTH,
+  WORKSHOP_PARTY_SIGN,
+} from './content';
 import { copy } from './copy';
-import { type Frame, STEP } from './movement';
-import { makeMiso } from './rig';
+import {
+  at,
+  FAN_RANGE,
+  GADGET_DIMENSIONS,
+  pistonReach,
+  SWING_LENGTH,
+  SWING_RADIUS,
+  swingAngle,
+  windup,
+} from './mechanisms';
+import { type Frame, type Player, STEP } from './movement';
+import { partyCopy } from './party-copy';
+import { makeRunner } from './rig';
 
 const ROOT = '/games/trap-tails';
-type Art = keyof typeof atlas.frames;
+type DrawOptions = {
+  runners?: { before: Player; player: Player; seat: number }[];
+  collected?: Record<string, number>;
+};
 
 function labelTexture(text: string, background: string, foreground: string) {
   const canvas = document.createElement('canvas');
@@ -47,7 +67,7 @@ function labelTexture(text: string, background: string, foreground: string) {
   ctx.strokeRect(16, 12, 478, 106);
   ctx.globalAlpha = 1;
   ctx.fillStyle = foreground;
-  ctx.font = 'bold 67px Georgia';
+  ctx.font = `bold ${text.length === 1 ? 104 : 67}px Georgia`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 256, 68, 448);
@@ -84,31 +104,27 @@ export async function makeRenderer(
   const loader = new TextureLoader();
   const images = await Promise.allSettled([
     loader.loadAsync(`${ROOT}/orchard.webp`),
-    loader.loadAsync(`${ROOT}/cutouts.webp`),
+    ...artSheets.map((sheet) => loader.loadAsync(sheet.file)),
   ]);
-  const [sky, sheet] = images;
-  if (
-    signal.aborted ||
-    sky.status === 'rejected' ||
-    sheet.status === 'rejected'
-  ) {
+  if (signal.aborted || images.some((image) => image.status === 'rejected')) {
     for (const image of images)
       if (image.status === 'fulfilled') image.value.dispose();
     if (signal.aborted) return;
     throw new Error('Trap Tails textures could not be loaded');
   }
 
-  const atlasTexture = sheet.value;
+  const [sky, ...sheets] = images.map(
+    (image) => (image as PromiseFulfilledResult<Texture>).value,
+  );
   let renderer: WebGLRenderer;
   try {
     renderer = new WebGLRenderer({ canvas, alpha: false, antialias: false });
   } catch (error) {
-    sky.value.dispose();
-    atlasTexture.dispose();
+    for (const texture of [sky, ...sheets]) texture.dispose();
     throw error;
   }
   const geometry = new PlaneGeometry(1, 1);
-  const textures = new Set<Texture>([sky.value, atlasTexture]);
+  const textures = new Set<Texture>([sky, ...sheets]);
   const sharedMaterials = new Set<MeshBasicMaterial>();
   const stageMaterials = new Set<MeshBasicMaterial>();
   const scene = new Scene();
@@ -123,16 +139,14 @@ export async function makeRenderer(
     texture.generateMipmaps = false;
     return texture;
   }
-  setupTexture(sky.value);
-  setupTexture(atlasTexture);
+  for (const texture of textures) setupTexture(texture);
 
-  const cutouts = new Map<Art, Texture>();
-  function art(name: Art) {
+  const cutouts = new Map<string, Texture>();
+  function art(name: string) {
     const cached = cutouts.get(name);
     if (cached) return cached;
-    const [x, y, w, h] = atlas.frames[name];
-    const { size } = atlas;
-    const texture = atlasTexture.clone();
+    const { x, y, w, h, size, index } = spriteFrame(name);
+    const texture = sheets[index].clone();
     texture.repeat.set(w / size, h / size);
     texture.offset.set(x / size, 1 - (y + h) / size);
     texture.needsUpdate = true;
@@ -169,7 +183,7 @@ export async function makeRenderer(
     return mesh;
   }
 
-  const backdrop = plane(scene, sky.value, 36.5, 20.55, WIDE.x, WIDE.y, -21);
+  const backdrop = plane(scene, sky, 36.5, 20.55, WIDE.x, WIDE.y, -21);
   const cloudFar = plane(
     scene,
     art('cloud'),
@@ -205,11 +219,21 @@ export async function makeRenderer(
   );
   const rig = new Group();
   scene.add(rig);
-  const miso = makeMiso(
-    (name, w, h, x, y, z) => plane(rig, art(name), w, h, x, y, z),
-    art('alarm'),
-  );
-  rig.add(miso.root);
+  const runners = seatsArt.map(({ mark, color, tint }, seat) => {
+    const fox = seat % 2 !== 0;
+    const prefix = fox ? 'fox-' : '';
+    const person = makeRunner(
+      (name, w, h, x, y, z) =>
+        plane(rig, art(prefix + name), w, h, x, y, z, tint),
+      art(prefix + 'alarm'),
+      fox,
+    );
+    rig.add(person.root);
+    const label = setupTexture(labelTexture(mark, '#30343a', color));
+    textures.add(label);
+    const marker = plane(scene, label, 0.48, 0.32, 0, 0, 1);
+    return { ...person, marker };
+  });
 
   const flag = setupTexture(flagTexture());
   textures.add(flag);
@@ -239,9 +263,11 @@ export async function makeRenderer(
     plane(scene, art('cloud'), 0.32, 0.13, 0, 0, 1.1, '#f8c78e', 0),
   );
   let current: Course | undefined;
-  let platforms: Mesh[] = [];
+  let platforms: (Mesh | null)[] = [];
   let blades: Mesh[] = [];
   let belts: Mesh[][] = [];
+  let gears: Mesh[][] = [];
+  const arrows: Mesh[] = [];
   let pennant: Mesh | undefined;
   let width = 0;
   let height = 0;
@@ -283,6 +309,7 @@ export async function makeRenderer(
     sign(copy.start, start.x + 0.64, start.y + start.h + 0.56, 1.05);
     sign(copy.finish, course.goal.x + 0.57, towerY + 1.8, 1.6, '#823b36');
     if (course === courses.workshop) {
+      sign(partyCopy.gate, WORKSHOP_PARTY_SIGN.x, WORKSHOP_PARTY_SIGN.y, 1.55);
       sign(copy.sprintMarker, 6.6, 2.17, 2.58);
       sign(copy.wallSign, 13.67, 7.26, 2.4, '#584355');
       for (let i = 0; i < 5; i++) {
@@ -301,6 +328,7 @@ export async function makeRenderer(
     }
 
     platforms = course.surfaces.map((s) => {
+      if (s.type === 'housing') return null;
       const x = s.x + s.w / 2;
       const y = s.y + s.h / 2;
       if (s.type === 'iron') {
@@ -339,7 +367,9 @@ export async function makeRenderer(
           );
         }
       }
-      return plane(
+      const turn = s.turn ?? 0;
+      const rotated = turn % 2 === 1;
+      const board = plane(
         stage,
         art(
           s.type === 'conveyor'
@@ -348,13 +378,15 @@ export async function makeRenderer(
               ? 'spring'
               : 'wood',
         ),
-        s.w,
-        s.h,
+        rotated ? s.h : s.w,
+        rotated ? s.w : s.h,
         x,
         y,
         -1.05,
         s.type === 'ledge' ? '#9ea8a3' : '#ffffff',
       );
+      if (s.type !== 'conveyor') board.rotation.z = (turn * Math.PI) / 2;
+      return board;
     });
     belts = course.surfaces.map((s) =>
       s.type === 'conveyor'
@@ -375,7 +407,7 @@ export async function makeRenderer(
     );
     blades = course.saws.map((s) => {
       if (s.travel) {
-        plane(
+        const rail = plane(
           stage,
           art('wood'),
           s.travel * 2 + 0.35,
@@ -385,14 +417,15 @@ export async function makeRenderer(
           -1.8,
           '#ab9ba7',
         );
+        if (s.vertical) rail.rotation.z = Math.PI / 2;
         for (const end of [-1, 1]) {
           plane(
             stage,
             art('iron'),
             0.28,
             0.28,
-            s.x + end * s.travel,
-            s.y,
+            s.x + (s.vertical ? 0 : end * s.travel),
+            s.y + (s.vertical ? end * s.travel : 0),
             -1.7,
           );
         }
@@ -407,6 +440,35 @@ export async function makeRenderer(
         -1.4,
       );
     });
+    gears = (course.gadgets ?? []).map((g) => {
+      const [w, h] = GADGET_DIMENSIONS[g.kind];
+      const base = plane(stage, art(g.kind), w, h, g.x, g.y, -0.86);
+      if (g.kind === 'piston' || g.kind === 'swing') {
+        return [
+          base,
+          plane(stage, art(g.kind + '-rod'), 1, 0.25, g.x, g.y, -0.94),
+          plane(stage, art(g.kind + '-head'), 0.6, 0.58, g.x, g.y, -0.82),
+        ];
+      }
+      if (g.kind === 'fan')
+        return [
+          base,
+          ...Array.from({ length: 5 }, () =>
+            plane(
+              stage,
+              art('cloud'),
+              0.42,
+              0.12,
+              g.x,
+              g.y,
+              -0.62,
+              '#dee8cf',
+              0.64,
+            ),
+          ),
+        ];
+      return [base];
+    });
   }
 
   function draw(
@@ -417,6 +479,7 @@ export async function makeRenderer(
     dt: number,
     fixed: boolean,
     reduced: boolean,
+    options: DrawOptions = {},
   ) {
     if (current !== course) changeCourse(course);
     const w = canvas.clientWidth;
@@ -431,7 +494,23 @@ export async function makeRenderer(
     const time = MathUtils.lerp(before.tick, next.tick, alpha) * STEP;
     const x = MathUtils.lerp(before.player.x, p.x, alpha);
     const y = MathUtils.lerp(before.player.y, p.y, alpha);
-    const target = frameRunners([{ x, y }], fixed || reduced || next.tick < 30);
+    const views = (
+      options.runners ?? [{ before: before.player, player: p, seat: 0 }]
+    ).map((r) => ({
+      ...r,
+      x: MathUtils.lerp(r.before.x, r.player.x, alpha),
+      y: MathUtils.lerp(r.before.y, r.player.y, alpha),
+    }));
+    const live = views.filter(
+      (r) =>
+        (r.player.pose !== 'dead' &&
+          (r.player.pose !== 'finish' || r.player.age < 30)) ||
+        r.player.age < 30,
+    );
+    const target = frameRunners(
+      live.length ? live : views,
+      fixed || reduced || next.tick < 30,
+    );
     const ease = fixed || reduced ? 1 : 1 - Math.exp(-11 * dt);
     framing.x = MathUtils.lerp(framing.x, target.x, ease);
     framing.y = MathUtils.lerp(framing.y, target.y, ease);
@@ -459,12 +538,16 @@ export async function makeRenderer(
     cloudLow.position.x = 7.3 + pan(0.5);
     if (pennant) pennant.rotation.z = reduced ? 0 : Math.sin(time * 4) * 0.09;
     next.layout.surfaces.forEach((s, i) => {
-      if (s.travel)
-        platforms[i].position.y =
+      const platform = platforms[i];
+      if (s.travel && platform)
+        platform.position.y =
           MathUtils.lerp(before.layout.surfaces[i].y, s.y, alpha) + s.h / 2;
       belts[i].forEach((marker, j) => {
         marker.position.x =
-          s.x + 0.18 + ((j * 0.37 + time * 2.2) % (s.w - 0.36));
+          s.x +
+          0.18 +
+          ((j * 0.37 + time * 2.2) % (s.w - 0.36)) * (s.belt === -1 ? -1 : 1) +
+          (s.belt === -1 ? s.w - 0.36 : 0);
       });
     });
     next.layout.saws.forEach((s, i) => {
@@ -474,8 +557,99 @@ export async function makeRenderer(
         alpha,
       );
       blades[i].rotation.z = reduced ? 0 : -time * 9.5;
+      blades[i].position.y = MathUtils.lerp(
+        before.layout.saws[i].y,
+        s.y,
+        alpha,
+      );
     });
-    miso.update(p, x, y, time, dt, reduced);
+    const tick = time / STEP;
+    next.layout.gadgets.forEach((g, i) => {
+      const [base, ...extra] = gears[i];
+      const old = before.layout.gadgets[i];
+      const point = {
+        x: MathUtils.lerp(old.x, g.x, alpha),
+        y: MathUtils.lerp(old.y, g.y, alpha),
+      };
+      base.position.x = point.x;
+      base.position.y = point.y;
+      const angle = (g.turn * Math.PI) / 2;
+      base.rotation.z = angle;
+      if (g.kind === 'coin') {
+        base.visible = options.collected?.[g.id] === undefined;
+        base.scale.x =
+          0.5 * (reduced ? 1 : 0.25 + Math.abs(Math.sin(time * 6)) * 0.75);
+      }
+      if (g.kind === 'arrow' || g.kind === 'piston') {
+        const material = base.material as MeshBasicMaterial;
+        material.color.set(windup(g, next.tick) ? '#ffd39a' : '#ffffff');
+      }
+      if (g.kind === 'piston') {
+        const reach = MathUtils.lerp(
+          pistonReach(before.tick),
+          pistonReach(next.tick),
+          alpha,
+        );
+        const [rod, head] = extra;
+        const mid = at(point, 0.55 + reach / 2, 0, g.turn);
+        rod.position.set(mid.x, mid.y, -0.94);
+        rod.rotation.z = angle;
+        rod.scale.x = Math.max(0.04, reach + 0.15);
+        const pad = at(point, 0.64 + reach, 0, g.turn);
+        head.position.set(pad.x, pad.y, -0.82);
+        head.scale.set(0.38, 0.64, 1);
+        head.rotation.z = angle;
+      }
+      if (g.kind === 'swing') {
+        const [rod, head] = extra;
+        const theta = swingAngle(g, tick);
+        const dx = Math.cos(theta) * SWING_LENGTH;
+        const dy = Math.sin(theta) * SWING_LENGTH;
+        rod.position.set(point.x + dx / 2, point.y + dy / 2, -0.94);
+        rod.rotation.z = theta;
+        rod.scale.x = SWING_LENGTH;
+        head.position.set(point.x + dx, point.y + dy, -0.82);
+        head.rotation.z = theta;
+        head.scale.set(SWING_RADIUS * 2, SWING_RADIUS * 2, 1);
+      }
+      if (g.kind === 'fan') {
+        extra.forEach((wind, i) => {
+          wind.visible = !reduced;
+          const distance =
+            0.55 + ((i * 0.93 + time * 3.7) % (FAN_RANGE - 0.55));
+          const offset = (i % 2 ? 1 : -1) * (0.18 + distance * 0.16);
+          const gust = at(point, distance, offset, g.turn);
+          wind.position.set(gust.x, gust.y, -0.62);
+          wind.rotation.z = angle;
+          (wind.material as MeshBasicMaterial).opacity =
+            (1 - distance / (FAN_RANGE + 0.3)) * 0.78;
+        });
+      }
+    });
+    next.layout.bolts.forEach((bolt, i) => {
+      const mesh =
+        arrows[i] ?? plane(scene, art('bolt'), 0.43, 0.16, 0, 0, -0.55);
+      arrows[i] = mesh;
+      mesh.visible = !bolt.stopped;
+      mesh.rotation.z = (bolt.turn * Math.PI) / 2;
+      mesh.position.set(
+        MathUtils.lerp(bolt.from.x, bolt.x, alpha),
+        MathUtils.lerp(bolt.from.y, bolt.y, alpha),
+        -0.55,
+      );
+    });
+    for (let i = next.layout.bolts.length; i < arrows.length; i++)
+      arrows[i].visible = false;
+    runners.forEach((r) => {
+      r.root.visible = false;
+      r.marker.visible = false;
+    });
+    for (const view of views) {
+      const runner = runners[view.seat];
+      runner.update(view.player, view.x, view.y, time, dt, reduced);
+      runner.marker.visible = Boolean(options.runners) && runner.root.visible;
+      runner.marker.position.set(view.x, view.y + 1.52, 1);
+    }
     const impact =
       !reduced && (p.pose === 'land' || p.pose === 'dead' || p.pose === 'kick');
     sparks.forEach((spark, i) => {

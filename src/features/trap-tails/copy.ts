@@ -1,9 +1,10 @@
 export const copy = {
   title: 'Trap Tails',
   description:
-    'Latih lompatan, taklukkan gergaji, dan capai menara di Rusty Orchard.',
+    'Coba jebakan di lab atau rakit lintasan dan balapan bareng di Party lokal.',
   orchard: 'Rusty Orchard',
   workshop: 'Bengkel latihan',
+  lab: 'Lab jebakan',
   sparse: 'Lintasan kosong',
   course: 'Lintasan · 12 bagian',
   dense: 'Lintasan · 25 bagian',
@@ -13,6 +14,11 @@ export const copy = {
   wallMarker: 'Dinding',
   liftMarker: 'Lift',
   goalMarker: 'Finis',
+  arrowMarker: 'Pelontar',
+  fanMarker: 'Kipas dan pegas',
+  pistonMarker: 'Piston',
+  swingMarker: 'Bandul',
+  leafCollected: 'Koin daun diambil',
   goalDirection: 'FINIS »',
   sprintMarker: 'ANCANG-ANCANG',
   wallSign: 'LOMPAT DINDING',

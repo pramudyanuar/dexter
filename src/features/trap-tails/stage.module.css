@@ -94,6 +94,10 @@
   transition: background 120ms ease;
 }
 
+.tools button:first-child {
+  padding-inline: 8px;
+}
+
 .options select,
 .notice button {
   padding: 0 9px;

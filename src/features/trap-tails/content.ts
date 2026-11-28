@@ -1,8 +1,18 @@
+import {
+  advanceBolts,
+  type Bolt,
+  type Direction,
+  type Gadget,
+} from './mechanisms';
+
 export type Rect = { x: number; y: number; w: number; h: number };
 export type Surface = Rect & {
   id: string;
-  type: 'wood' | 'iron' | 'conveyor' | 'spring' | 'lift' | 'ledge';
+  type: 'wood' | 'iron' | 'conveyor' | 'spring' | 'lift' | 'ledge' | 'housing';
   travel?: number;
+  belt?: -1 | 1;
+  turn?: Direction;
+  owner?: number;
 };
 
 export type Saw = {
@@ -11,10 +21,13 @@ export type Saw = {
   travel: number;
   period: number;
   phase?: number;
+  vertical?: boolean;
+  owner?: number;
 };
 export type Course = {
   surfaces: Surface[];
   saws: Saw[];
+  gadgets?: Gadget[];
   start: { x: number; y: number };
   goal: Rect;
 };
@@ -22,6 +35,7 @@ export type Course = {
 export const WIDTH = 32;
 export const HEIGHT = 18;
 export const SAW_RADIUS = 0.47;
+export const WORKSHOP_PARTY_SIGN = { x: 5.65, y: 5.14 };
 
 const surface = (
   id: string,
@@ -69,6 +83,29 @@ const orchardSaws = [
 ];
 
 export const courses = {
+  lab: {
+    ...foundry,
+    goal: { x: 28, y: 6, w: 1.15, h: 1.7 },
+    surfaces: [
+      surface('start', 0.65, 2.4, 5.8, 0.6),
+      surface('spike-floor', 6.45, 2.45, 4.25, 0.55),
+      surface('arrow-floor', 10.7, 2.45, 4.25, 0.55),
+      surface('shield', 12, 4.3, 0.45, 0.7, 'iron'),
+      surface('fan-floor', 14.95, 3.05, 3.8, 0.5),
+      surface('fan-spring', 15.8, 3.55, 1, 0.36, 'spring'),
+      surface('piston-floor', 18.75, 3.8, 4.9, 0.5),
+      surface('swing-floor', 23.65, 4.25, 3.6, 0.5),
+      surface('tower', 26.2, 5.4, 4.5, 0.6),
+    ],
+    gadgets: [
+      { id: 'lab-spikes', kind: 'spikes', x: 8.25, y: 3.25, turn: 0 },
+      { id: 'lab-arrow', kind: 'arrow', x: 14.5, y: 4.72, turn: 2 },
+      { id: 'lab-fan', kind: 'fan', x: 17.15, y: 3.05, turn: 1 },
+      { id: 'lab-coin', kind: 'coin', x: 17.2, y: 6.25, turn: 0 },
+      { id: 'lab-piston', kind: 'piston', x: 20, y: 4.75, turn: 0 },
+      { id: 'lab-swing', kind: 'swing', x: 25.1, y: 7.65, turn: 0 },
+    ],
+  },
   workshop: {
     start: foundry.start,
     goal: { x: 28.5, y: 7.1, w: 1.15, h: 1.7 },
@@ -120,21 +157,38 @@ export const courses = {
 
 export type CourseId = keyof typeof courses;
 
-export function courseAt(course: Course, tick: number) {
+export function courseAt(
+  course: Course,
+  tick: number,
+  previousBolts: Bolt[] = [],
+) {
+  const surfaces = course.surfaces.map((s) =>
+    s.travel
+      ? {
+          ...s,
+          y: s.y + (s.travel * (1 - Math.cos((tick * Math.PI) / 120))) / 2,
+        }
+      : s,
+  );
+  const gadgets = (course.gadgets ?? []).map((gadget) => {
+    if (!gadget.mount) return gadget;
+    const i = surfaces.findIndex((s) => s.id === gadget.mount);
+    return i === -1
+      ? gadget
+      : { ...gadget, y: gadget.y + surfaces[i].y - course.surfaces[i].y };
+  });
   return {
-    surfaces: course.surfaces.map((s) =>
-      s.travel
-        ? {
-            ...s,
-            y: s.y + (s.travel * (1 - Math.cos((tick * Math.PI) / 120))) / 2,
-          }
-        : s,
-    ),
-    saws: course.saws.map((s) => ({
-      x:
-        s.x +
-        s.travel * Math.sin((tick * 2 * Math.PI) / s.period + (s.phase ?? 0)),
-      y: s.y,
-    })),
+    surfaces,
+    saws: course.saws.map((s) => {
+      const offset =
+        s.travel * Math.sin((tick * 2 * Math.PI) / s.period + (s.phase ?? 0));
+      return {
+        x: s.x + (s.vertical ? 0 : offset),
+        y: s.y + (s.vertical ? offset : 0),
+        owner: s.owner,
+      };
+    }),
+    gadgets,
+    bolts: advanceBolts(gadgets, surfaces, tick, previousBolts),
   };
 }

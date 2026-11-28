@@ -9,20 +9,38 @@ import styles from './stage.module.css';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { shouldIgnoreGameKey } from '@/components/games/snake/controls';
 
-import { type Course, type CourseId, courses } from './content';
+import {
+  type Course,
+  type CourseId,
+  courses,
+  WORKSHOP_PARTY_SIGN,
+} from './content';
 import { copy } from './copy';
-import { newRun, STEP, stepRun } from './movement';
+import { newRun, STEP, stepRun, touchesCoin } from './movement';
+import { partyCopy } from './party-copy';
 import type { makeRenderer } from './render';
 
 type Ready = 'loading' | 'ready' | 'unavailable' | 'contextLost';
 type Outcome = 'won' | 'dead' | null;
-type Checkpoint = 'startMarker' | 'wallMarker' | 'liftMarker' | 'goalMarker';
 const checkpoints = {
-  startMarker: courses.workshop.start,
-  wallMarker: { x: 10.65, y: 3.3 },
-  liftMarker: { x: 22.4, y: 5.35 },
-  goalMarker: { x: 26.95, y: 7.1 },
-} satisfies Record<Checkpoint, Course['start']>;
+  workshop: {
+    startMarker: courses.workshop.start,
+    wallMarker: { x: 10.65, y: 3.3 },
+    liftMarker: { x: 22.4, y: 5.35 },
+    goalMarker: { x: 26.95, y: 7.1 },
+  },
+  lab: {
+    startMarker: courses.lab.start,
+    arrowMarker: { x: 11, y: 3 },
+    fanMarker: { x: 15.3, y: 3.55 },
+    pistonMarker: { x: 19.05, y: 4.3 },
+    swingMarker: { x: 23.9, y: 4.75 },
+  },
+} satisfies Record<string, Record<string, Course['start']>>;
+type Checkpoint =
+  keyof typeof checkpoints.workshop | keyof typeof checkpoints.lab;
+type CheckpointMap = Partial<Record<Checkpoint, Course['start']>>;
+const startPoints: Partial<Record<CourseId, CheckpointMap>> = checkpoints;
 const aliases: Record<string, 'left' | 'right' | 'jump' | 'sprint'> = {
   ArrowLeft: 'left',
   KeyA: 'left',
@@ -35,12 +53,13 @@ const aliases: Record<string, 'left' | 'right' | 'jump' | 'sprint'> = {
   ShiftRight: 'sprint',
 };
 
-export default function Practice() {
+export default function Practice({ onParty }: { onParty: () => void }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fieldRef = useRef<HTMLElement>(null);
   const [status, setStatus] = useState<Ready>('loading');
   const [outcome, setOutcome] = useState<Outcome>(null);
+  const [hasCoin, setHasCoin] = useState(false);
   const [courseId, setCourseId] = useState<CourseId>('workshop');
   const [checkpoint, setCheckpoint] = useState<Checkpoint>('startMarker');
   const [fixed, setFixed] = useState(false);
@@ -63,6 +82,7 @@ export default function Practice() {
     setCourseId(next);
     setCheckpoint('startMarker');
     setOutcome(null);
+    setHasCoin(false);
   }
 
   function changeCheckpoint(next: Checkpoint) {
@@ -70,12 +90,14 @@ export default function Practice() {
     controls.current.revision++;
     setCheckpoint(next);
     setOutcome(null);
+    setHasCoin(false);
   }
 
   function reset() {
     controls.current.revision++;
     controls.current.paused = false;
     setOutcome(null);
+    setHasCoin(false);
     setPaused(false);
     fieldRef.current?.focus({ preventScroll: true });
   }
@@ -100,6 +122,7 @@ export default function Practice() {
     let current = previous;
     let last = 0;
     let accumulator = 0;
+    let collected: Record<string, number> = {};
 
     const clearInput = () => {
       keys.clear();
@@ -116,6 +139,20 @@ export default function Practice() {
         !renderer
       )
         return;
+      if (
+        e.code === 'KeyE' &&
+        !e.repeat &&
+        !controls.current.paused &&
+        course === courses.workshop &&
+        Math.abs(current.player.x - WORKSHOP_PARTY_SIGN.x) < 1.05 &&
+        Math.abs(current.player.y + 0.65 - WORKSHOP_PARTY_SIGN.y) < 0.8 &&
+        current.player.pose !== 'dead' &&
+        current.player.pose !== 'finish'
+      ) {
+        e.preventDefault();
+        onParty();
+        return;
+      }
       if (!e.repeat && (e.code === 'Escape' || e.code === 'KeyP')) {
         e.preventDefault();
         clearInput();
@@ -146,14 +183,12 @@ export default function Practice() {
       if (revision !== state.revision) {
         revision = state.revision;
         course = courses[state.courseId];
-        const start =
-          state.courseId === 'workshop'
-            ? checkpoints[state.checkpoint]
-            : course.start;
         previous = newRun(
-          start === course.start ? course : { ...course, start },
+          course,
+          startPoints[state.courseId]?.[state.checkpoint],
         );
         current = previous;
+        collected = {};
         accumulator = 0;
       }
 
@@ -176,6 +211,21 @@ export default function Practice() {
             jumpPressed,
             jumpHeld: has('jump'),
           });
+          if (
+            current.player.pose !== 'dead' &&
+            previous.player.pose !== 'finish'
+          ) {
+            for (const coin of current.layout.gadgets) {
+              if (
+                coin.kind === 'coin' &&
+                collected[coin.id] === undefined &&
+                touchesCoin(previous.player, current.player, coin)
+              ) {
+                collected[coin.id] = 0;
+                setHasCoin(true);
+              }
+            }
+          }
           jumpPressed = false;
           accumulator = Math.max(0, accumulator - STEP);
           if (current.player.pose !== previous.player.pose) {
@@ -195,6 +245,7 @@ export default function Practice() {
         dt,
         state.fixed,
         motion.matches,
+        { collected },
       );
       animation = requestAnimationFrame(loop);
     };
@@ -235,7 +286,7 @@ export default function Practice() {
       document.removeEventListener('visibilitychange', clearInput);
       renderer?.dispose();
     };
-  }, [loadAttempt]);
+  }, [loadAttempt, onParty]);
 
   const error = status === 'unavailable' || status === 'contextLost';
   const wideLabel = fixed ? copy.cameraFollow : copy.camera;
@@ -254,6 +305,9 @@ export default function Practice() {
             <h1>{copy.title}</h1>
           </div>
           <div className={styles.tools}>
+            <button type='button' onClick={onParty}>
+              {partyCopy.name}
+            </button>
             <button
               type='button'
               disabled={status !== 'ready'}
@@ -333,7 +387,7 @@ export default function Practice() {
                 </option>
               ))}
             </select>
-            {courseId === 'workshop' && (
+            {startPoints[courseId] && (
               <select
                 aria-label={copy.checkpoint}
                 value={checkpoint}
@@ -341,12 +395,19 @@ export default function Practice() {
                   changeCheckpoint(event.target.value as Checkpoint)
                 }
               >
-                {(Object.keys(checkpoints) as Checkpoint[]).map((id) => (
-                  <option key={id} value={id}>
-                    {copy[id]}
-                  </option>
-                ))}
+                {(Object.keys(startPoints[courseId]!) as Checkpoint[]).map(
+                  (id) => (
+                    <option key={id} value={id}>
+                      {copy[id]}
+                    </option>
+                  ),
+                )}
               </select>
+            )}
+            {hasCoin && (
+              <span className={styles.keys} role='status'>
+                {copy.leafCollected}
+              </span>
             )}
             <button
               type='button'

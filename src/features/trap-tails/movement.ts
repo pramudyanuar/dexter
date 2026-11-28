@@ -6,6 +6,20 @@ import {
   type Surface,
   WIDTH,
 } from './content';
+import {
+  at,
+  COIN_RADIUS,
+  fanForce,
+  footprint,
+  type Gadget,
+  pistonReach,
+  type Point,
+  segmentTime,
+  spikeTeeth,
+  SWING_RADIUS,
+  swingWeight,
+  toothHit,
+} from './mechanisms';
 
 export const STEP = 1 / 60;
 export const HALF_WIDTH = 0.26;
@@ -45,13 +59,14 @@ export type Player = {
   cuttable: boolean;
   age: number;
   pose: Pose;
+  killer?: number;
 };
 export type Layout = ReturnType<typeof courseAt>;
 export type Frame = { tick: number; player: Player; layout: Layout };
 
-export function newRun(course: Course): Frame {
+export function newRun(course: Course, start = course.start): Frame {
   const layout = courseAt(course, 0);
-  const { x, y } = course.start;
+  const { x, y } = start;
   const ground = layout.surfaces.find(
     (s) => x > s.x && x < s.x + s.w && Math.abs(y - s.y - s.h) < EPSILON,
   );
@@ -82,6 +97,7 @@ const clamp = (value: number, min: number, max: number) =>
 
 function moveX(p: Player, amount: number, surfaces: Surface[]) {
   let travel = amount;
+  let contact: Surface | undefined;
   for (const s of surfaces) {
     if (
       s.type === 'ledge' ||
@@ -91,12 +107,18 @@ function moveX(p: Player, amount: number, surfaces: Surface[]) {
       continue;
     const gap =
       amount > 0 ? s.x - (p.x + HALF_WIDTH) : s.x + s.w - (p.x - HALF_WIDTH);
-    if (amount > 0 && gap >= -EPSILON && gap < travel)
+    if (amount > 0 && gap >= -EPSILON && gap < travel) {
       travel = Math.max(0, gap);
-    if (amount < 0 && gap <= EPSILON && gap > travel) travel = Math.min(0, gap);
+      contact = s;
+    }
+    if (amount < 0 && gap <= EPSILON && gap > travel) {
+      travel = Math.min(0, gap);
+      contact = s;
+    }
   }
   p.x += travel;
   if (travel !== amount) p.vx = 0;
+  return contact;
 }
 
 function moveY(
@@ -107,6 +129,7 @@ function moveY(
 ) {
   let travel = amount;
   let ground: Surface | undefined;
+  let ceiling: Surface | undefined;
   for (const s of surfaces) {
     if (s === ignore) continue;
     if (
@@ -122,12 +145,15 @@ function moveY(
       }
     } else if (s.type !== 'ledge') {
       const gap = s.y - p.y - BODY_HEIGHT;
-      if (gap >= -EPSILON && gap < travel) travel = Math.max(0, gap);
+      if (gap >= -EPSILON && gap < travel) {
+        travel = Math.max(0, gap);
+        ceiling = s;
+      }
     }
   }
   p.y += travel;
   if (ground || travel !== amount) p.vy = 0;
-  return ground;
+  return { ground, ceiling };
 }
 
 function touchingWall(
@@ -148,50 +174,36 @@ function touchingWall(
   );
 }
 
-function segmentBox(
-  x: number,
-  y: number,
-  dx: number,
-  dy: number,
-  left: number,
-  bottom: number,
-  right: number,
-  top: number,
-) {
-  const start = [x, y];
-  const distance = [dx, dy];
-  const min = [left, bottom];
-  const max = [right, top];
-  let enter = 0;
-  let exit = 1;
-  for (let i = 0; i < 2; i++) {
-    if (!distance[i]) {
-      if (start[i] < min[i] || start[i] > max[i]) return false;
-      continue;
-    }
-    const a = (min[i] - start[i]) / distance[i];
-    const b = (max[i] - start[i]) / distance[i];
-    enter = Math.max(enter, Math.min(a, b));
-    exit = Math.min(exit, Math.max(a, b));
-  }
-  return enter <= exit;
-}
-
-function sawHit(
+function diskHit(
   player: Player,
   before: Player,
-  saw: Layout['saws'][number],
-  oldSaw: Layout['saws'][number],
+  disk: Point,
+  oldDisk: Point,
+  r: number,
 ) {
-  const x = oldSaw.x - before.x;
-  const y = oldSaw.y - before.y;
-  const dx = saw.x - player.x - x;
-  const dy = saw.y - player.y - y;
-  const r = SAW_RADIUS;
+  const x = oldDisk.x - before.x;
+  const y = oldDisk.y - before.y;
+  const target = { x: disk.x - player.x, y: disk.y - player.y };
+  const dx = target.x - x;
+  const dy = target.y - y;
   // A segment against two strips and four rounded corners is a swept disk against the hitbox.
   if (
-    segmentBox(x, y, dx, dy, -HALF_WIDTH - r, 0, HALF_WIDTH + r, BODY_HEIGHT) ||
-    segmentBox(x, y, dx, dy, -HALF_WIDTH, -r, HALF_WIDTH, BODY_HEIGHT + r)
+    Number.isFinite(
+      segmentTime({ x, y }, target, {
+        x: -HALF_WIDTH - r,
+        y: 0,
+        w: 2 * (HALF_WIDTH + r),
+        h: BODY_HEIGHT,
+      }),
+    ) ||
+    Number.isFinite(
+      segmentTime({ x, y }, target, {
+        x: -HALF_WIDTH,
+        y: -r,
+        w: 2 * HALF_WIDTH,
+        h: BODY_HEIGHT + 2 * r,
+      }),
+    )
   )
     return true;
   const squaredLength = dx * dx + dy * dy;
@@ -205,22 +217,78 @@ function sawHit(
   );
 }
 
-function goalHit(before: Player, p: Player, goal: Rect) {
-  return segmentBox(
-    before.x,
-    before.y,
-    p.x - before.x,
-    p.y - before.y,
-    goal.x - HALF_WIDTH,
-    goal.y - BODY_HEIGHT,
-    goal.x + goal.w + HALF_WIDTH,
-    goal.y + goal.h,
+function hits(before: Point, p: Point, rect: Rect) {
+  return Number.isFinite(
+    segmentTime(before, p, {
+      x: rect.x - HALF_WIDTH,
+      y: rect.y - BODY_HEIGHT,
+      w: rect.w + HALF_WIDTH * 2,
+      h: rect.h + BODY_HEIGHT,
+    }),
   );
 }
 
-export function stepRun(course: Course, frame: Frame, input: Input): Frame {
+export function touchesCoin(before: Player, player: Player, coin: Gadget) {
+  return diskHit(player, before, coin, coin, COIN_RADIUS);
+}
+
+function hazardHit(before: Frame, p: Player, layout: Layout, tick: number) {
+  const saw = layout.saws.find((next, i) =>
+    diskHit(p, before.player, next, before.layout.saws[i], SAW_RADIUS),
+  );
+  if (saw) return saw;
+  const a = { x: before.player.x, y: before.player.y + BODY_HEIGHT / 2 };
+  const b = { x: p.x, y: p.y + BODY_HEIGHT / 2 };
+  for (let i = 0; i < layout.gadgets.length; i++) {
+    const g = layout.gadgets[i];
+    const old = before.layout.gadgets[i];
+    if (g.kind === 'spikes') {
+      const shifted = { x: a.x + g.x - old.x, y: a.y + g.y - old.y };
+      if (
+        spikeTeeth(g).some((tooth) =>
+          toothHit(shifted, b, HALF_WIDTH * 2, BODY_HEIGHT, tooth),
+        )
+      )
+        return g;
+    } else if (g.kind === 'swing') {
+      if (
+        diskHit(
+          p,
+          before.player,
+          swingWeight(g, tick),
+          swingWeight(old, tick - 1),
+          SWING_RADIUS,
+        )
+      )
+        return g;
+    } else if (g.kind === 'piston') {
+      const reach = pistonReach(tick);
+      const oldReach = pistonReach(tick - 1);
+      if (reach === 0 && oldReach === 0) continue;
+      const now = at(g, 0.64 + reach, 0, g.turn);
+      const past = at(old, 0.64 + oldReach, 0, g.turn);
+      if (
+        hits(
+          { x: before.player.x - past.x, y: before.player.y - past.y },
+          { x: p.x - now.x, y: p.y - now.y },
+          footprint({ x: 0, y: 0 }, 0.38, 0.64, g.turn),
+        )
+      )
+        return g;
+    }
+  }
+  return layout.bolts.find((bolt) =>
+    diskHit(p, before.player, bolt, bolt.from, 0.085),
+  );
+}
+
+export function stepRun(
+  course: Course,
+  frame: Frame,
+  input: Input,
+  layout = courseAt(course, frame.tick + 1, frame.layout.bolts),
+): Frame {
   const tick = frame.tick + 1;
-  const layout = courseAt(course, tick);
   const before = frame.player;
   const p = { ...before, age: before.age + 1 };
   if (p.pose === 'dead' || p.pose === 'finish')
@@ -254,6 +322,7 @@ export function stepRun(course: Course, frame: Frame, input: Input): Frame {
     if (Math.abs(p.y - target) < EPSILON) continue;
     p.pose = 'dead';
     p.age = 0;
+    p.killer = carrier.owner;
     return { tick, layout, player: p };
   }
   const standingOn = surfaces.find((s) => s.id === p.ground);
@@ -264,13 +333,20 @@ export function stepRun(course: Course, frame: Frame, input: Input): Frame {
   p.land = Math.max(0, p.land - 1);
 
   const direction = input.direction;
+  const force = fanForce(layout.gadgets, { x: p.x, y: p.y + BODY_HEIGHT / 2 });
   const wall =
     !p.ground && !p.lock && touchingWall(p, surfaces, direction)
       ? direction
       : 0;
   if (!p.lock) {
     const target = direction * (input.sprint ? 8 : 5.2);
-    const acceleration = p.ground ? (direction ? 42 : 55) : 27;
+    const acceleration = p.ground
+      ? direction
+        ? 42
+        : 55
+      : force.x && !direction
+        ? 5
+        : 27;
     p.vx += clamp(target - p.vx, -acceleration * STEP, acceleration * STEP);
     if (direction) p.facing = direction;
   }
@@ -294,30 +370,44 @@ export function stepRun(course: Course, frame: Frame, input: Input): Frame {
     p.cuttable = false;
   }
 
+  if (force.x) p.vx = clamp(p.vx + force.x * STEP, -11, 11);
+  if (force.y) p.vy = clamp(p.vy + force.y * STEP, -17, 17);
   const up = p.vy > 0;
   p.vy = Math.max(-17, p.vy - (up ? 30 : 37) * STEP);
-  const beltSpeed = standingOn?.type === 'conveyor' ? 2.2 : 0;
-  moveX(p, (p.vx + beltSpeed) * STEP, surfaces);
+  const beltSpeed =
+    standingOn?.type === 'conveyor' ? 2.2 * (standingOn.belt ?? 1) : 0;
+  const dx = (p.vx + beltSpeed) * STEP;
+  const wallContact = moveX(p, dx, surfaces);
   p.wall = !p.lock && touchingWall(p, surfaces, direction) ? direction : 0;
   if (p.wall && p.vy < -2.8) p.vy = -2.8;
-  const ground = moveY(p, p.vy * STEP, surfaces);
+  const { ground, ceiling } = moveY(p, p.vy * STEP, surfaces);
   p.ground = ground?.id ?? null;
   if (ground && !before.ground) p.land = 6;
-  if (ground?.type === 'spring' && !up) {
-    p.vy = 15.5;
+  const bounce =
+    ground?.type === 'spring' && (ground.turn ?? 0) === 0
+      ? 0
+      : ceiling?.type === 'spring' && ceiling.turn === 2
+        ? 2
+        : wallContact?.type === 'spring' &&
+            wallContact.turn === (dx > 0 ? 1 : 3)
+          ? wallContact.turn
+          : null;
+  if (bounce !== null) {
+    if (bounce === 0 || bounce === 2) p.vy = bounce === 0 ? 15.5 : -15.5;
+    else {
+      p.vx = bounce === 1 ? -15.5 : 15.5;
+      p.wall = 0;
+    }
     p.ground = null;
     p.coyote = 0;
     p.cuttable = false;
   }
 
-  if (
-    p.y < -1 ||
-    p.x < -0.5 ||
-    p.x > WIDTH + 0.5 ||
-    layout.saws.some((saw, i) => sawHit(p, before, saw, frame.layout.saws[i]))
-  ) {
+  const hazard = hazardHit(frame, p, layout, tick);
+  if (p.y < -1 || p.x < -0.5 || p.x > WIDTH + 0.5 || hazard) {
     p.pose = 'dead';
-  } else if (goalHit(before, p, course.goal)) {
+    p.killer = hazard?.owner;
+  } else if (hits(before, p, course.goal)) {
     p.pose = 'finish';
   } else if (p.lock) {
     p.pose = 'kick';

@@ -118,11 +118,11 @@ function joint(root: Group, mesh: Mesh, x: number, y: number): Joint {
   return { group, rest: y };
 }
 
-export function makeMiso(cutout: Cutout, alarm: Texture) {
+export function makeRunner(cutout: Cutout, alarm: Texture, fox = false) {
   const body = new Group();
   const tail = joint(
     body,
-    cutout('tail', 0.64, 0.51, -0.27, 0.13, 0.01),
+    cutout('tail', fox ? 0.78 : 0.64, 0.51, fox ? -0.34 : -0.27, 0.13, 0.01),
     -0.16,
     0.39,
   );
@@ -138,7 +138,7 @@ export function makeMiso(cutout: Cutout, alarm: Texture) {
     0.12,
     0.66,
   );
-  body.add(cutout('torso', 0.49, 0.59, -0.018, 0.54, 0.04));
+  body.add(cutout('torso', fox ? 0.42 : 0.49, 0.59, -0.018, 0.54, 0.04));
   const nearLeg = joint(
     body,
     cutout('leg', 0.19, 0.31, 0.026, -0.135, 0.05),
@@ -151,7 +151,14 @@ export function makeMiso(cutout: Cutout, alarm: Texture) {
     -0.14,
     0.63,
   );
-  const head = cutout('head', 0.71, 0.6, 0.11, 0.96, 0.07);
+  const head = cutout(
+    'head',
+    fox ? 0.56 : 0.71,
+    fox ? 0.72 : 0.6,
+    0.11,
+    fox ? 0.99 : 0.96,
+    0.07,
+  );
   body.add(head);
   const headMaterial = head.material as import('three').MeshBasicMaterial;
   const happy = headMaterial.map;
