@@ -82,6 +82,9 @@ describe('chess', () => {
       drawOffer: null,
       status: 'playing',
     });
+    expect(() =>
+      act(declined, 'white', { type: 'offer_draw' }, undefined, 4500),
+    ).toThrow(/Mainkan satu langkah/);
     const counter = act(
       declined,
       'black',
@@ -97,6 +100,9 @@ describe('chess', () => {
       5200,
     );
     expect(played.state).toMatchObject({ drawOffer: null, status: 'playing' });
+    expect(
+      act(played, 'white', { type: 'offer_draw' }, undefined, 5300).state,
+    ).toMatchObject({ drawOffer: 0 });
     const draw = act(
       counter,
       'white',

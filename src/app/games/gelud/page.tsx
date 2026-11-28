@@ -206,7 +206,7 @@ function renderGelud(ctx: CanvasRenderingContext2D, state: GeludState) {
   }
   ctx.globalAlpha = 1;
 
-  if (state.banner) {
+  if (state.banner && state.phase !== 'match-over') {
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillRect(0, 140, ARENA_W, 56);
     ctx.fillStyle = '#fef08a';
@@ -297,70 +297,37 @@ function TouchControls({
   superMeter: number;
 }) {
   return (
-    <div className='grid grid-cols-3 gap-2 md:hidden'>
-      <button
-        type='button'
-        onPointerDown={() => (touchRef.current.left = true)}
-        onPointerUp={() => (touchRef.current.left = false)}
-        onPointerLeave={() => (touchRef.current.left = false)}
-        className='rounded-lg border border-line bg-surface py-3 text-sm font-bold active:bg-line'
-      >
-        ◀ Kiri
-      </button>
-      <button
-        type='button'
-        onPointerDown={() => (touchRef.current.jump = true)}
-        onPointerUp={() => (touchRef.current.jump = false)}
-        onPointerLeave={() => (touchRef.current.jump = false)}
-        className='rounded-lg border border-line bg-surface py-3 text-sm font-bold active:bg-line'
-      >
-        ▲ Lompat
-      </button>
-      <button
-        type='button'
-        onPointerDown={() => (touchRef.current.right = true)}
-        onPointerUp={() => (touchRef.current.right = false)}
-        onPointerLeave={() => (touchRef.current.right = false)}
-        className='rounded-lg border border-line bg-surface py-3 text-sm font-bold active:bg-line'
-      >
-        Kanan ▶
-      </button>
-      <button
-        type='button'
-        onPointerDown={() => (touchRef.current.block = true)}
-        onPointerUp={() => (touchRef.current.block = false)}
-        onPointerLeave={() => (touchRef.current.block = false)}
-        className='rounded-lg border border-line bg-surface py-3 text-sm font-bold active:bg-line'
-      >
-        🛡 Blok
-      </button>
-      <button
-        type='button'
-        onPointerDown={() => (touchRef.current.punch = true)}
-        onPointerUp={() => (touchRef.current.punch = false)}
-        onPointerLeave={() => (touchRef.current.punch = false)}
-        className='rounded-lg bg-info py-3 text-sm font-bold text-white active:opacity-80'
-      >
-        Pukul
-      </button>
-      <button
-        type='button'
-        onPointerDown={() => {
-          if (superMeter >= 50) touchRef.current.special = true;
-          else touchRef.current.kick = true;
-        }}
-        onPointerUp={() => {
-          touchRef.current.special = false;
-          touchRef.current.kick = false;
-        }}
-        onPointerLeave={() => {
-          touchRef.current.special = false;
-          touchRef.current.kick = false;
-        }}
-        className='rounded-lg bg-err py-3 text-sm font-bold text-white active:opacity-80'
-      >
-        {superMeter >= 50 ? '⚡ Jurus!' : 'Tendang'}
-      </button>
+    <div className='grid touch-none grid-cols-12 gap-2 select-none md:hidden'>
+      {(
+        [
+          ['left', '◀ Kiri', 'col-span-4 border border-line bg-surface'],
+          ['jump', '▲ Lompat', 'col-span-4 border border-line bg-surface'],
+          ['right', 'Kanan ▶', 'col-span-4 border border-line bg-surface'],
+          ['block', 'Blok', 'col-span-3 border border-line bg-surface'],
+          ['punch', 'Pukul', 'col-span-3 bg-info text-white'],
+          ['kick', 'Tendang', 'col-span-3 bg-err text-white'],
+          ['special', 'Jurus', 'col-span-3 border border-hash text-hash'],
+        ] as const
+      ).map(([input, label, style]) => {
+        const release = () => (touchRef.current[input] = false);
+        const unavailable = input === 'special' && superMeter < 50;
+        return (
+          <button
+            key={input}
+            type='button'
+            aria-disabled={unavailable}
+            onPointerDown={() => {
+              if (!unavailable) touchRef.current[input] = true;
+            }}
+            onPointerUp={release}
+            onPointerLeave={release}
+            onPointerCancel={release}
+            className={`${style} min-h-11 rounded-lg text-sm font-bold active:opacity-80 aria-disabled:opacity-50`}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -374,7 +341,6 @@ function OnlineArena({
   roomWinner,
   hostReloaded,
   reported,
-  busy,
   onHostStart,
   onReportWinner,
   rematchControl,
@@ -387,9 +353,8 @@ function OnlineArena({
   roomWinner: 0 | 1 | null;
   hostReloaded?: true;
   reported: boolean;
-  busy: boolean;
   onHostStart: (run: string, signal: AbortSignal) => Promise<void>;
-  onReportWinner: (winner: 0 | 1) => void;
+  onReportWinner: (winner: 0 | 1, signal: AbortSignal) => Promise<void>;
   rematchControl: React.ReactNode;
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -401,8 +366,10 @@ function OnlineArena({
   const [hostReady, setHostReady] = React.useState(you !== 0);
   const [startError, setStartError] = React.useState('');
   const [startAttempt, setStartAttempt] = React.useState(0);
+  const [reportError, setReportError] = React.useState(false);
   const roomOver = roomWinner !== null || hostReloaded === true;
   const startHost = React.useEffectEvent(onHostStart);
+  const reportWinner = React.useEffectEvent(onReportWinner);
 
   const initialOnline = React.useCallback((): GeludState => {
     const base = createGeludState('2p');
@@ -414,6 +381,8 @@ function OnlineArena({
   const stateRef = React.useRef<GeludState>(initialOnline());
   const [hud, setHud] = React.useState<GeludState>(() => initialOnline());
   const [muted, setMuted] = React.useState(false);
+  const localWinner = hud.phase === 'match-over' ? hud.winner : null;
+  const winner = roomWinner ?? localWinner;
 
   const { connected, timedOut, supported, send, retry } = useGeludPeer({
     code,
@@ -461,6 +430,29 @@ function OnlineArena({
       });
     return () => controller.abort();
   }, [connected, hostReady, roomOver, startAttempt]);
+
+  React.useEffect(() => {
+    if (localWinner === null || roomOver || reported) return;
+    const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout>;
+    const submit = async () => {
+      try {
+        await reportWinner(
+          localWinner,
+          AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]),
+        );
+      } catch {
+        if (controller.signal.aborted) return;
+        setReportError(true);
+        retryTimer = setTimeout(submit, 3000);
+      }
+    };
+    void submit();
+    return () => {
+      controller.abort();
+      clearTimeout(retryTimer);
+    };
+  }, [localWinner, roomOver, reported]);
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -611,40 +603,33 @@ function OnlineArena({
           height={ARENA_H}
           className='aspect-[800/420] w-full'
         />
-        {!connected && supported && !roomOver && (
+        {!connected && supported && !roomOver && winner === null && (
           <div className='a-fade absolute inset-0 flex items-center justify-center bg-black/70 px-4 text-center text-sm text-mute'>
             {timedOut
               ? 'Arena dijeda. Sambung ulang untuk melanjutkan.'
               : 'Menyiapkan koneksi arena real-time…'}
           </div>
         )}
-        {(hud.phase === 'match-over' || roomOver) && (
-          <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/75 p-6 text-center'>
-            <h2 className='text-2xl font-black tracking-wider text-accent uppercase'>
+        {(winner !== null || roomOver) && (
+          <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/75 p-4 text-center'>
+            <h2 className='text-xl font-black tracking-wider text-accent uppercase sm:text-2xl'>
               {hostReloaded
                 ? 'Host memuat ulang halaman. Pertandingan berakhir.'
-                : roomWinner === null
-                  ? hud.banner
-                  : roomWinner === you
-                    ? 'KAMU MENANG!'
-                    : 'KAMU KALAH'}
+                : winner === you
+                  ? 'Kamu menang!'
+                  : 'Kamu kalah'}
             </h2>
             {roomOver ? (
               rematchControl
-            ) : reported ? (
-              <p className='text-sm text-mute'>Menunggu konfirmasi lawan.</p>
-            ) : hud.winner !== null ? (
-              <button
-                type='button'
-                className='rounded-lg border border-line px-3 py-2 text-sm'
-                disabled={busy}
-                onClick={() => {
-                  if (hud.winner !== null) onReportWinner(hud.winner);
-                }}
-              >
-                Konfirmasi hasil
-              </button>
-            ) : null}
+            ) : (
+              <p role='status' className='text-sm text-mute'>
+                {reported
+                  ? 'Menunggu hasil dari perangkat lawan…'
+                  : reportError
+                    ? 'Gagal menyimpan hasil. Mencoba lagi…'
+                    : 'Menyimpan hasil…'}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -928,12 +913,11 @@ function GeludRouter() {
             roomWinner={room.state.winner}
             hostReloaded={room.state.hostReloaded}
             reported={room.state.reports?.[you] != null}
-            busy={r.busy}
             onHostStart={(hostRun, signal) =>
               r.moveOrThrow({ hostRun, match: room.state.match ?? 0 }, signal)
             }
-            onReportWinner={(winner) =>
-              r.move({ winner, match: room.state.match ?? 0 })
+            onReportWinner={(winner, signal) =>
+              r.moveOrThrow({ winner, match: room.state.match ?? 0 }, signal)
             }
             rematchControl={<Rematch r={r} />}
           />

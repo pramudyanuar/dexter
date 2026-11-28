@@ -262,8 +262,10 @@ export function stepGelud(
       f.action === 'special' ||
       f.action === 'hit' ||
       f.action === 'ko';
+    const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
 
     if (!locked) {
+      f.vx = dir * MOVE_SPEED;
       if (inp.special && f.superMeter >= 50) {
         const spec = attackSpec('special')!;
         f.action = 'special';
@@ -277,19 +279,15 @@ export function stepGelud(
         f.action = 'kick';
         f.actionTimer = spec.dur;
         f.hasHit = false;
-        f.vx = 0;
       } else if (inp.punch) {
         const spec = attackSpec('punch')!;
         f.action = 'punch';
         f.actionTimer = spec.dur;
         f.hasHit = false;
-        f.vx = 0;
       } else if (inp.block && f.y >= GROUND_Y) {
         f.action = 'block';
         f.vx = 0;
       } else {
-        const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-        f.vx = dir * MOVE_SPEED;
         if (inp.jump && f.y >= GROUND_Y) {
           f.vy = JUMP_VEL;
           f.action = 'jump';
@@ -297,6 +295,8 @@ export function stepGelud(
           f.action = dir !== 0 ? 'walk' : 'idle';
         }
       }
+    } else if (f.action === 'punch' || f.action === 'kick') {
+      f.vx = dir * MOVE_SPEED;
     } else if (f.action !== 'special') {
       f.vx *= Math.pow(0.05, dt);
     }
