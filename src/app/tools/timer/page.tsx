@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import ToolShell from '@/components/tools/ToolShell';
+import ToolShell from '@/features/tools/components/ToolShell';
 
 function formatStopwatch(ms: number): string {
   const totalSec = Math.floor(ms / 1000);

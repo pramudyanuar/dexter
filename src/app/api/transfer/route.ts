@@ -1,21 +1,20 @@
 import { NextResponse } from 'next/server';
 
-import { isAuthed } from '@/lib/session';
-import { parsePathname } from '@/lib/transfer/naming';
+import { isAuthed } from '@/features/auth/session';
 import {
-  getDriver,
-  listFresh,
-  removeFile,
-  totalBytes,
-  TransferError,
-} from '@/lib/transfer/store';
-
-import {
-  MAX_FILE_BYTES,
   QUOTA_BYTES,
   TRANSFER_TTL_HOURS,
   TRANSFER_TTL_MS,
-} from '@/constant/transfer';
+} from '@/features/transfer/config';
+import { parsePathname } from '@/features/transfer/naming';
+import {
+  getDriver,
+  listFresh,
+  maxFileBytes,
+  removeFile,
+  totalBytes,
+  TransferError,
+} from '@/features/transfer/store';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 
@@ -45,7 +44,7 @@ export async function GET(req: Request) {
         })),
         used: totalBytes(files),
         quota: QUOTA_BYTES,
-        maxFile: MAX_FILE_BYTES,
+        maxFile: maxFileBytes(),
         ttlHours: TRANSFER_TTL_HOURS,
       },
       { headers: NO_STORE },

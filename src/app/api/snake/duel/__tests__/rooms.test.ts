@@ -1,54 +1,48 @@
 /** @jest-environment node */
 
-import { newToken } from '@/lib/rooms/codes';
-import {
-  DUEL_UNAVAILABLE,
-  DuelStore,
-  getDuelStore,
-} from '@/lib/snake-duel/store';
-
 import { GET, POST } from '@/app/api/snake/duel/rooms/route';
 import {
   GET as getSignal,
   POST as sendSignal,
 } from '@/app/api/snake/duel/signal/route';
+import { newToken } from '@/features/rooms/codes';
+import {
+  DUEL_UNAVAILABLE,
+  DuelStore,
+  getDuelStore,
+} from '@/features/snake-duel/store';
+import {
+  fakeSupabaseState,
+  supabaseTestEnv,
+} from '@/test/fixtures/supabase-state';
 
-jest.mock('@/lib/snake-duel/store', () => ({
-  ...jest.requireActual('@/lib/snake-duel/store'),
+jest.mock('@/features/snake-duel/store', () => ({
+  ...jest.requireActual('@/features/snake-duel/store'),
   getDuelStore: jest.fn(),
 }));
 
 const realGetStore = jest.requireActual<
-  typeof import('@/lib/snake-duel/store')
->('@/lib/snake-duel/store').getDuelStore;
+  typeof import('@/features/snake-duel/store')
+>('@/features/snake-duel/store').getDuelStore;
 
-it('uses shared Redis and the Preview namespace even with obsolete Duel settings', async () => {
+it('uses Supabase and the Preview namespace even with obsolete Duel settings', async () => {
   const env = jest.replaceProperty(process, 'env', {
     ...process.env,
-    UPSTASH_REDIS_REST_URL: 'https://redis.example.test',
-    UPSTASH_REDIS_REST_TOKEN: 'test-token',
+    ...supabaseTestEnv,
     VERCEL_ENV: 'preview',
     SNAKE_DUEL_ENABLED: '0',
     SNAKE_DUEL_MONTHLY_ROUNDS: '0',
     SNAKE_DUEL_NAMESPACE: 'old',
   });
-  const redis = jest
-    .spyOn(globalThis, 'fetch')
-    .mockResolvedValue(Response.json({ result: [] }));
+  const database = fakeSupabaseState();
   jest.mocked(getDuelStore).mockImplementationOnce(realGetStore);
   try {
     const response = await GET();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ rooms: [] });
-    expect(redis).toHaveBeenCalledWith(
-      'https://redis.example.test',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('snake:duel:rtc:preview:lobby'),
-      }),
-    );
+    expect(database.scopes.has('snake-duel:preview')).toBe(true);
   } finally {
-    redis.mockRestore();
+    database.request.mockRestore();
     env.restore();
   }
 });
@@ -97,7 +91,7 @@ it('requires a seat token and passes only WebRTC setup data to the signaling sto
   });
 });
 
-it('returns 503 when shared Redis is missing', async () => {
+it('returns 503 when Supabase is missing', async () => {
   const env = jest.replaceProperty(process, 'env', { NODE_ENV: 'test' });
   jest.mocked(getDuelStore).mockImplementationOnce(realGetStore);
   try {
@@ -149,4 +143,54 @@ it('creates a public duel and exposes it in the shared lobby format', async () =
       },
     ],
   });
+});
+
+it('matches concurrent queue requests and keeps seat ownership through signaling', async () => {
+  const env = jest.replaceProperty(process, 'env', {
+    ...process.env,
+    ...supabaseTestEnv,
+  });
+  const database = fakeSupabaseState();
+  try {
+    const store = realGetStore();
+    await Promise.all([
+      store.queue('first', 'Satu'),
+      store.queue('second', 'Dua'),
+    ]);
+    const first = await store.ticket('first');
+    const second = await store.ticket('second');
+    expect(first?.status).toBe('matched');
+    expect(second?.status).toBe('matched');
+    if (first?.status !== 'matched' || second?.status !== 'matched')
+      throw new Error('Match missing');
+
+    const [host, guest] = [first.session, second.session].sort(
+      (a, b) => a.seat - b.seat,
+    );
+    expect(host.code).toBe(guest.code);
+    expect(await store.cancel('first')).toEqual(first);
+    await expect(
+      store.exchangeSignal({ ...host, token: newToken() }),
+    ).rejects.toMatchObject({ status: 403 });
+
+    const initial = await store.exchangeSignal(host);
+    expect(initial.names).toEqual(
+      host.token === first.session.token ? ['Satu', 'Dua'] : ['Dua', 'Satu'],
+    );
+    const signal = {
+      guest: initial.guest!,
+      attempt: newToken(),
+      sdp: 'v=0\r\n',
+    };
+    await store.exchangeSignal(guest, signal);
+    expect((await store.exchangeSignal(host)).signal).toEqual(signal);
+    await expect(
+      store.exchangeSignal(host, { paired: newToken() }),
+    ).rejects.toMatchObject({ status: 409 });
+    await store.exchangeSignal(host, { paired: signal.guest });
+    expect((await store.exchangeSignal(host)).guest).toBe(signal.guest);
+  } finally {
+    database.request.mockRestore();
+    env.restore();
+  }
 });

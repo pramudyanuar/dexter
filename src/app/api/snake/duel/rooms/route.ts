@@ -1,17 +1,18 @@
 import { z } from 'zod';
 
-import { SEATS } from '@/lib/games/snake-duel';
 import { readJson } from '@/lib/read-json';
-import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/code-format';
-import type { PublicRoom } from '@/lib/rooms/types';
+
+import { SEATS } from '@/features/games/logic/snake-duel';
+import { CODE_PATTERN, normalizeCode } from '@/features/rooms/code-format';
+import type { PublicRoom } from '@/features/rooms/types';
 import {
   checkAdmission,
   duelFailure,
   duelName,
   NO_STORE,
-} from '@/lib/snake-duel/http';
-import { TOKEN_PATTERN } from '@/lib/snake-duel/protocol';
-import { DuelError, getDuelStore } from '@/lib/snake-duel/store';
+} from '@/features/snake-duel/http';
+import { TOKEN_PATTERN } from '@/features/snake-duel/protocol';
+import { DuelError, getDuelStore } from '@/features/snake-duel/store';
 
 const player = {
   name: duelName,

@@ -4,7 +4,17 @@ import Link from 'next/link';
 import * as React from 'react';
 import '@/lib/env';
 
-import { Attachment, formatTextFile, readAttachment } from '@/lib/attachments';
+import useStoredState from '@/hooks/useStoredState';
+
+import Markdown from '@/components/Markdown';
+
+import AuthGate from '@/features/auth/components/AuthGate';
+import { useAuth } from '@/features/auth/components/AuthGate';
+import {
+  Attachment,
+  formatTextFile,
+  readAttachment,
+} from '@/features/chat/attachments';
 import {
   activePath,
   addNode,
@@ -18,14 +28,8 @@ import {
   siblingsIn,
   titleFrom,
   Usage,
-} from '@/lib/chatTree';
-import useStoredState from '@/lib/useStoredState';
-
-import AuthGate from '@/components/AuthGate';
-import { useAuth } from '@/components/AuthGate';
-import Markdown from '@/components/Markdown';
-import Sidebar from '@/components/Sidebar';
-
+} from '@/features/chat/chatTree';
+import Sidebar from '@/features/chat/components/Sidebar';
 import {
   DEFAULT_MODEL,
   MAX_ATTACHMENTS,
@@ -33,7 +37,7 @@ import {
   MODELS,
   PROVIDERS,
   USAGE_DELIMITER,
-} from '@/constant/chat';
+} from '@/features/chat/config';
 
 const NO_CHATS: Chat[] = [];
 

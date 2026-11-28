@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 
-import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/codes';
-import { seatOf, voiceOf } from '@/lib/rooms/engine';
-import { createLimiter } from '@/lib/rooms/rate-limit';
-import { getRoomStore } from '@/lib/rooms/store';
-import { Signal, SIGNAL_MAX_BYTES } from '@/lib/rooms/types';
+import { CODE_PATTERN, normalizeCode } from '@/features/rooms/codes';
+import { seatOf, voiceOf } from '@/features/rooms/engine';
+import { createLimiter } from '@/features/rooms/rate-limit';
+import { getRoomStore } from '@/features/rooms/store';
+import { Signal, SIGNAL_MAX_BYTES } from '@/features/rooms/types';
 
 /**
  * Where two players set up a voice call. The audio itself goes straight

@@ -12,6 +12,8 @@ import * as React from 'react';
 
 import styles from '@/app/games/pictionary/pictionary.module.css';
 
+import ConfirmDialog from '@/components/ConfirmDialog';
+
 import {
   COLORS,
   COORD_MAX,
@@ -19,9 +21,7 @@ import {
   Stroke,
   STROKE_BATCH_LIMIT,
   WIDTHS,
-} from '@/lib/games/pictionary';
-
-import ConfirmDialog from '@/components/ConfirmDialog';
+} from '@/features/games/logic/pictionary';
 
 const W = 960;
 const H = 540;

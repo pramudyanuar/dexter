@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { isAuthed } from '@/lib/session';
-
+import { isAuthed } from '@/features/auth/session';
 import {
   DEFAULT_MODEL,
   MAX_ATTACHMENTS,
@@ -11,7 +10,7 @@ import {
   MODELS,
   PROVIDERS,
   USAGE_DELIMITER,
-} from '@/constant/chat';
+} from '@/features/chat/config';
 
 // Light take on https://github.com/JuliusBrussee/caveman: cut filler, keep depth.
 const SYSTEM_PROMPT = `You are a coding assistant helping a developer. Be direct and skip filler, but be thorough on substance. Short is NOT the goal; no wasted words is.

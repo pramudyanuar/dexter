@@ -1,4 +1,4 @@
-import DartGame from '@/components/games/dart/DartGame';
+import DartGame from '@/features/games/components/dart/DartGame';
 
 export default function Page() {
   return <DartGame />;

@@ -2,6 +2,10 @@
 
 import * as React from 'react';
 
+import useStoredState from '@/hooks/useStoredState';
+
+import GameShell from '@/features/games/components/GameShell';
+import PlayingCard from '@/features/games/components/remo/PlayingCard';
 import {
   ARCHIVE_BASE_POINTS,
   ARCHIVE_TARGETS,
@@ -16,12 +20,8 @@ import {
   startArchive,
   submitArchive,
   upgradeArchive,
-} from '@/lib/games/card-archive';
-import { POKER_HANDS } from '@/lib/games/poker';
-import useStoredState from '@/lib/useStoredState';
-
-import GameShell from '@/components/games/GameShell';
-import PlayingCard from '@/components/games/remo/PlayingCard';
+} from '@/features/games/logic/card-archive';
+import { POKER_HANDS } from '@/features/games/logic/poker';
 
 const primary =
   'rounded-lg bg-[#e9bb71] px-4 py-2.5 text-sm font-semibold text-[#291b0e] hover:bg-[#f6d499] disabled:opacity-40';

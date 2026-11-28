@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { createProxyToken, isAuthed } from '@/lib/session';
+import { createProxyToken, isAuthed } from '@/features/auth/session';
 
 export async function GET(req: Request) {
   const token = isAuthed(req) ? createProxyToken() : null;

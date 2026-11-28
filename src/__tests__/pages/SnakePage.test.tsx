@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 
 import SnakePage from '@/app/games/snake/classic/page';
 
-jest.mock('@/components/games/GameShell', () => ({
+jest.mock('@/features/games/components/GameShell', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => children,
 }));

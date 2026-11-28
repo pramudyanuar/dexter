@@ -1,24 +1,23 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
+import BattleshipPage from '@/app/games/battleship/page';
 import {
   battleshipGame,
   BattleshipView,
   FLEET,
   shipCells,
   validFleet,
-} from '@/lib/games/battleship';
-
-import BattleshipPage from '@/app/games/battleship/page';
+} from '@/features/games/logic/battleship';
 
 const mockMove = jest.fn();
 let mockState: BattleshipView;
 
-jest.mock('@/lib/rooms/useRoom', () => ({
+jest.mock('@/features/rooms/useRoom', () => ({
   useRoom: () => ({ move: mockMove, busy: false }),
 }));
 
-jest.mock('@/components/games/RoomGate', () => ({
+jest.mock('@/features/rooms/components/RoomGate', () => ({
   __esModule: true,
   default: ({
     children,

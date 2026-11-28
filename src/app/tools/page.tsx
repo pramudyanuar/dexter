@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import * as React from 'react';
 
-import DocumentTitle from '@/components/games/DocumentTitle';
-import ToolArt from '@/components/tools/ToolArt';
 import TopNav from '@/components/TopNav';
 
-import { ToolEntry, TOOLS } from '@/constant/tools';
+import DocumentTitle from '@/features/games/components/DocumentTitle';
+import { ToolEntry, TOOLS } from '@/features/tools/catalog';
+import ToolArt from '@/features/tools/components/ToolArt';
 
 type Filter = 'all' | 'sharing' | 'utility';
 

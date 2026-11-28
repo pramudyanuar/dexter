@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
 
-import { rewriteCss, rewriteHtml } from '@/lib/proxy/rewrite';
-import { fetchPublic, ProxyError } from '@/lib/proxy/safe-fetch';
-import { createProxyToken, isProxyToken } from '@/lib/session';
+import { createProxyToken, isProxyToken } from '@/features/auth/session';
+import { rewriteCss, rewriteHtml } from '@/features/browse/server/rewrite';
+import { fetchPublic, ProxyError } from '@/features/browse/server/safe-fetch';
 
 const RESERVED_PARAMS = new Set(['url', 't', '__form', '__unsupported']);
 

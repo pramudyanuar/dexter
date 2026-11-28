@@ -1,27 +1,28 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 
-import type { Level } from '@/lib/games/minesweeper';
-import { LEVELS } from '@/lib/games/minesweeper';
-import { readMinesResult } from '@/lib/leaderboard/mines-proof';
-import { verifySoloReplay } from '@/lib/leaderboard/replay';
+import { readJson } from '@/lib/read-json';
+
+import type { Level } from '@/features/games/logic/minesweeper';
+import { LEVELS } from '@/features/games/logic/minesweeper';
+import { readMinesResult } from '@/features/leaderboard/mines-proof';
+import { verifySoloReplay } from '@/features/leaderboard/replay';
 import {
   getLeaderboardStore,
   getMinesLeaderboardStore,
-} from '@/lib/leaderboard/store';
+} from '@/features/leaderboard/store';
 import {
   isLowerBetter,
   isMinesLevel,
   scoreUnit,
   sortEntries,
   VALID_GAME_IDS,
-} from '@/lib/leaderboard/types';
-import { readJson } from '@/lib/read-json';
-import { isAdminAuthed } from '@/lib/rooms/admin-auth';
+} from '@/features/leaderboard/types';
+import { isAdminAuthed } from '@/features/rooms/admin-auth';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const NO_STORE_ERROR =
-  'Penyimpanan leaderboard belum diatur. Hubungkan Upstash Redis ke project ini.';
+  'Penyimpanan leaderboard belum diatur. Hubungkan Supabase ke project ini.';
 
 function storageUnavailable(
   error = 'Leaderboard sedang tidak tersedia. Coba lagi.',

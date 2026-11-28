@@ -2,20 +2,20 @@
 
 import * as React from 'react';
 
+import useMounted from '@/hooks/useMounted';
+import useStoredState from '@/hooks/useStoredState';
+
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
+import { shouldIgnoreGameKey } from '@/features/games/components/snake/controls';
 import {
   Action2048,
   maxTile,
   Move,
   play2048,
   start2048,
-} from '@/lib/games/game2048';
-import useMounted from '@/lib/useMounted';
-import useStoredState from '@/lib/useStoredState';
-
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import { shouldIgnoreGameKey } from '@/components/games/snake/controls';
-import SubmitScore from '@/components/games/SubmitScore';
+} from '@/features/games/logic/game2048';
+import SubmitScore from '@/features/leaderboard/components/SubmitScore';
 
 interface Game {
   seed: number;

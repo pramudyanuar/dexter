@@ -1,19 +1,22 @@
 /** @jest-environment node */
-import { getRoomStore } from '@/lib/rooms/store';
-import { CHAT_KEEP } from '@/lib/rooms/types';
-
 import { GET, POST } from '@/app/api/rooms/[code]/chat/route';
 import { GET as roomGet, POST as roomPost } from '@/app/api/rooms/[code]/route';
 import { POST as create } from '@/app/api/rooms/route';
+import { getRoomStore } from '@/features/rooms/store';
+import { CHAT_KEEP } from '@/features/rooms/types';
 
 const OLD = { ...process.env };
+import {
+  fakeSupabaseState,
+  supabaseTestEnv,
+} from '@/test/fixtures/supabase-state';
+
 const realFetch = global.fetch;
 let ip = 0;
 
 beforeEach(() => {
   process.env = { ...OLD };
-  delete process.env.UPSTASH_REDIS_REST_URL;
-  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.SUPABASE_SECRET_KEY;
   (globalThis as { __rooms?: unknown }).__rooms = undefined;
   (globalThis as { __chats?: unknown }).__chats = undefined;
 });
@@ -172,31 +175,22 @@ describe('chat', () => {
     expect(lines[0].text).toBe('m5');
   });
 
-  it('works against Redis too (list commands)', async () => {
-    process.env = {
-      ...process.env,
-      UPSTASH_REDIS_REST_URL: 'https://redis.test',
-      UPSTASH_REDIS_REST_TOKEN: 'secret',
-    };
-    const calls: unknown[][] = [];
-    const list: string[] = [];
-    global.fetch = (async (_url: string, init: RequestInit) => {
-      const args = JSON.parse(init.body as string) as (string | number)[];
-      calls.push(args);
-      if (args[0] === 'RPUSH') list.push(args[2] as string);
-      if (args[0] === 'LTRIM')
-        list.splice(0, Math.max(0, list.length - CHAT_KEEP));
-      if (args[0] === 'LRANGE') return Response.json({ result: list });
-      return Response.json({ result: 'OK' });
-    }) as typeof fetch;
-
-    const store = getRoomStore()!;
-    await store.chatAdd('ABCDE', { id: 'a', seat: 1, text: 'hi', at: 1 });
-    expect(calls.map((c) => c[0])).toEqual(['RPUSH', 'LTRIM', 'EXPIRE']);
-    expect(calls[0][1]).toBe('room:ABCDE:chat');
-    expect(await store.chatList('ABCDE')).toEqual([
-      { id: 'a', seat: 1, text: 'hi', at: 1 },
-    ]);
+  it('stores simultaneous chat lines without losing either one', async () => {
+    process.env = { ...process.env, ...supabaseTestEnv };
+    const database = fakeSupabaseState();
+    try {
+      const store = getRoomStore()!;
+      const first = { id: 'a', seat: 1, text: 'hi', at: 1 };
+      const second = { id: 'b', seat: 0, text: 'hello', at: 2 };
+      await Promise.all([
+        store.chatAdd('ABCDE', first),
+        store.chatAdd('ABCDE', second),
+      ]);
+      const lines = await store.chatList('ABCDE');
+      expect(lines.sort((a, b) => a.at - b.at)).toEqual([first, second]);
+    } finally {
+      database.request.mockRestore();
+    }
   });
 });
 

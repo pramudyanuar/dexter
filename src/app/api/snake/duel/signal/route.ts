@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
 import { readJson } from '@/lib/read-json';
-import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/code-format';
-import { duelFailure, NO_STORE } from '@/lib/snake-duel/http';
-import { DuelSession, TOKEN_PATTERN } from '@/lib/snake-duel/protocol';
-import { DuelError, getDuelStore } from '@/lib/snake-duel/store';
+
+import { CODE_PATTERN, normalizeCode } from '@/features/rooms/code-format';
+import { duelFailure, NO_STORE } from '@/features/snake-duel/http';
+import { DuelSession, TOKEN_PATTERN } from '@/features/snake-duel/protocol';
+import { DuelError, getDuelStore } from '@/features/snake-duel/store';
 
 const id = z.string().regex(TOKEN_PATTERN);
 const signal = z.union([

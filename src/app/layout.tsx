@@ -3,10 +3,10 @@ import * as React from 'react';
 
 import '@/styles/globals.css';
 
-import { siteConfig } from '@/constant/config';
+import { siteConfig } from '@/constants/config';
 
 // !STARTERCONF Change these default meta
-// !STARTERCONF Look at @/constant/config to change them
+// !STARTERCONF Look at @/constants/config to change them
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {

@@ -1,4 +1,4 @@
-import UnoEntry from '@/components/games/uno/UnoEntry';
+import UnoEntry from '@/features/games/components/uno/UnoEntry';
 
 export default function Page() {
   return <UnoEntry />;

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { AdminRoomSummary, summarizeRoom } from '@/lib/rooms/admin';
-import { isAdminAuthed } from '@/lib/rooms/admin-auth';
-import { getRoomStore } from '@/lib/rooms/store';
+import { AdminRoomSummary, summarizeRoom } from '@/features/rooms/admin';
+import { isAdminAuthed } from '@/features/rooms/admin-auth';
+import { getRoomStore } from '@/features/rooms/store';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const NO_STORE_ERROR =
-  'Penyimpanan room belum diatur. Hubungkan Upstash Redis ke project ini (lihat .env.example).';
+  'Penyimpanan room belum diatur. Hubungkan Supabase ke project ini (lihat .env.example).';
 
 export async function GET(req: Request) {
   if (!isAdminAuthed(req)) {

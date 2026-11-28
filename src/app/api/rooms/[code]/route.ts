@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { isAdminAuthed } from '@/lib/rooms/admin-auth';
-import { CODE_PATTERN, newToken, normalizeCode } from '@/lib/rooms/codes';
+import { isAdminAuthed } from '@/features/rooms/admin-auth';
+import { CODE_PATTERN, newToken, normalizeCode } from '@/features/rooms/codes';
 import {
   join,
   kick,
@@ -15,15 +15,15 @@ import {
   start,
   sweep,
   toView,
-} from '@/lib/rooms/engine';
-import { mutate } from '@/lib/rooms/mutate';
-import { cryptoRng } from '@/lib/rooms/rng';
-import { getRoomStore } from '@/lib/rooms/store';
-import { RoomError } from '@/lib/rooms/types';
+} from '@/features/rooms/engine';
+import { mutate } from '@/features/rooms/mutate';
+import { cryptoRng } from '@/features/rooms/rng';
+import { getRoomStore } from '@/features/rooms/store';
+import { RoomError } from '@/features/rooms/types';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const NO_STORE_ERROR =
-  'Penyimpanan room belum diatur. Hubungkan Upstash Redis ke project ini (lihat .env.example).';
+  'Penyimpanan room belum diatur. Hubungkan Supabase ke project ini (lihat .env.example).';
 
 type Context = { params: Promise<{ code: string }> };
 

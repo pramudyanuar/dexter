@@ -2,17 +2,17 @@
 
 import * as React from 'react';
 
-import type { TableView } from '@/lib/games/hk-mahjong/game';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import GameShell from '@/components/games/GameShell';
-import HongKongTable from '@/components/games/mahjong/HongKongTable';
+import GameShell from '@/features/games/components/GameShell';
+import HongKongTable from '@/features/games/components/mahjong/HongKongTable';
 import MahjongRulebook, {
   BookButton,
-} from '@/components/games/mahjong/MahjongRulebook';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate from '@/components/games/RoomGate';
+} from '@/features/games/components/mahjong/MahjongRulebook';
+import type { TableView } from '@/features/games/logic/hk-mahjong/game';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 function TableRoom() {
   const r = useRoom<TableView>('mahjong-hk');

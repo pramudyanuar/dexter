@@ -2,15 +2,18 @@
 
 import * as React from 'react';
 
-import type { QuizView } from '@/lib/games/quiz';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import Confetti from '@/components/games/Confetti';
-import Countdown from '@/components/games/Countdown';
-import GameShell from '@/components/games/GameShell';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
+import Confetti from '@/features/games/components/Confetti';
+import Countdown from '@/features/games/components/Countdown';
+import GameShell from '@/features/games/components/GameShell';
+import type { QuizView } from '@/features/games/logic/quiz';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate, {
+  Rematch,
+  seatLabel,
+} from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 const TONE = [

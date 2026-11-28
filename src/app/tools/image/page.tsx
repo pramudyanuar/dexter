@@ -2,9 +2,8 @@
 
 import * as React from 'react';
 
-import { formatBytes } from '@/lib/transfer/format';
-
-import ToolShell from '@/components/tools/ToolShell';
+import ToolShell from '@/features/tools/components/ToolShell';
+import { formatBytes } from '@/features/transfer/format';
 
 type OutputFormat = 'image/webp' | 'image/jpeg' | 'image/png';
 

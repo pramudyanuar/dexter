@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
-import { isAuthed } from '@/lib/session';
-import { parsePathname } from '@/lib/transfer/naming';
-import { openFile, TransferError } from '@/lib/transfer/store';
+import { isAuthed } from '@/features/auth/session';
+import { parsePathname } from '@/features/transfer/naming';
+import { openFile, TransferError } from '@/features/transfer/store';
 
 // large files stream through this function, so give it time
 export const maxDuration = 60;

@@ -1,9 +1,13 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { readMinesRound, signMinesProof } from '@/lib/leaderboard/mines-proof';
-import { verifyMinesReplay } from '@/lib/leaderboard/replay';
-import { isMinesLevel } from '@/lib/leaderboard/types';
 import { readJson } from '@/lib/read-json';
+
+import {
+  readMinesRound,
+  signMinesProof,
+} from '@/features/leaderboard/mines-proof';
+import { verifyMinesReplay } from '@/features/leaderboard/replay';
+import { isMinesLevel } from '@/features/leaderboard/types';
 
 const headers = { 'Cache-Control': 'no-store' };
 

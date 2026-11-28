@@ -2,6 +2,11 @@
 
 import * as React from 'react';
 
+import useMounted from '@/hooks/useMounted';
+
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
+import useGeludPeer from '@/features/games/components/gelud/useGeludPeer';
 import {
   ARENA_H,
   ARENA_W,
@@ -14,16 +19,11 @@ import {
   GeludState,
   GROUND_Y,
   stepGelud,
-} from '@/lib/games/gelud';
-import { newToken } from '@/lib/rooms/codes';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
-
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import useGeludPeer from '@/components/games/gelud/useGeludPeer';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch } from '@/components/games/RoomGate';
+} from '@/features/games/logic/gelud';
+import { newToken } from '@/features/rooms/codes';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate, { Rematch } from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 function playGeludSfx(
   ctxRef: React.MutableRefObject<AudioContext | null>,

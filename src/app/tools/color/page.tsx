@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import ToolShell from '@/components/tools/ToolShell';
+import ToolShell from '@/features/tools/components/ToolShell';
 
 function hexToRgb(hex: string): [number, number, number] | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());

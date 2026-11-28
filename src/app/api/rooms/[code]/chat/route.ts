@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 
-import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/codes';
-import { chatPolicy, seatOf } from '@/lib/rooms/engine';
-import { createLimiter } from '@/lib/rooms/rate-limit';
-import { getRoomSticker } from '@/lib/rooms/stickers';
-import { getRoomStore } from '@/lib/rooms/store';
-import { CHAT_MAX_LENGTH, ChatMsg } from '@/lib/rooms/types';
+import { CODE_PATTERN, normalizeCode } from '@/features/rooms/codes';
+import { chatPolicy, seatOf } from '@/features/rooms/engine';
+import { createLimiter } from '@/features/rooms/rate-limit';
+import { getRoomSticker } from '@/features/rooms/stickers';
+import { getRoomStore } from '@/features/rooms/store';
+import { CHAT_MAX_LENGTH, ChatMsg } from '@/features/rooms/types';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const NO_STORE_ERROR =
-  'Penyimpanan room belum diatur. Hubungkan Upstash Redis ke project ini (lihat .env.example).';
+  'Penyimpanan room belum diatur. Hubungkan Supabase ke project ini (lihat .env.example).';
 
 /** A few lines every ten seconds per player is plenty for a chat. */
 const limiter = createLimiter(8, 10_000);

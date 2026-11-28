@@ -10,9 +10,9 @@ import {
   SEKATA_REGIONAL,
   SEKATA_SLANG,
   SEKATA_STANDARD,
-} from '../src/constant/sekata-words.ts';
-import { WORDLE_VALID_WORDS } from '../src/constant/wordle-valid.ts';
-import { WORDLE_ANSWERS } from '../src/constant/wordle-words.ts';
+} from '../src/features/games/logic/data/sekata-words.ts';
+import { WORDLE_VALID_WORDS } from '../src/features/games/logic/data/wordle-valid.ts';
+import { WORDLE_ANSWERS } from '../src/features/games/logic/data/wordle-words.ts';
 
 const [malindoFile, hunspellFile] = process.argv.slice(2);
 
@@ -137,7 +137,7 @@ function writeList(file, name, words, notice) {
   }
   if (line) lines.push(line);
   writeFileSync(
-    new URL(`../src/constant/${file}.ts`, import.meta.url),
+    new URL(`../src/features/games/logic/data/${file}.ts`, import.meta.url),
     `/**\n${notice}\n * Regenerate with \`node scripts/update-sekata-dictionary.mjs\`.\n */\nexport const ${name} = \`\n${lines.join('\n')}\n\`;\n`,
   );
   console.log(`Wrote ${words.length} forms to ${file}.ts`);

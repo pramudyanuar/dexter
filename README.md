@@ -90,7 +90,7 @@ You can start the server using this command:
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result. You can start editing the page by modifying `src/pages/index.tsx`.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result. The home URL redirects to the games catalog in `src/app/games/page.tsx`.
 
 ### 4. Change defaults
 
@@ -104,12 +104,66 @@ Don't forget to change the package name in package.json
 
 This starter is using [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/), it is mandatory to use it to commit changes.
 
+## Struktur Dexter
+
+| Folder                                      | Isi                                                          |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| `src/app/`                                  | Route halaman, API, dan layout Next.js                       |
+| `src/features/`                             | Komponen, logika, penyimpanan, dan tes per fitur             |
+| `src/components/`, `src/hooks/`, `src/lib/` | UI, hook, dan utilitas yang dipakai lintas fitur             |
+| `src/constants/`, `src/styles/`             | Konfigurasi aplikasi dan gaya global                         |
+| `src/integrations/supabase/`                | Klien Supabase untuk browser dan server serta akses Postgres |
+| `supabase/migrations/`, `supabase/scripts/` | Migration SQL dan skrip impor data lama                      |
+| `public/`, `scripts/`                       | Aset publik dan skrip pemeliharaan                           |
+
+## Database Dexter (Supabase)
+
+Dexter memakai satu proyek Supabase untuk penyimpanan server. Postgres menyimpan ruang multiplayer, chat room, signaling, antrean Snake Duel, leaderboard, Paste, laporan bug, dan konfigurasi admin. Supabase Storage menyimpan file di bucket privat `dexter-transfer`. Notes, riwayat chat AI, dan preferensi pribadi tetap tersedia di browser tempat data itu dibuat.
+
+1. Di **Supabase → SQL Editor**, jalankan [migration SQL](supabase/migrations/) berdasarkan urutan nama file. Lewati migration yang sudah berhasil dijalankan. Migration membuat tabel server dengan RLS, menjadwalkan pembersihan data kedaluwarsa bila Supabase Cron tersedia, dan membuat bucket transfer privat.
+2. Isi `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, dan `SUPABASE_SECRET_KEY` dari proyek yang sama. Simpan secret key hanya di environment server. Pengembangan lokal membaca `.env.local`. Deploy membaca environment Vercel.
+3. Jalankan ulang `pnpm dev` atau redeploy. Cek pembuatan room, leaderboard, Paste, dan upload/unduh di `/send`. Untuk transfer file, konfigurasikan juga `CHAT_TOTP_SECRET` seperti sebelumnya.
+
+Di Supabase Free, batas upload Dexter adalah 50 MB per file. Pada paket berbayar, samakan `SUPABASE_TRANSFER_MAX_BYTES` dengan batas bucket di dashboard. Aplikasi mendukung hingga 200 MiB per file. File hilang dari daftar setelah 24 jam dan dibersihkan saat penyimpanan transfer dibuka. [Batas upload Supabase](https://supabase.com/docs/guides/storage/uploads/file-limits)
+
+Tanpa secret key, pengembangan lokal memakai memori dan `.data/` untuk fitur yang mendukung mode lokal. Snake Duel membutuhkan Supabase. Login admin dan OTP Dexter memakai sesi aplikasi. Helper dan Proxy Next.js tersedia untuk sesi Supabase Auth.
+
+### Memindahkan data dari penyimpanan lama
+
+Untuk instalasi yang sudah pernah memakai Upstash, [skrip impor](supabase/scripts/import-legacy-storage.mjs) bisa memindahkan leaderboard, Paste, konfigurasi, laporan bug, dan room multiplayer biasa beserta chat serta signaling yang masih aktif. Jalankan migration SQL dulu. Simpan URL dan token Upstash lama di `.env.migration.local` menggunakan nama `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN`.
+
+```sh
+node --env-file=.env.local --env-file=.env.migration.local supabase/scripts/import-legacy-storage.mjs
+```
+
+Perintah tersebut menampilkan jumlah data sumber. Hentikan penulisan ke penyimpanan lama, lalu jalankan kembali dengan `--apply` dan deploy versi baru. Impor dapat dijalankan ulang. Baris yang kuncinya sudah ada di Supabase dipertahankan. Setelah cutover, kredensial Upstash dan Vercel Blob bisa dihapus dari environment deployment.
+
+Mulai lobby dan antrean Snake Duel baru saat cutover. Unduh file Vercel Blob yang masih dibutuhkan sebelum cutover dan unggah kembali ke `/send`. Skrip membaca Upstash saja. Data lokal seperti laporan di `.data/` perlu dipindahkan tersendiri jika ingin dipakai di Supabase.
+
+## Dexter Arcade audit and roadmap
+
+The home route redirects to `/games`. The game library and detail pages share one catalog, while playable pages retain their own URLs. Next.js 16 App Router and React power the web UI. Supabase Postgres holds shared rooms, matchmaking, and leaderboards. Supabase Storage serves file transfer. The project deploys to Vercel, with Snake Duel endpoints assigned to Singapore.
+
+| Existing integration                | Games                                                                                                                                                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Standard multiplayer room engine    | Connect 4, Suit, Karambol, Uno, Uno Flip, Uno No Mercy, Sekata, Mahjong Hong Kong, Dart, Remi, Poker, Werewolf, Three Monkeys, Battleship, Gomoku, Checkers, Chess, Liar's Dice, Domino, Quiz, Pictionary, and Gelud |
+| Separate solo and multiplayer flows | Snake Classic, Snake Harian, and Snake Duel                                                                                                                                                                          |
+| Solo pages                          | Wordle, 2048, Minesweeper, Tetris, DOOM, DOOM II, Wolfenstein 3D, Mahjong Solitaire, and Arsip Kartu                                                                                                                 |
+
+The room engine's `GameDef` contract handles start, moves, completion, rematches, capacity, and seat-specific state. The engine validates moves on the server and uses version checks and atomic Postgres writes. Browsers poll room state every second and reuse cached seat credentials when reconnecting. Public and private rooms, host transfers, kicking, leaving, game settings, and minimum-player checks already operate in the engine. Several fixed-capacity games start automatically when full. Snake Duel uses its own WebRTC data channel and server-backed matchmaking. Gelud uses WebRTC for peer gameplay, and Three Monkeys uses WebRTC for voice.
+
+1. **Discovery and details.** Reuse Dexter's art and catalog for categories, search, mode filters, instructions, and links to existing gameplay. Recent and popular shelves derive from actual game openings on the current device. Recommendations use recent categories with curated defaults.
+2. **Lobby and presence.** QR invites open the existing game-specific join flow. Add a shared-screen role, avatar selection, ready state, and heartbeat-based presence where that platform role is used. Preserve legacy auto-start tables. Batch public lobby reads before increasing room traffic.
+3. **Controller pilot.** Start with Quiz. Issue separate screen and player credentials, project public game state to the shared display, and route phone answers through the existing authoritative move contract. Retain polling as a fallback and measure update latency before adding a real-time transport. The existing WebRTC paths serve games that already need them.
+4. **Game adapters and results.** Add Dart and Sekata controls next. For Remi, Werewolf, and Three Monkeys, formally verify each screen and phone projection against the game's hidden information rules. Build rankings and replay controls from server-derived results. Keep Mahjong Solitaire available as a solo game and treat Mahjong Hong Kong as its own multiplayer integration.
+5. **Device and deployment tests.** Exercise duplicate and simultaneous inputs, reconnection, private views, keyboard and remote focus, iOS Safari, and Android TV across the supported controller games.
+
 ## Snake on Vercel
 
-The Snake page at `/games/snake` includes Classic, Harian, and a shared 1v1 Duel arena. Duel uses Upstash Redis for room codes, public rooms, matchmaking, and WebRTC setup. The host browser runs the match over a WebRTC data channel, and the duel ends when either player leaves.
+The Snake page at `/games/snake` includes Classic, Harian, and a shared 1v1 Duel arena. Duel uses Supabase Postgres for room codes, public rooms, matchmaking, and WebRTC setup. The host browser runs the match over a WebRTC data channel, and the duel ends when either player leaves.
 
 - Use Node 24 and the project's pnpm 12 pin. Set `ENABLE_EXPERIMENTAL_COREPACK=1` in Vercel so builds use the pinned package manager.
-- Duel reuses the other multiplayer games' Redis settings. Its setup endpoints run in Singapore (`sin1`) and use a separate Redis namespace in Vercel Preview.
+- Duel uses the shared Supabase environment variables. Its setup endpoints run in Singapore (`sin1`) and use a separate database scope in Vercel Preview.
 - For networks that block direct WebRTC traffic, configure the optional TURN relay in `.env.example`.
 - Test room links, matchmaking, a round, and leaving from two browsers before deploying to Production.
 

@@ -2,9 +2,10 @@
 
 import * as React from 'react';
 
-import DocumentTitle from '@/components/games/DocumentTitle';
 import Markdown from '@/components/Markdown';
 import TopNav from '@/components/TopNav';
+
+import DocumentTitle from '@/features/games/components/DocumentTitle';
 
 interface ChatMessage {
   role: 'user' | 'assistant';

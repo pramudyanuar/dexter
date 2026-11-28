@@ -1,8 +1,7 @@
 /** @jest-environment node */
-import { LEAVE_GRACE_MS } from '@/lib/rooms/types';
-
 import { GET, POST as roomPost } from '@/app/api/rooms/[code]/route';
 import { POST as create } from '@/app/api/rooms/route';
+import { LEAVE_GRACE_MS } from '@/features/rooms/types';
 
 const OLD = { ...process.env };
 let ip = 0;
@@ -10,8 +9,7 @@ let clock = 5_000_000;
 
 beforeEach(() => {
   process.env = { ...OLD };
-  delete process.env.UPSTASH_REDIS_REST_URL;
-  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.SUPABASE_SECRET_KEY;
   for (const k of ['__rooms', '__chats']) {
     (globalThis as Record<string, unknown>)[k] = undefined;
   }

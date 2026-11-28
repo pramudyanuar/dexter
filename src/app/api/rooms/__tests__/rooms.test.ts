@@ -1,10 +1,9 @@
 /** @jest-environment node */
-import type { UnoView } from '@/lib/games/uno';
-import { GameConfig, sanitizeGameConfig } from '@/lib/rooms/game-config';
-
 import { POST as saveConfig } from '@/app/api/admin/config/route';
 import { GET, POST } from '@/app/api/rooms/[code]/route';
 import { GET as list, POST as create } from '@/app/api/rooms/route';
+import type { UnoView } from '@/features/games/logic/uno';
+import { GameConfig, sanitizeGameConfig } from '@/features/rooms/game-config';
 
 const OLD = { ...process.env };
 const adminConfig = globalThis as { __gameConfig?: GameConfig };
@@ -12,10 +11,7 @@ let ipCounter = 0;
 
 beforeEach(() => {
   process.env = { ...OLD };
-  delete process.env.UPSTASH_REDIS_REST_URL;
-  delete process.env.UPSTASH_REDIS_REST_TOKEN;
-  delete process.env.KV_REST_API_URL;
-  delete process.env.KV_REST_API_TOKEN;
+  delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.ADMIN_PASSWORD;
   (globalThis as { __rooms?: unknown }).__rooms = undefined;
 });
@@ -216,7 +212,7 @@ describe('creating', () => {
     process.env = { ...process.env, NODE_ENV: 'production' };
     const res = await make();
     expect(res.status).toBe(503);
-    expect((await res.json()).error).toMatch(/Upstash/);
+    expect((await res.json()).error).toMatch(/Supabase/);
     expect((await poll('ABCDE')).status).toBe(503);
   });
 });

@@ -1,4 +1,4 @@
-import { createRelay } from '@/lib/relay/handler';
+import { createRelay } from '@/features/relay/handler';
 
 export const dynamic = 'force-dynamic';
 

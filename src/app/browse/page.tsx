@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import * as React from 'react';
 
-import { toTarget } from '@/lib/browse';
-import useStoredState from '@/lib/useStoredState';
+import useStoredState from '@/hooks/useStoredState';
 
-import AuthGate, { useAuth } from '@/components/AuthGate';
-
-import { DEFAULT_ENGINE, SEARCH_ENGINES } from '@/constant/search';
+import AuthGate, { useAuth } from '@/features/auth/components/AuthGate';
+import { toTarget } from '@/features/browse/browse';
+import {
+  DEFAULT_ENGINE,
+  SEARCH_ENGINES,
+} from '@/features/browse/search-engines';
 
 function Browse() {
   const { logout, expire } = useAuth();

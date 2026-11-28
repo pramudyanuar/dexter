@@ -1,9 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import { pokerGame, type PokerView } from '@/lib/games/poker';
-import { join, newRoom, start, toView } from '@/lib/rooms/engine';
-
 import PokerPage from '@/app/games/poker/page';
+import { pokerGame, type PokerView } from '@/features/games/logic/poker';
+import { join, newRoom, start, toView } from '@/features/rooms/engine';
 
 jest.mock('next/navigation', () => ({
   usePathname: () => '/games/poker',

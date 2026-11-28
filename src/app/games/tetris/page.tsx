@@ -2,7 +2,11 @@
 
 import * as React from 'react';
 
-import { seededRandom } from '@/lib/games/seeded-random';
+import useStoredState from '@/hooks/useStoredState';
+
+import GameShell from '@/features/games/components/GameShell';
+import { shouldIgnoreGameKey } from '@/features/games/components/snake/controls';
+import { seededRandom } from '@/features/games/logic/seeded-random';
 import {
   colorIndex,
   COLS,
@@ -15,12 +19,8 @@ import {
   spawn,
   TetrisAction,
   TetrisState,
-} from '@/lib/games/tetris';
-import useStoredState from '@/lib/useStoredState';
-
-import GameShell from '@/components/games/GameShell';
-import { shouldIgnoreGameKey } from '@/components/games/snake/controls';
-import SubmitScore from '@/components/games/SubmitScore';
+} from '@/features/games/logic/tetris';
+import SubmitScore from '@/features/leaderboard/components/SubmitScore';
 
 const CELL = 24;
 const W = COLS * CELL;

@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { getPasteStore } from '@/lib/paste/store';
+import { getPasteStore } from '@/features/paste/store';
 import {
   MAX_CONTENT_BYTES,
-  MAX_MEMOS,
   MAX_SUBJECT_LEN,
   normalizePasteCode,
   PASTE_CODE_PATTERN,
@@ -12,11 +11,11 @@ import {
   PasteMemo,
   PasteTtl,
   utf8Bytes,
-} from '@/lib/paste/types';
+} from '@/features/paste/types';
 
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store' };
 const NO_STORE_ERROR =
-  'Penyimpanan papan teks belum diatur. Hubungkan Upstash Redis ke project ini (lihat .env.example).';
+  'Penyimpanan papan teks belum diatur. Hubungkan Supabase ke project ini (lihat .env.example).';
 
 function revisionOf(memos: PasteMemo[]): string {
   return createHash('sha1').update(JSON.stringify(memos)).digest('hex');
@@ -97,23 +96,22 @@ export async function POST(req: Request) {
     body.ttl === '10m' || body.ttl === '24h' ? body.ttl : '1h';
   const ttlMs = PASTE_TTL_SECONDS[ttlKey] * 1000;
 
-  const existing = await store.list(code);
   const rawSubject = String(body.subject ?? '').trim();
-  const subject = rawSubject
-    ? rawSubject.slice(0, MAX_SUBJECT_LEN)
-    : `Memo ${existing.length + 1}`;
-
   const now = Date.now();
-  const memo: PasteMemo = {
-    id: randomUUID(),
-    subject,
-    content,
-    createdAt: now,
-    expiresAt: now + ttlMs,
-  };
-
-  const next = [memo, ...existing].slice(0, MAX_MEMOS);
-  await store.save(code, next);
+  const id = randomUUID();
+  const next = await store.update(code, (existing) => [
+    {
+      id,
+      subject: rawSubject
+        ? rawSubject.slice(0, MAX_SUBJECT_LEN)
+        : `Memo ${existing.length + 1}`,
+      content,
+      createdAt: now,
+      expiresAt: now + ttlMs,
+    },
+    ...existing,
+  ]);
+  const memo = next[0];
 
   return NextResponse.json(
     { code, memo, memos: next, revision: revisionOf(next) },
@@ -138,9 +136,9 @@ export async function DELETE(req: Request) {
     );
   }
 
-  const existing = await store.list(code);
-  const next = existing.filter((m) => m.id !== id);
-  await store.save(code, next);
+  const next = await store.update(code, (memos) =>
+    memos.filter((memo) => memo.id !== id),
+  );
 
   return NextResponse.json(
     { code, memos: next, revision: revisionOf(next) },

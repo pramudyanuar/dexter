@@ -1,7 +1,6 @@
-import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/code-format';
-
-import SnakeDuel from '@/components/games/snake/SnakeDuel';
-import SnakeShell from '@/components/games/snake/SnakeShell';
+import SnakeDuel from '@/features/games/components/snake/SnakeDuel';
+import SnakeShell from '@/features/games/components/snake/SnakeShell';
+import { CODE_PATTERN, normalizeCode } from '@/features/rooms/code-format';
 
 export default async function SnakeDuelPage({
   searchParams,

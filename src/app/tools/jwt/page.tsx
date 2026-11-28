@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import ToolShell from '@/components/tools/ToolShell';
+import ToolShell from '@/features/tools/components/ToolShell';
 
 const SAMPLE_JWT =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsIm5hbWEiOiJEZXh0ZXIiLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTk5OTk5OTk5OX0.signature';

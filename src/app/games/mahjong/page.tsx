@@ -1,4 +1,4 @@
-import MahjongGame from '@/components/games/mahjong/MahjongGame';
+import MahjongGame from '@/features/games/components/mahjong/MahjongGame';
 
 export default function Page() {
   return <MahjongGame />;

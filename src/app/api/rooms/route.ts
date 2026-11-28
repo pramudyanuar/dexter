@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 
-import { newCode, newToken } from '@/lib/rooms/codes';
-import { capacityOf, newRoom, toView } from '@/lib/rooms/engine';
-import { getGameConfig } from '@/lib/rooms/game-config';
-import { GAMES, isGameId } from '@/lib/rooms/games';
-import { createLimiter } from '@/lib/rooms/rate-limit';
-import { getRoomStore } from '@/lib/rooms/store';
+import { newCode, newToken } from '@/features/rooms/codes';
+import { capacityOf, newRoom, toView } from '@/features/rooms/engine';
+import { getGameConfig } from '@/features/rooms/game-config-store';
+import { GAMES, isGameId } from '@/features/rooms/games';
+import { createLimiter } from '@/features/rooms/rate-limit';
+import { getRoomStore } from '@/features/rooms/store';
 
 const limiter = createLimiter(20, 60 * 60 * 1000);
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const NO_STORE_ERROR =
-  'Penyimpanan room belum diatur. Hubungkan Upstash Redis ke project ini (lihat .env.example).';
+  'Penyimpanan room belum diatur. Hubungkan Supabase ke project ini (lihat .env.example).';
 
 export async function GET(req: Request) {
   const store = getRoomStore();

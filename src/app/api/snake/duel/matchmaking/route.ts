@@ -1,14 +1,15 @@
 import { z } from 'zod';
 
 import { readJson } from '@/lib/read-json';
+
 import {
   checkAdmission,
   duelFailure,
   duelName,
   NO_STORE,
-} from '@/lib/snake-duel/http';
-import { TOKEN_PATTERN } from '@/lib/snake-duel/protocol';
-import { DuelError, getDuelStore } from '@/lib/snake-duel/store';
+} from '@/features/snake-duel/http';
+import { TOKEN_PATTERN } from '@/features/snake-duel/protocol';
+import { DuelError, getDuelStore } from '@/features/snake-duel/store';
 
 const player = z.object({ name: duelName });
 

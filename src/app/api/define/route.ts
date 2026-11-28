@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { define, DefLang } from '@/lib/dictionary';
-import { createLimiter } from '@/lib/rooms/rate-limit';
+import { define, DefLang } from '@/features/games/logic/dictionary';
+import { createLimiter } from '@/features/rooms/rate-limit';
 
 /** The games are public, so this is too; it only looks words up. */
 const limiter = createLimiter(40, 60_000);

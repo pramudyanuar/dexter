@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import ToolShell from '@/components/tools/ToolShell';
+import ToolShell from '@/features/tools/components/ToolShell';
 
 const WORDS = [
   'langit',

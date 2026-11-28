@@ -2,18 +2,22 @@
 
 import * as React from 'react';
 
-import { COLS, emptyBoard, ROWS } from '@/lib/games/connect4';
-import type { Connect4State } from '@/lib/games/connect4-online';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import RoomBar from '@/components/games/RoomBar';
-import RoomChat from '@/components/games/RoomChat';
-import { PlayerStrip, Removed, WaitingRoom } from '@/components/games/RoomGate';
-import RoomLobby from '@/components/games/RoomLobby';
-import RoomNotice from '@/components/games/RoomNotice';
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
+import { COLS, emptyBoard, ROWS } from '@/features/games/logic/connect4';
+import type { Connect4State } from '@/features/games/logic/connect4-online';
+import RoomBar from '@/features/rooms/components/RoomBar';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import {
+  PlayerStrip,
+  Removed,
+  WaitingRoom,
+} from '@/features/rooms/components/RoomGate';
+import RoomLobby from '@/features/rooms/components/RoomLobby';
+import RoomNotice from '@/features/rooms/components/RoomNotice';
+import { useRoom } from '@/features/rooms/useRoom';
 
 // seat 0 created the room, seat 1 joined it
 const DISC = ['bg-accent', 'bg-hash'] as const;

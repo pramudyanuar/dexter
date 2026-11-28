@@ -7,7 +7,7 @@ import {
   createAdminCookieValue,
   isAdminAuthed,
   verifyAdminPassword,
-} from '@/lib/rooms/admin-auth';
+} from '@/features/rooms/admin-auth';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 

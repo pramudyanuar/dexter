@@ -1,21 +1,20 @@
-import { changeBugReport } from '@/lib/game-bugs/change';
-import { getBugReportStore } from '@/lib/game-bugs/store';
+import { changeBugReport } from '@/features/game-bugs/change';
+import { getBugReportStore } from '@/features/game-bugs/store';
 import {
   type AdminBugReport,
   BUG_REPORT_PAGE_SIZE,
   formatRoomBugReport,
-} from '@/lib/game-bugs/types';
-import { isAdminAuthed } from '@/lib/rooms/admin-auth';
-import { BUG_REPORT_KEEP } from '@/lib/rooms/bug-reports';
-import { getRoomStore } from '@/lib/rooms/store';
+} from '@/features/game-bugs/types';
+import { isAdminAuthed } from '@/features/rooms/admin-auth';
+import { BUG_REPORT_KEEP } from '@/features/rooms/bug-reports';
+import { getRoomStore } from '@/features/rooms/store';
 
 const headers = { 'Cache-Control': 'no-store' };
 
 async function listReports(offset: number): Promise<AdminBugReport[]> {
   const store = getBugReportStore();
   const roomStore = getRoomStore();
-  if (!store || !roomStore)
-    throw new Error('Bug report storage is unavailable');
+  if (!store) throw new Error('Bug report storage is unavailable');
 
   // Room reports can shift a general report by at most BUG_REPORT_KEEP places.
   const start = Math.max(0, offset - BUG_REPORT_KEEP);
@@ -23,7 +22,7 @@ async function listReports(offset: number): Promise<AdminBugReport[]> {
   const count = skip + BUG_REPORT_PAGE_SIZE + 1;
   const [general, snapshots] = await Promise.all([
     store.list(start, count),
-    roomStore.listBugReports(),
+    roomStore?.listBugReports() ?? [],
   ]);
   const roomReports = snapshots.map(formatRoomBugReport);
   return [...general, ...roomReports]

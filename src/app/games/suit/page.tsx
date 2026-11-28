@@ -2,18 +2,22 @@
 
 import * as React from 'react';
 
-import { Pick, PICKS, SuitView } from '@/lib/games/suit';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import Confetti from '@/components/games/Confetti';
-import Countdown from '@/components/games/Countdown';
-import GameShell from '@/components/games/GameShell';
-import RoomBar from '@/components/games/RoomBar';
-import RoomChat from '@/components/games/RoomChat';
-import { PlayerStrip, Removed, WaitingRoom } from '@/components/games/RoomGate';
-import RoomLobby from '@/components/games/RoomLobby';
-import RoomNotice from '@/components/games/RoomNotice';
+import Confetti from '@/features/games/components/Confetti';
+import Countdown from '@/features/games/components/Countdown';
+import GameShell from '@/features/games/components/GameShell';
+import { Pick, PICKS, SuitView } from '@/features/games/logic/suit';
+import RoomBar from '@/features/rooms/components/RoomBar';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import {
+  PlayerStrip,
+  Removed,
+  WaitingRoom,
+} from '@/features/rooms/components/RoomGate';
+import RoomLobby from '@/features/rooms/components/RoomLobby';
+import RoomNotice from '@/features/rooms/components/RoomNotice';
+import { useRoom } from '@/features/rooms/useRoom';
 
 const LABEL: Record<Pick, string> = {
   batu: 'batu',

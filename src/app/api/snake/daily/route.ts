@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
+import { readJson } from '@/lib/read-json';
+
 import {
   canSubmitDaily,
   DAILY_RULES_VERSION,
   dailyChallenge,
   readSnakeReplay,
   replayDaily,
-} from '@/lib/games/snake-daily';
-import { getDailyLeaderboardStore } from '@/lib/leaderboard/store';
-import { readJson } from '@/lib/read-json';
+} from '@/features/games/logic/snake-daily';
+import { getDailyLeaderboardStore } from '@/features/leaderboard/store';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 const MAX_BODY_BYTES = 64 * 1024;

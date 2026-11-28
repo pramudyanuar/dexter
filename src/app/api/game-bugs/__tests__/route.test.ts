@@ -3,11 +3,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { getBugReportGame } from '@/lib/game-bugs/types';
-import { createAdminCookieValue } from '@/lib/rooms/admin-auth';
-
 import { DELETE, GET, PATCH } from '@/app/api/admin/game-bugs/route';
 import { POST } from '@/app/api/game-bugs/route';
+import { getBugReportGame } from '@/features/game-bugs/types';
+import { createAdminCookieValue } from '@/features/rooms/admin-auth';
 
 const env = process.env;
 
@@ -17,8 +16,7 @@ test('records the player name and lets only admins resolve, reopen, and delete r
   process.env = {
     ...env,
     ADMIN_PASSWORD: 'test-admin',
-    UPSTASH_REDIS_REST_URL: '',
-    UPSTASH_REDIS_REST_TOKEN: '',
+    SUPABASE_SECRET_KEY: '',
   };
 
   const submit = (pathname: string, description: string, playerName?: string) =>

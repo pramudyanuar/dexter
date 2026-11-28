@@ -2,9 +2,8 @@
 
 import * as React from 'react';
 
-import { encodeQrMatrix, qrToSvg } from '@/lib/tools/qr';
-
-import ToolShell from '@/components/tools/ToolShell';
+import ToolShell from '@/features/tools/components/ToolShell';
+import { encodeQrMatrix, qrToSvg } from '@/features/tools/qr';
 
 export default function QrToolPage() {
   const [text, setText] = React.useState('https://github.com');

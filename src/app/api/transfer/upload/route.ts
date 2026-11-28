@@ -1,61 +1,55 @@
-import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
 
-import { isAuthed } from '@/lib/session';
-import { parsePathname } from '@/lib/transfer/naming';
-import { assertRoom, getDriver, TransferError } from '@/lib/transfer/store';
+import { readJson } from '@/lib/read-json';
 
-import { MAX_FILE_BYTES } from '@/constant/transfer';
+import { isAuthed } from '@/features/auth/session';
+import { parsePathname } from '@/features/transfer/naming';
+import {
+  getDriver,
+  prepareSupabaseUpload,
+  TransferError,
+} from '@/features/transfer/store';
 
-/**
- * Hands the browser a short-lived token to upload straight to Vercel Blob.
- * The file itself never passes through this server, which is what gets around
- * the 4.5 MB request limit on Vercel functions.
- */
 export async function POST(req: Request) {
   if (!isAuthed(req)) {
     return NextResponse.json({ error: 'Belum login' }, { status: 401 });
   }
-  if (getDriver() !== 'blob') {
+  if (getDriver() !== 'supabase') {
     return NextResponse.json(
-      { error: 'BLOB_READ_WRITE_TOKEN belum di-set' },
+      { error: 'Supabase Storage belum diatur' },
       { status: 503 },
     );
   }
 
-  const body = (await req.json().catch(() => null)) as HandleUploadBody | null;
-  if (!body) {
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  const body = (await readJson(req, 4096)) as {
+    pathname?: unknown;
+    size?: unknown;
+  } | null;
+  if (
+    typeof body?.pathname !== 'string' ||
+    !parsePathname(body.pathname) ||
+    typeof body.size !== 'number'
+  ) {
+    return NextResponse.json(
+      { error: 'Nama atau ukuran file tidak valid' },
+      { status: 400 },
+    );
   }
 
   try {
-    const result = await handleUpload({
-      body,
-      request: req,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        if (!parsePathname(pathname)) {
-          throw new TransferError('Nama file tidak valid');
-        }
-        let size = NaN;
-        try {
-          size = Number(JSON.parse(clientPayload ?? '{}').size);
-        } catch {
-          // handled below as an invalid size
-        }
-        await assertRoom(size);
-
-        return {
-          maximumSizeInBytes: MAX_FILE_BYTES,
-          addRandomSuffix: false,
-          allowOverwrite: false,
-        };
+    return NextResponse.json(
+      await prepareSupabaseUpload(body.pathname, body.size),
+      {
+        headers: { 'Cache-Control': 'private, no-store' },
       },
-    });
-    return NextResponse.json(result);
+    );
   } catch (err) {
-    const status = err instanceof TransferError ? err.status : 400;
-    const message =
-      err instanceof Error ? err.message : 'Gagal menyiapkan unggahan';
-    return NextResponse.json({ error: message }, { status });
+    if (err instanceof TransferError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    return NextResponse.json(
+      { error: 'Gagal menyiapkan unggahan' },
+      { status: 503 },
+    );
   }
 }

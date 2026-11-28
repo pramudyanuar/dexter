@@ -1,12 +1,11 @@
 /** @jest-environment node */
+import { GET } from '@/app/api/proxy/route';
 import {
   createProxyToken,
   createSession,
   isAuthed,
   isProxyToken,
-} from '@/lib/session';
-
-import { GET } from '@/app/api/proxy/route';
+} from '@/features/auth/session';
 
 const call = (query: string) =>
   GET(new Request(`http://localhost/api/proxy?${query}`));

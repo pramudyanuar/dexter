@@ -2,15 +2,22 @@
 
 import * as React from 'react';
 
-import { ChessMove, ChessView, Piece, Point, Promo } from '@/lib/games/chess';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
 import ConfirmDialog from '@/components/ConfirmDialog';
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch } from '@/components/games/RoomGate';
+
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
+import {
+  ChessMove,
+  ChessView,
+  Piece,
+  Point,
+  Promo,
+} from '@/features/games/logic/chess';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate, { Rematch } from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 // filled glyphs for both sides; the variation selector keeps ♟ from turning into an emoji
 const GLYPH: Record<string, string> = {

@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import * as React from 'react';
 
-import { AdminRoomSummary } from '@/lib/rooms/admin';
-import { DEFAULT_GAME_CONFIG, GameConfig } from '@/lib/rooms/game-config';
-import { ChatMsg, RoomStatus } from '@/lib/rooms/types';
-
-import AdminBugReports from '@/components/admin/AdminBugReports';
-import AdminConfigPanel from '@/components/admin/AdminConfigPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import DocumentTitle from '@/components/games/DocumentTitle';
+
+import AdminBugReports from '@/features/admin/components/AdminBugReports';
+import AdminConfigPanel from '@/features/admin/components/AdminConfigPanel';
+import DocumentTitle from '@/features/games/components/DocumentTitle';
+import { AdminRoomSummary } from '@/features/rooms/admin';
+import { DEFAULT_GAME_CONFIG, GameConfig } from '@/features/rooms/game-config';
+import { ChatMsg, RoomStatus } from '@/features/rooms/types';
 
 interface SummaryStats {
   total: number;

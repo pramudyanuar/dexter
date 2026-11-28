@@ -2,14 +2,14 @@
 
 import * as React from 'react';
 
-import { CheckersView, SIZE } from '@/lib/games/checkers';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch } from '@/components/games/RoomGate';
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
+import { CheckersView, SIZE } from '@/features/games/logic/checkers';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate, { Rematch } from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 const DISC = [
   'radial-gradient(circle at 32% 30%, #ffb4a8, #e5484d 55%, #7f1d1d)',

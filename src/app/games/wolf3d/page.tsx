@@ -2,10 +2,10 @@
 
 import * as React from 'react';
 
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import GameShell from '@/components/games/GameShell';
-import JsDosPlayer from '@/components/games/JsDosPlayer';
+import GameShell from '@/features/games/components/GameShell';
+import JsDosPlayer from '@/features/games/components/JsDosPlayer';
 
 export default function Wolf3dPage() {
   const mounted = useMounted();

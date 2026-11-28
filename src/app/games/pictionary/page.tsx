@@ -5,21 +5,20 @@ import * as React from 'react';
 
 import styles from '@/app/games/pictionary/pictionary.module.css';
 
-import { PictionaryView } from '@/lib/games/pictionary';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import Confetti from '@/components/games/Confetti';
-import { useRemainingMs } from '@/components/games/Countdown';
-import GameShell from '@/components/games/GameShell';
-import RoomChat from '@/components/games/RoomChat';
+import DrawingBoard from '@/app/games/pictionary/DrawingBoard';
+import Confetti from '@/features/games/components/Confetti';
+import { useRemainingMs } from '@/features/games/components/Countdown';
+import GameShell from '@/features/games/components/GameShell';
+import { PictionaryView } from '@/features/games/logic/pictionary';
+import RoomChat from '@/features/rooms/components/RoomChat';
 import RoomGate, {
   Rematch,
   seatLabel,
   seatTitle,
-} from '@/components/games/RoomGate';
-
-import DrawingBoard from '@/app/games/pictionary/DrawingBoard';
+} from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 type GameRoom = ReturnType<typeof useRoom<PictionaryView>>;
 

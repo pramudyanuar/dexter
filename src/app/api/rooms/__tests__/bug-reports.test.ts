@@ -3,20 +3,19 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { getBugReportStore } from '@/lib/game-bugs/store';
-import { BUG_REPORT_PAGE_SIZE } from '@/lib/game-bugs/types';
-import {
-  ADMIN_COOKIE_NAME,
-  createAdminCookieValue,
-} from '@/lib/rooms/admin-auth';
-import { getRoomStore } from '@/lib/rooms/store';
-
 import { GET as inbox } from '@/app/api/admin/bug-reports/route';
 import { DELETE, GET, PATCH } from '@/app/api/admin/game-bugs/route';
 import { GET as exportReports } from '@/app/api/game-bugs/export/route';
 import { PATCH as patchPublicReport } from '@/app/api/game-bugs/route';
 import { POST as report } from '@/app/api/rooms/[code]/bug-reports/route';
 import { POST as create } from '@/app/api/rooms/route';
+import { getBugReportStore } from '@/features/game-bugs/store';
+import { BUG_REPORT_PAGE_SIZE } from '@/features/game-bugs/types';
+import {
+  ADMIN_COOKIE_NAME,
+  createAdminCookieValue,
+} from '@/features/rooms/admin-auth';
+import { getRoomStore } from '@/features/rooms/store';
 
 const env = process.env;
 let directory: string;
@@ -30,10 +29,7 @@ beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'dexter-room-bugs-'));
   jest.spyOn(process, 'cwd').mockReturnValue(directory);
   process.env = { ...env, ADMIN_PASSWORD: 'test-password' };
-  delete process.env.UPSTASH_REDIS_REST_URL;
-  delete process.env.UPSTASH_REDIS_REST_TOKEN;
-  delete process.env.KV_REST_API_URL;
-  delete process.env.KV_REST_API_TOKEN;
+  delete process.env.SUPABASE_SECRET_KEY;
   delete memory.__bugDrafts;
   delete memory.__bugReports;
 });

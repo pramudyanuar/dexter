@@ -2,20 +2,20 @@
 
 import * as React from 'react';
 
-import styles from '@/components/games/snake/snake.module.css';
+import styles from '@/features/games/components/snake/snake.module.css';
 
+import useStoredState from '@/hooks/useStoredState';
+
+import SnakeShell from '@/features/games/components/snake/SnakeShell';
+import SnakeSolo from '@/features/games/components/snake/SnakeSolo';
 import {
   DailyChallenge,
   dailyChallenge,
   SnakeReplay,
-} from '@/lib/games/snake-daily';
-import type { LeaderboardEntry } from '@/lib/leaderboard/types';
-import useStoredState from '@/lib/useStoredState';
-
-import LeaderboardTable from '@/components/games/LeaderboardTable';
-import SnakeShell from '@/components/games/snake/SnakeShell';
-import SnakeSolo from '@/components/games/snake/SnakeSolo';
-import SubmitScore from '@/components/games/SubmitScore';
+} from '@/features/games/logic/snake-daily';
+import LeaderboardTable from '@/features/leaderboard/components/LeaderboardTable';
+import SubmitScore from '@/features/leaderboard/components/SubmitScore';
+import type { LeaderboardEntry } from '@/features/leaderboard/types';
 
 interface DailyData extends DailyChallenge {
   available: boolean;

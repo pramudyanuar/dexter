@@ -1,11 +1,14 @@
 /** @jest-environment node */
-import { Action2048, play2048, start2048 } from '@/lib/games/game2048';
-import { newGame, reveal } from '@/lib/games/minesweeper';
-import { seededRandom } from '@/lib/games/seeded-random';
-import type { MinesMove } from '@/lib/leaderboard/replay';
-
 import { POST as mines } from '@/app/api/leaderboard/mines/route';
 import { GET, POST } from '@/app/api/leaderboard/route';
+import {
+  Action2048,
+  play2048,
+  start2048,
+} from '@/features/games/logic/game2048';
+import { newGame, reveal } from '@/features/games/logic/minesweeper';
+import { seededRandom } from '@/features/games/logic/seeded-random';
+import type { MinesMove } from '@/features/leaderboard/replay';
 
 const request = (body: object) =>
   new Request('http://localhost/api/leaderboard', {
@@ -15,10 +18,7 @@ const request = (body: object) =>
 
 beforeEach(() => {
   const env = { ...process.env };
-  delete env.UPSTASH_REDIS_REST_URL;
-  delete env.UPSTASH_REDIS_REST_TOKEN;
-  delete env.KV_REST_API_URL;
-  delete env.KV_REST_API_TOKEN;
+  delete env.SUPABASE_SECRET_KEY;
   jest.replaceProperty(process, 'env', env);
   (globalThis as { __leaderboard?: unknown }).__leaderboard = undefined;
 });

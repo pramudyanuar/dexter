@@ -1,10 +1,10 @@
 'use client';
 
-import useStoredState from '@/lib/useStoredState';
+import useStoredState from '@/hooks/useStoredState';
 
-import SnakeShell from '@/components/games/snake/SnakeShell';
-import SnakeSolo from '@/components/games/snake/SnakeSolo';
-import SubmitScore from '@/components/games/SubmitScore';
+import SnakeShell from '@/features/games/components/snake/SnakeShell';
+import SnakeSolo from '@/features/games/components/snake/SnakeSolo';
+import SubmitScore from '@/features/leaderboard/components/SubmitScore';
 
 export default function SnakeClassicPage() {
   const [best, setBest] = useStoredState<number>('snake-best', 0);

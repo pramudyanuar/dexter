@@ -2,15 +2,16 @@ import { NextResponse } from 'next/server';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { readJson } from '@/lib/read-json';
+
 import {
   BUG_DESCRIPTION_MAX,
   type BugSnapshot,
   ROOM_BUG_REPORT_ID,
-} from '@/lib/rooms/bug-reports';
-import { CODE_PATTERN, normalizeCode } from '@/lib/rooms/codes';
-import { seatOf, toView } from '@/lib/rooms/engine';
-import { createLimiter } from '@/lib/rooms/rate-limit';
-import { getRoomStore } from '@/lib/rooms/store';
+} from '@/features/rooms/bug-reports';
+import { CODE_PATTERN, normalizeCode } from '@/features/rooms/codes';
+import { seatOf, toView } from '@/features/rooms/engine';
+import { createLimiter } from '@/features/rooms/rate-limit';
+import { getRoomStore } from '@/features/rooms/store';
 
 const captures = createLimiter(5, 60_000);
 const MAX_STATE_BYTES = 64 * 1024;

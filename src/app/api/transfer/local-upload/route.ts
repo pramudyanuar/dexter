@@ -6,19 +6,18 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeWebStream } from 'node:stream/web';
 
-import { isAuthed } from '@/lib/session';
-import { parsePathname } from '@/lib/transfer/naming';
+import { isAuthed } from '@/features/auth/session';
+import { MAX_FILE_BYTES } from '@/features/transfer/config';
+import { parsePathname } from '@/features/transfer/naming';
 import {
   assertRoom,
   ensureLocalDir,
   getDriver,
   localPath,
   TransferError,
-} from '@/lib/transfer/store';
+} from '@/features/transfer/store';
 
-import { MAX_FILE_BYTES } from '@/constant/transfer';
-
-/** Development stand-in for the Blob upload: streams the file to a local folder. */
+/** Development stand-in for Supabase Storage: streams the file to a local folder. */
 export async function PUT(req: Request) {
   if (!isAuthed(req)) {
     return NextResponse.json({ error: 'Belum login' }, { status: 401 });

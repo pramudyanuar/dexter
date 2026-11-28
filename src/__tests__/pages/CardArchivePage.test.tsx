@@ -1,8 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 
-import { startArchive } from '@/lib/games/card-archive';
-
 import CardArchivePage from '@/app/games/card-archive/page';
+import { startArchive } from '@/features/games/logic/card-archive';
 
 const runKey = 'card-archive-run';
 

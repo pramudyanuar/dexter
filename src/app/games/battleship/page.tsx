@@ -3,6 +3,10 @@
 import { RotateCw, Shuffle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 
+import useMounted from '@/hooks/useMounted';
+
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
 import {
   BattleshipView,
   canPlaceShip,
@@ -13,14 +17,10 @@ import {
   shipCells,
   Shot,
   SIZE,
-} from '@/lib/games/battleship';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
-
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch } from '@/components/games/RoomGate';
+} from '@/features/games/logic/battleship';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate, { Rematch } from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 type Kind = 'water' | 'miss' | 'hit' | 'ship' | 'sunk';
 

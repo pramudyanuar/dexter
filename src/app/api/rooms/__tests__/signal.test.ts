@@ -1,20 +1,18 @@
 /** @jest-environment node */
-import type { MonkeyView } from '@/lib/games/monkeys';
-
 import { GET as roomGet, POST as roomPost } from '@/app/api/rooms/[code]/route';
 import {
   GET as signalGet,
   POST as signalPost,
 } from '@/app/api/rooms/[code]/signal/route';
 import { POST as create } from '@/app/api/rooms/route';
+import type { MonkeyView } from '@/features/games/logic/monkeys';
 
 const OLD = { ...process.env };
 let ip = 0;
 
 beforeEach(() => {
   process.env = { ...OLD };
-  delete process.env.UPSTASH_REDIS_REST_URL;
-  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.SUPABASE_SECRET_KEY;
   (globalThis as { __rooms?: unknown }).__rooms = undefined;
   (globalThis as { __signals?: unknown }).__signals = undefined;
 });

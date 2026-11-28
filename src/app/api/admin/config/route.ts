@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 
-import { isAdminAuthed } from '@/lib/rooms/admin-auth';
+import { isAdminAuthed } from '@/features/rooms/admin-auth';
+import { DEFAULT_GAME_CONFIG } from '@/features/rooms/game-config';
 import {
-  DEFAULT_GAME_CONFIG,
   getGameConfig,
   saveGameConfig,
-} from '@/lib/rooms/game-config';
+} from '@/features/rooms/game-config-store';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 

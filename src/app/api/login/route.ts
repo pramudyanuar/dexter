@@ -4,8 +4,8 @@ import {
   createSession,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
-} from '@/lib/session';
-import { verifyTotp } from '@/lib/totp';
+} from '@/features/auth/session';
+import { verifyTotp } from '@/features/auth/totp';
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 10 * 60 * 1000;

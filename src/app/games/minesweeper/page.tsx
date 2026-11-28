@@ -12,6 +12,10 @@ import * as React from 'react';
 
 import styles from './minesweeper.module.css';
 
+import useStoredState from '@/hooks/useStoredState';
+
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
 import {
   chord,
   Level,
@@ -20,14 +24,10 @@ import {
   newGame,
   reveal,
   toggleFlag,
-} from '@/lib/games/minesweeper';
-import { seededRandom } from '@/lib/games/seeded-random';
-import type { MinesMove } from '@/lib/leaderboard/replay';
-import useStoredState from '@/lib/useStoredState';
-
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import SubmitScore from '@/components/games/SubmitScore';
+} from '@/features/games/logic/minesweeper';
+import { seededRandom } from '@/features/games/logic/seeded-random';
+import SubmitScore from '@/features/leaderboard/components/SubmitScore';
+import type { MinesMove } from '@/features/leaderboard/replay';
 
 type Best = Partial<Record<Level, number>>;
 const NO_BEST: Best = {};

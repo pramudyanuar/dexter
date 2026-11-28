@@ -3,11 +3,11 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { createSession } from '@/lib/session';
-
 import { GET as download } from '@/app/api/transfer/download/route';
 import { PUT as localUpload } from '@/app/api/transfer/local-upload/route';
 import { DELETE, GET as list } from '@/app/api/transfer/route';
+import { createSession } from '@/features/auth/session';
+import { supabaseTestEnv } from '@/test/fixtures/supabase-state';
 
 let dir: string;
 const OLD = { ...process.env };
@@ -26,7 +26,7 @@ beforeEach(async () => {
     TRANSFER_LOCAL_DIR: dir,
     CHAT_TOTP_SECRET: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP',
   };
-  delete process.env.BLOB_READ_WRITE_TOKEN;
+  delete process.env.SUPABASE_SECRET_KEY;
   cookie = `dexter_session=${createSession()}`;
 });
 
@@ -167,8 +167,9 @@ describe('upload, list, download, delete', () => {
     expect((await (await list(req('/api/transfer'))).json()).files).toEqual([]);
   });
 
-  it('cannot reach the local upload route when Blob is configured', async () => {
-    process.env.BLOB_READ_WRITE_TOKEN = 'vercel_blob_rw_x_y';
+  it('cannot reach the local upload route when Supabase Storage is configured', async () => {
+    process.env.SUPABASE_SECRET_KEY = 'sb_secret_test';
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
     const res = await localUpload(
       req(
         `/api/transfer/local-upload?pathname=${encodeURIComponent(pathname)}`,
@@ -183,4 +184,50 @@ it('keeps unrelated files in the data folder out of the list', async () => {
   await mkdir(path.join(dir, 'transfer', 'not valid id!'), { recursive: true });
   await writeFile(path.join(dir, 'transfer', 'not valid id!', 'x'), 'x');
   expect((await (await list(req('/api/transfer'))).json()).files).toEqual([]);
+});
+
+it('lists and streams private Supabase files, and refuses expired downloads', async () => {
+  process.env = { ...process.env, ...supabaseTestEnv };
+  const name = 'catatan 日本.txt';
+  const pathname = `transfer/abcdef123456/${name}`;
+  const key = Buffer.from(pathname).toString('base64url');
+  const signedPath = `/object/sign/dexter-transfer/${key}?token=private`;
+  const created_at = new Date().toISOString();
+  const request = jest
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(
+      Response.json([
+        { id: 'object', name: key, metadata: { size: 4 }, created_at },
+      ]),
+    )
+    .mockResolvedValueOnce(Response.json({ size: 4, created_at }))
+    .mockResolvedValueOnce(Response.json({ signedURL: signedPath }))
+    .mockResolvedValueOnce(new Response('data'))
+    .mockResolvedValueOnce(
+      Response.json({
+        size: 4,
+        created_at: new Date(Date.now() - 25 * 3_600_000).toISOString(),
+      }),
+    );
+  try {
+    const listed = await (await list(req('/api/transfer'))).json();
+    expect(listed).toMatchObject({
+      driver: 'supabase',
+      files: [{ id: pathname, name, size: 4 }],
+    });
+    const url = `/api/transfer/download?id=${encodeURIComponent(pathname)}`;
+    const result = await download(req(url));
+    expect(result.status).toBe(200);
+    expect(await result.text()).toBe('data');
+    expect(result.headers.get('content-disposition')).toContain(
+      encodeURIComponent(name),
+    );
+    expect((await download(req(url))).status).toBe(404);
+    expect(String(request.mock.calls[3][0])).toBe(
+      `https://test.supabase.co/storage/v1${signedPath}`,
+    );
+    expect(request).toHaveBeenCalledTimes(5);
+  } finally {
+    request.mockRestore();
+  }
 });

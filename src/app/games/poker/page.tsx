@@ -1,13 +1,18 @@
 'use client';
 
-import { POKER_HANDS, type PokerView } from '@/lib/games/poker';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import GameShell from '@/components/games/GameShell';
-import PlayingCard, { CardBack } from '@/components/games/remo/PlayingCard';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch, seatTitle } from '@/components/games/RoomGate';
+import GameShell from '@/features/games/components/GameShell';
+import PlayingCard, {
+  CardBack,
+} from '@/features/games/components/remo/PlayingCard';
+import { POKER_HANDS, type PokerView } from '@/features/games/logic/poker';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate, {
+  Rematch,
+  seatTitle,
+} from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 const STREET = {
   'pre-flop': 'Pre-flop',

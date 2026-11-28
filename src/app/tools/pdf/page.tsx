@@ -2,15 +2,14 @@
 
 import * as React from 'react';
 
+import ToolShell from '@/features/tools/components/ToolShell';
 import {
   buildImagesPdf,
   Orientation,
   PageSize,
   PdfImagePage,
-} from '@/lib/tools/pdf';
-import { formatBytes } from '@/lib/transfer/format';
-
-import ToolShell from '@/components/tools/ToolShell';
+} from '@/features/tools/pdf';
+import { formatBytes } from '@/features/transfer/format';
 
 interface ImageItem {
   id: string;

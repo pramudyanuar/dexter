@@ -11,10 +11,9 @@ import {
   PasteMemo,
   PasteTtl,
   utf8Bytes,
-} from '@/lib/paste/types';
-import { formatBytes, formatDuration } from '@/lib/transfer/format';
-
-import ToolShell from '@/components/tools/ToolShell';
+} from '@/features/paste/types';
+import ToolShell from '@/features/tools/components/ToolShell';
+import { formatBytes, formatDuration } from '@/features/transfer/format';
 
 const POLL_MS = 3_000;
 

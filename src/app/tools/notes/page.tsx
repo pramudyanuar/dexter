@@ -2,10 +2,11 @@
 
 import * as React from 'react';
 
-import useStoredState from '@/lib/useStoredState';
+import useStoredState from '@/hooks/useStoredState';
 
 import Markdown from '@/components/Markdown';
-import ToolShell from '@/components/tools/ToolShell';
+
+import ToolShell from '@/features/tools/components/ToolShell';
 
 interface Note {
   id: string;

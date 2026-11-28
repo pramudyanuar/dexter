@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { isAdminAuthed } from '@/lib/rooms/admin-auth';
-import { getRoomStore } from '@/lib/rooms/store';
+import { isAdminAuthed } from '@/features/rooms/admin-auth';
+import { getRoomStore } from '@/features/rooms/store';
 
 export async function GET(req: Request) {
   const headers = { 'Cache-Control': 'no-store' };

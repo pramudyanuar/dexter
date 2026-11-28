@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 
-import AuthGate, { useAuth } from '@/components/AuthGate';
-
-import { APPS } from '@/constant/apps';
+import { APPS } from '@/constants/apps';
+import AuthGate, { useAuth } from '@/features/auth/components/AuthGate';
 
 function Apps() {
   const { logout } = useAuth();
@@ -59,7 +58,7 @@ function Apps() {
         </ul>
 
         <p className='mt-6 text-mute'>
-          # {APPS.length} app. Tambah yang baru di src/constant/apps.ts
+          # {APPS.length} app. Tambah yang baru di src/constants/apps.ts
         </p>
       </main>
     </div>

@@ -1,10 +1,10 @@
-import { getBugReportStore } from '@/lib/game-bugs/store';
+import { getBugReportStore } from '@/features/game-bugs/store';
 import {
   BUG_REPORT_PAGE_SIZE,
   type BugReport,
   formatRoomBugReport,
-} from '@/lib/game-bugs/types';
-import { getRoomStore } from '@/lib/rooms/store';
+} from '@/features/game-bugs/types';
+import { getRoomStore } from '@/features/rooms/store';
 
 const headers = { 'Cache-Control': 'no-store' };
 const encoder = new TextEncoder();
@@ -31,13 +31,13 @@ export async function GET() {
   try {
     const store = getBugReportStore();
     const roomStore = getRoomStore();
-    if (!store || !roomStore) throw new Error('Bug report storage unavailable');
+    if (!store) throw new Error('Bug report storage unavailable');
 
     const readPage = (offset: number) =>
       store.list(offset, BUG_REPORT_PAGE_SIZE);
     const [firstPage, rooms] = await Promise.all([
       readPage(0),
-      roomStore.listBugReports(),
+      roomStore?.listBugReports() ?? [],
     ]);
 
     async function* reportLines() {

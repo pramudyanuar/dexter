@@ -2,6 +2,11 @@
 
 import * as React from 'react';
 
+import useStoredState from '@/hooks/useStoredState';
+
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
+import WordDefinition from '@/features/games/components/WordDefinition';
 import {
   evaluate,
   indonesianWords,
@@ -12,12 +17,7 @@ import {
   WORD_LENGTH,
   WordleLang,
   WordList,
-} from '@/lib/games/wordle';
-import useStoredState from '@/lib/useStoredState';
-
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import WordDefinition from '@/components/games/WordDefinition';
+} from '@/features/games/logic/wordle';
 
 interface Game {
   answer: string;

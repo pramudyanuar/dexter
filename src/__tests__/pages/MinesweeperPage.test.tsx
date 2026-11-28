@@ -1,9 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 
-import { newGame, reveal } from '@/lib/games/minesweeper';
-import { seededRandom } from '@/lib/games/seeded-random';
-
 import MinesweeperPage from '@/app/games/minesweeper/page';
+import { newGame, reveal } from '@/features/games/logic/minesweeper';
+import { seededRandom } from '@/features/games/logic/seeded-random';
 
 it('shakes the whole board for grouped reveals and bomb hits and staggers the fragments', async () => {
   const originalFetch = globalThis.fetch;

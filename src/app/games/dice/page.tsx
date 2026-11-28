@@ -2,14 +2,17 @@
 
 import * as React from 'react';
 
-import { DiceView, higher } from '@/lib/games/liarsdice';
-import { useRoom } from '@/lib/rooms/useRoom';
-import useMounted from '@/lib/useMounted';
+import useMounted from '@/hooks/useMounted';
 
-import Confetti from '@/components/games/Confetti';
-import GameShell from '@/components/games/GameShell';
-import RoomChat from '@/components/games/RoomChat';
-import RoomGate, { Rematch, seatLabel } from '@/components/games/RoomGate';
+import Confetti from '@/features/games/components/Confetti';
+import GameShell from '@/features/games/components/GameShell';
+import { DiceView, higher } from '@/features/games/logic/liarsdice';
+import RoomChat from '@/features/rooms/components/RoomChat';
+import RoomGate, {
+  Rematch,
+  seatLabel,
+} from '@/features/rooms/components/RoomGate';
+import { useRoom } from '@/features/rooms/useRoom';
 
 const PIPS: Record<number, number[]> = {
   1: [4],

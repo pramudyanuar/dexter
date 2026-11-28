@@ -3,15 +3,13 @@
 import Link from 'next/link';
 import * as React from 'react';
 
-import type { Level } from '@/lib/games/minesweeper';
-import { LEVELS } from '@/lib/games/minesweeper';
-import type { LeaderboardEntry } from '@/lib/leaderboard/types';
-import { isMinesLevel, VALID_GAME_IDS } from '@/lib/leaderboard/types';
-
-import GameShell from '@/components/games/GameShell';
-import LeaderboardTable from '@/components/games/LeaderboardTable';
-
-import { GAMES } from '@/constant/games';
+import { GAMES } from '@/features/games/catalog';
+import GameShell from '@/features/games/components/GameShell';
+import type { Level } from '@/features/games/logic/minesweeper';
+import { LEVELS } from '@/features/games/logic/minesweeper';
+import LeaderboardTable from '@/features/leaderboard/components/LeaderboardTable';
+import type { LeaderboardEntry } from '@/features/leaderboard/types';
+import { isMinesLevel, VALID_GAME_IDS } from '@/features/leaderboard/types';
 
 const rankedGames = GAMES.filter((game) => VALID_GAME_IDS.has(game.id));
 

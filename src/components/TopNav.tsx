@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import PlayerNameControl from '@/components/games/PlayerNamePrompt';
+import PlayerNameControl from '@/features/games/components/PlayerNamePrompt';
 
 const NAV_ITEMS = [
   { href: '/games', label: 'Games' },

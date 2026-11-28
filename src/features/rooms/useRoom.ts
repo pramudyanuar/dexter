@@ -1,0 +1,284 @@
+import * as React from 'react';
+
+import useStoredState from '@/hooks/useStoredState';
+
+import usePlayerName from '@/features/games/hooks/usePlayerName';
+import { normalizeCode } from '@/features/rooms/code-format';
+import { callRoom } from '@/features/rooms/room-request';
+import {
+  forgetSeat,
+  holdSeat,
+  recallSeat,
+  rememberSeat,
+} from '@/features/rooms/seat-memory';
+import type { GameId, RoomView } from '@/features/rooms/types';
+
+export interface RoomSession {
+  code: string;
+  token: string;
+  you: number;
+}
+
+const POLL_MS = 1000;
+
+/**
+ * Everything a room page needs: creating and joining, keeping the view fresh by
+ * polling, and sending actions. `V` is the game's view of its state.
+ */
+export function useRoom<V>(game: GameId) {
+  // the room you sit in belongs to this tab, so two tabs can be two players
+  const [session, setSession] = useStoredState<RoomSession | null>(
+    `room-session-${game}`,
+    null,
+    'tab',
+  );
+  // one name for every game, so it only has to be typed once
+  const [name, setName] = usePlayerName();
+  const [room, setRoom] = React.useState<RoomView<V> | null>(null);
+  // when the room view arrived, so countdowns can run from there
+  const [receivedAt, setReceivedAt] = React.useState(0);
+
+  const [error, setError] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [spectateCode, setSpectateCode] = React.useState('');
+  const version = React.useRef(0);
+  const roomEpoch = React.useRef(0);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      const raw = new URLSearchParams(window.location.search).get('spectate');
+      if (raw) {
+        const clean = normalizeCode(raw);
+        if (clean) setSpectateCode(clean);
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const adopt = (next: RoomView<V>) => {
+    if (next.version < version.current) return;
+    version.current = next.version;
+    setRoom(next);
+    setReceivedAt(Date.now());
+  };
+
+  const leave = React.useCallback(
+    (message = '') => {
+      roomEpoch.current++;
+      setSession(null);
+      setSpectateCode('');
+      setRoom(null);
+      version.current = 0;
+      setError(message);
+    },
+    [setSession],
+  );
+
+  // every player (or admin spectator) polls; the server answers tersely when nothing changed
+  const code = session?.code ?? (spectateCode || undefined);
+  const token = session?.token;
+  const spectating = Boolean(!session && spectateCode);
+
+  // tell other tabs this seat is in use, so they do not take it over
+  React.useEffect(() => (token ? holdSeat(token) : undefined), [token]);
+
+  React.useEffect(() => {
+    if (!code || (!token && !spectating)) return;
+    const lifetime = new AbortController();
+    const epoch = roomEpoch.current;
+    const active = () =>
+      !lifetime.signal.aborted && epoch === roomEpoch.current;
+    let polling = false;
+
+    const poll = async () => {
+      if (polling || !active() || document.visibilityState !== 'visible')
+        return;
+      polling = true;
+      try {
+        const qs = spectating
+          ? `v=${version.current}&spectate=1`
+          : `v=${version.current}`;
+        const data = await callRoom(`/api/rooms/${code}?${qs}`, {
+          token,
+          signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(8000)]),
+        });
+        if (!active() || !data.changed || data.room.version < version.current)
+          return;
+        if (!spectating && data.room.seat === null) {
+          leave('Kursimu sudah tidak tersedia di room ini.');
+          return;
+        }
+        adopt(data.room);
+      } catch (err) {
+        if (!active()) return;
+        if ((err as { status?: number }).status === 404) {
+          if (code) forgetSeat(game, code);
+          leave('Room sudah kedaluwarsa atau tidak ada lagi.');
+        } else if ((err as { status?: number }).status === 401 && spectating) {
+          leave('Login admin diperlukan untuk spectate.');
+        }
+        // other errors (a dropped connection): try again on the next tick
+      } finally {
+        polling = false;
+      }
+    };
+
+    const first = setTimeout(poll, 0);
+    const timer = setInterval(poll, POLL_MS);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      lifetime.abort();
+      clearTimeout(first);
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', poll);
+    };
+    // adopt only touches refs and state setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, token, spectating, leave, game]);
+
+  // Closing the page or tab is the one thing the server cannot see for itself,
+  // so the browser is asked to say so on the way out. A reload says it too, but
+  // the reloaded page asks for the room straight away, which cancels it.
+  React.useEffect(() => {
+    if (!code || !token) return;
+    const say = () => {
+      try {
+        navigator.sendBeacon(
+          `/api/rooms/${code}`,
+          new Blob([JSON.stringify({ action: 'leave', token })], {
+            type: 'application/json',
+          }),
+        );
+      } catch {
+        // no beacon support: the turn clock will deal with it
+      }
+    };
+    window.addEventListener('pagehide', say);
+    return () => window.removeEventListener('pagehide', say);
+  }, [code, token]);
+
+  // after a rematch the seats can shift up when someone was removed
+  const seatNow = room?.seat ?? null;
+  React.useEffect(() => {
+    if (session && seatNow !== null && seatNow !== session.you) {
+      setSession({ ...session, you: seatNow });
+      rememberSeat(game, session.code, { token: session.token, you: seatNow });
+    }
+  }, [seatNow, session, setSession, game]);
+
+  const run = async (fn: () => Promise<void>) => {
+    const epoch = roomEpoch.current;
+    setBusy(true);
+    setError('');
+    try {
+      await fn();
+    } catch (err) {
+      if (epoch === roomEpoch.current)
+        setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const create = (isPublic = true) =>
+    run(async () => {
+      const epoch = roomEpoch.current;
+      const data = await callRoom('/api/rooms', {
+        body: { game, name, isPublic },
+      });
+      if (epoch !== roomEpoch.current) return;
+      roomEpoch.current++;
+      rememberSeat(game, data.code, data);
+      version.current = 0;
+      setSession({ code: data.code, token: data.token, you: data.you });
+      adopt(data.room);
+    });
+
+  const join = (input: string) =>
+    run(async () => {
+      const epoch = roomEpoch.current;
+      const target = normalizeCode(input);
+      // coming back to a room you were already in gives you the same seat
+      const before = await recallSeat(game, target);
+      if (epoch !== roomEpoch.current) return;
+      const data = await callRoom(`/api/rooms/${target}`, {
+        body: { action: 'join', game, name, token: before?.token },
+      });
+      if (epoch !== roomEpoch.current) return;
+      if (data.room.game !== game) throw new Error('Kode ini untuk game lain');
+      if (session?.code !== target || session.token !== data.token) {
+        roomEpoch.current++;
+        version.current = 0;
+      }
+      rememberSeat(game, target, data);
+      setSession({ code: target, token: data.token, you: data.you });
+      adopt(data.room);
+      window.history.replaceState(null, '', window.location.pathname);
+    });
+
+  const commit = async (
+    action: string,
+    extra: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) => {
+    if (!session) throw new Error('Room sudah ditutup.');
+    const epoch = roomEpoch.current;
+    try {
+      const data = await callRoom(`/api/rooms/${session.code}`, {
+        body: { action, token: session.token, ...extra },
+        signal,
+      });
+      if (!signal?.aborted && epoch === roomEpoch.current) adopt(data.room);
+    } catch (error) {
+      if (epoch === roomEpoch.current) throw error;
+    }
+  };
+
+  const act = (action: string, extra: Record<string, unknown> = {}) =>
+    run(async () => {
+      if (session) await commit(action, extra);
+    });
+
+  const effectiveSession: RoomSession | null =
+    session ??
+    (spectateCode ? { code: spectateCode, token: '', you: -1 } : null);
+
+  return {
+    session: effectiveSession,
+    spectating,
+    room,
+    receivedAt,
+    name,
+    setName,
+    error,
+    busy,
+    leave: () => {
+      // tell the server now, so the others are not left waiting for a sign
+      // that never comes; coming back soon cancels it
+      if (session) {
+        void callRoom(`/api/rooms/${session.code}`, {
+          body: { action: 'leave', token: session.token },
+          token: session.token,
+        }).catch(() => {});
+      }
+      leave();
+    },
+    create,
+    join,
+    start: () => act('start'),
+    /** Admin: change the game's settings before it starts */
+    setOptions: (options: unknown) => act('options', { options }),
+    /** Host removes a waiting player by seat. */
+    kick: (seat: number) => act('kick', { seat }),
+    move: (move: unknown) => act('move', { move }),
+    /** Let a game's input keep its draft and display errors next to the control. */
+    moveOrThrow: (move: unknown, signal?: AbortSignal) =>
+      commit('move', { move }, signal),
+    /** Changes your name, also in the room you are in */
+    rename: (next: string) => {
+      setName(next);
+      return act('rename', { name: next });
+    },
+    rematch: () => act('rematch'),
+  };
+}

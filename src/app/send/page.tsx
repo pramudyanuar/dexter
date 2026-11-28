@@ -3,12 +3,16 @@
 import Link from 'next/link';
 import * as React from 'react';
 
-import { TransferDriver, uploadFile } from '@/lib/transfer/client';
-import { formatBytes, formatDuration } from '@/lib/transfer/format';
-import { buildPathname, newFileId, sanitizeName } from '@/lib/transfer/naming';
-
-import AuthGate, { useAuth } from '@/components/AuthGate';
 import ConfirmDialog from '@/components/ConfirmDialog';
+
+import AuthGate, { useAuth } from '@/features/auth/components/AuthGate';
+import { TransferDriver, uploadFile } from '@/features/transfer/client';
+import { formatBytes, formatDuration } from '@/features/transfer/format';
+import {
+  buildPathname,
+  newFileId,
+  sanitizeName,
+} from '@/features/transfer/naming';
 
 interface FileInfo {
   id: string;
@@ -243,8 +247,7 @@ function Send() {
 
         {info?.driver === 'local' && (
           <p className='mt-3 text-xs text-hash'>
-            # Mode lokal (dev): file disimpan di folder .data/ komputer ini,
-            bukan di Vercel Blob.
+            # Mode lokal (dev): file disimpan di folder .data/ komputer ini.
           </p>
         )}
         {error && <p className='mt-3 whitespace-pre-wrap text-err'>{error}</p>}
