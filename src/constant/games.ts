@@ -17,6 +17,15 @@ export interface GameEntry {
 
 const ALL_GAMES: readonly GameEntry[] = [
   {
+    id: 'trap-tails',
+    players: '1',
+    title: 'Trap Tails',
+    href: '/games/trap-tails',
+    description:
+      'Latih lompatan, taklukkan gergaji, dan capai menara di Rusty Orchard.',
+    controls: 'A/D atau panah gerak, Spasi lompat, Shift sprint',
+  },
+  {
     id: 'wordle',
     players: '1',
     title: 'Wordle',
