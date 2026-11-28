@@ -40,6 +40,7 @@ export interface ChessState {
   starter: 0 | 1;
   positions?: Record<string, number>;
   drawOffer?: 0 | 1 | null;
+  drawOfferUsed?: [boolean, boolean];
 }
 
 export interface ChessView extends ChessState {
@@ -354,6 +355,11 @@ function applyMove(state: ChessState, chosen: ChessMove): ChessState {
   const ep: Point | null = double
     ? [(chosen.from[0] + chosen.to[0]) / 2, chosen.from[1]]
     : null;
+  const drawOfferUsed: ChessState['drawOfferUsed'] = state.drawOfferUsed && [
+    ...state.drawOfferUsed,
+  ];
+  if (drawOfferUsed && state.drawOffer !== state.turn)
+    drawOfferUsed[state.turn] = false;
 
   return {
     ...state,
@@ -364,6 +370,7 @@ function applyMove(state: ChessState, chosen: ChessMove): ChessState {
     last: { from: chosen.from, to: chosen.to, promo: chosen.promo },
     taken: captured ? [...state.taken, captured] : state.taken,
     drawOffer: state.drawOffer === state.turn ? state.drawOffer : null,
+    drawOfferUsed,
     turn: (1 - state.turn) as 0 | 1,
     check: false,
   };
@@ -402,7 +409,17 @@ export const chessGame: GameDef<ChessState> = {
     if (m?.type === 'offer_draw') {
       if (state.drawOffer != null)
         throw new RoomError('Tawaran remis masih menunggu jawaban', 409);
-      return { ...state, drawOffer: seat === 0 ? 0 : 1 };
+      const from = seat === 0 ? 0 : 1;
+      const drawOfferUsed: [boolean, boolean] = state.drawOfferUsed
+        ? [...state.drawOfferUsed]
+        : [false, false];
+      if (drawOfferUsed[from])
+        throw new RoomError(
+          'Mainkan satu langkah sebelum menawarkan remis lagi',
+          409,
+        );
+      drawOfferUsed[from] = true;
+      return { ...state, drawOffer: from, drawOfferUsed };
     }
     if (m?.type === 'accept_draw' || m?.type === 'decline_draw') {
       if (state.drawOffer == null || state.drawOffer === seat)

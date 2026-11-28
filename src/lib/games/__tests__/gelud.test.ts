@@ -2,6 +2,7 @@ import {
   createGeludState,
   FighterInput,
   geludGame,
+  MOVE_SPEED,
   stepGelud,
 } from '@/lib/games/gelud';
 
@@ -53,6 +54,39 @@ describe('gelud fighting engine', () => {
     }
     expect(s.fighters[0].x).toBeGreaterThanOrEqual(46);
   });
+
+  it.each(['kick', 'punch'] as const)(
+    'moves during a %s and responds to direction changes mid-attack',
+    (attack) => {
+      const start = createGeludState('2p');
+      const moving = stepGelud(
+        start,
+        [{ ...idle, right: true }, idle],
+        0.02,
+      ).state;
+      const attacking = stepGelud(
+        moving,
+        [{ ...idle, right: true, [attack]: true }, idle],
+        0.02,
+      ).state;
+      expect(attacking.fighters[0]).toMatchObject({
+        action: attack,
+        vx: MOVE_SPEED,
+      });
+      expect(attacking.fighters[0].x).toBeGreaterThan(moving.fighters[0].x);
+      const retreating = stepGelud(
+        attacking,
+        [{ ...idle, left: true }, idle],
+        0.02,
+      ).state;
+      expect(retreating.fighters[0]).toMatchObject({
+        action: attack,
+        vx: -MOVE_SPEED,
+        facing: 1,
+      });
+      expect(retreating.fighters[0].x).toBeLessThan(attacking.fighters[0].x);
+    },
+  );
 
   it('lands punches when in range and reduces opponent HP', () => {
     let s = createGeludState('2p');

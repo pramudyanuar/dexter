@@ -224,6 +224,34 @@ function Chess() {
               ))}
             </div>
 
+            {room.status === 'playing' &&
+              s.drawOffer != null &&
+              s.drawOffer !== you && (
+                <div className='mx-auto mb-2 flex w-full max-w-[30rem] flex-wrap items-center justify-between gap-2 rounded-lg border border-hash/50 bg-surface px-3 py-2 shadow-sm'>
+                  <p role='status' className='text-sm font-semibold text-ink'>
+                    Lawan menawarkan remis
+                  </p>
+                  <div className='flex flex-wrap gap-2'>
+                    <button
+                      type='button'
+                      className='min-h-11 rounded-md border border-line px-3 text-sm text-ink hover:border-hash disabled:opacity-50'
+                      disabled={r.busy}
+                      onClick={() => r.move({ type: 'decline_draw' })}
+                    >
+                      Tolak remis
+                    </button>
+                    <button
+                      type='button'
+                      className='min-h-11 rounded-md bg-ink px-3 text-sm font-semibold text-paper hover:opacity-90 disabled:opacity-50'
+                      disabled={r.busy}
+                      onClick={() => r.move({ type: 'accept_draw' })}
+                    >
+                      Terima remis
+                    </button>
+                  </div>
+                </div>
+              )}
+
             <div
               role='grid'
               aria-label='Papan chess'
@@ -412,39 +440,25 @@ function Chess() {
 
             {room.status === 'playing' && (
               <div className='mt-3 flex flex-wrap items-center justify-center gap-2 text-sm'>
-                {s.drawOffer == null ? (
-                  <button
-                    type='button'
-                    className='text-mute'
-                    disabled={r.busy}
-                    onClick={() => r.move({ type: 'offer_draw' })}
-                  >
-                    Tawarkan remis
-                  </button>
-                ) : s.drawOffer === you ? (
-                  <span role='status' className='text-mute'>
-                    Menunggu jawaban tawaran remis
-                  </span>
-                ) : (
-                  <>
-                    <span role='status'>Lawan menawarkan remis</span>
-                    <button
-                      type='button'
-                      className='text-info'
-                      disabled={r.busy}
-                      onClick={() => r.move({ type: 'accept_draw' })}
-                    >
-                      Terima remis
-                    </button>
+                {s.drawOffer == null &&
+                  (s.drawOfferUsed?.[you] ? (
+                    <span className='text-mute'>
+                      Mainkan satu langkah sebelum menawarkan remis lagi
+                    </span>
+                  ) : (
                     <button
                       type='button'
                       className='text-mute'
                       disabled={r.busy}
-                      onClick={() => r.move({ type: 'decline_draw' })}
+                      onClick={() => r.move({ type: 'offer_draw' })}
                     >
-                      Tolak remis
+                      Tawarkan remis
                     </button>
-                  </>
+                  ))}
+                {s.drawOffer === you && (
+                  <span role='status' className='text-mute'>
+                    Menunggu jawaban tawaran remis
+                  </span>
                 )}
                 <button
                   type='button'
