@@ -7,6 +7,7 @@ import {
   Gamepad2,
   Play,
   RotateCcw,
+  Shuffle,
   Smartphone,
   Trophy,
   Tv,
@@ -22,13 +23,16 @@ import {
   CANVAS_H,
   CANVAS_W,
   createInitialRace,
+  createRandomTrack,
   drawRaceCanvas,
+  drawTrackSurface,
   type KartState,
   type RacerSetup,
   type RaceState,
   standings,
   stepRace,
   TOTAL_LAPS,
+  type TrackData,
 } from '@/features/tv-controller/game';
 import {
   type ControllerInput,
@@ -58,15 +62,20 @@ export default function TvHost() {
     React.useState<TransportMode>('local');
   const [pads, setPads] = React.useState<ConnectedPad[]>([]);
   const [fillBots, setFillBots] = React.useState(true);
+  const [autoRandomTrack, setAutoRandomTrack] = React.useState(true);
+  const [track, setTrack] = React.useState<TrackData>(() =>
+    createRandomTrack(),
+  );
   const [copied, setCopied] = React.useState(false);
   const [hudKarts, setHudKarts] = React.useState<KartState[]>([]);
   const [winnerSlot, setWinnerSlot] = React.useState<number | null>(null);
 
+  const previewRef = React.useRef<HTMLCanvasElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const inputsRef = React.useRef<Record<number, ControllerInput>>({});
   const padsRef = React.useRef<ConnectedPad[]>([]);
   const phaseRef = React.useRef<RacePhase>('lobby');
-  const raceRef = React.useRef<RaceState>(createInitialRace([]));
+  const raceRef = React.useRef<RaceState>(createInitialRace([], track));
   const transportRef = React.useRef<ReturnType<typeof connectTvChannel> | null>(
     null,
   );
@@ -180,40 +189,56 @@ export default function TvHost() {
     };
   }, []);
 
-  const startRace = React.useCallback(() => {
-    const humanBySlot = new Map(padsRef.current.map((p) => [p.slot, p]));
-    const racers: RacerSetup[] = [];
-    for (let slot = 0; slot < 4; slot++) {
-      const human = humanBySlot.get(slot);
-      if (human) {
-        racers.push({ slot, name: human.name, isBot: false });
-      } else if (fillBots) {
-        racers.push({
-          slot,
-          name: `Bot ${TV_SLOTS[slot].label}`,
-          isBot: true,
-        });
-      }
-    }
-    if (racers.length === 0) {
-      racers.push(
-        { slot: 0, name: 'Keyboard P1', isBot: false },
-        { slot: 1, name: 'Bot Biru', isBot: true },
-      );
-    }
+  React.useEffect(() => {
+    if (phase !== 'lobby') return;
+    const ctx = previewRef.current?.getContext('2d');
+    if (ctx) drawTrackSurface(ctx, track);
+  }, [phase, track]);
 
-    const initial = createInitialRace(racers);
-    raceRef.current = initial;
-    setHudKarts(initial.karts);
-    setWinnerSlot(null);
-    setPhase('playing');
-    transportRef.current?.send({
-      type: 'phase',
-      phase: 'playing',
-      winnerSlot: null,
-      laps: initial.karts.map((k) => k.lap),
-    });
-  }, [fillBots]);
+  const shuffleTrack = React.useCallback(() => {
+    setTrack(createRandomTrack());
+  }, []);
+
+  const startRace = React.useCallback(
+    (reroll = false) => {
+      const nextTrack = reroll ? createRandomTrack() : track;
+      if (reroll) setTrack(nextTrack);
+
+      const humanBySlot = new Map(padsRef.current.map((p) => [p.slot, p]));
+      const racers: RacerSetup[] = [];
+      for (let slot = 0; slot < 4; slot++) {
+        const human = humanBySlot.get(slot);
+        if (human) {
+          racers.push({ slot, name: human.name, isBot: false });
+        } else if (fillBots) {
+          racers.push({
+            slot,
+            name: `Bot ${TV_SLOTS[slot].label}`,
+            isBot: true,
+          });
+        }
+      }
+      if (racers.length === 0) {
+        racers.push(
+          { slot: 0, name: 'Keyboard P1', isBot: false },
+          { slot: 1, name: 'Bot Biru', isBot: true },
+        );
+      }
+
+      const initial = createInitialRace(racers, nextTrack);
+      raceRef.current = initial;
+      setHudKarts(initial.karts);
+      setWinnerSlot(null);
+      setPhase('playing');
+      transportRef.current?.send({
+        type: 'phase',
+        phase: 'playing',
+        winnerSlot: null,
+        laps: initial.karts.map((k) => k.lap),
+      });
+    },
+    [fillBots, track],
+  );
 
   // 60fps simulation + canvas draw loop
   React.useEffect(() => {
@@ -414,7 +439,36 @@ export default function TvHost() {
               </ul>
             </div>
 
-            <div className='mt-6 space-y-3 border-t border-line pt-4'>
+            <div className='mt-5 space-y-3 border-t border-line pt-4'>
+              {/* Track preview & randomize */}
+              <div className='flex items-center gap-3 rounded-xl border border-line bg-paper/50 p-3'>
+                <canvas
+                  ref={previewRef}
+                  width={CANVAS_W}
+                  height={CANVAS_H}
+                  className='aspect-video w-28 shrink-0 rounded-lg border border-line-strong bg-[#090d14]'
+                />
+                <div className='min-w-0 flex-1'>
+                  <p className='text-xs font-semibold tracking-wider text-accent uppercase'>
+                    Sirkuit Acak
+                  </p>
+                  <p className='truncate text-sm font-bold text-ink'>
+                    {track.name}
+                  </p>
+                  <p className='text-xs text-mute'>
+                    {TOTAL_LAPS} lap · 3 turbo ⚡ · 3 genangan oli
+                  </p>
+                </div>
+                <button
+                  type='button'
+                  onClick={shuffleTrack}
+                  className='inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line-strong bg-card px-3 text-xs font-semibold text-ink hover:border-accent hover:text-accent'
+                >
+                  <Shuffle aria-hidden className='size-3.5' />
+                  Acak Sirkuit
+                </button>
+              </div>
+
               <label className='flex cursor-pointer items-center justify-between rounded-xl border border-line bg-paper/50 px-4 py-2.5 text-sm text-ink'>
                 <span>Isi slot kosong dengan Bot AI</span>
                 <input
@@ -424,9 +478,18 @@ export default function TvHost() {
                 />
               </label>
 
+              <label className='flex cursor-pointer items-center justify-between rounded-xl border border-line bg-paper/50 px-4 py-2.5 text-sm text-ink'>
+                <span>Acak sirkuit baru setiap ronde</span>
+                <input
+                  type='checkbox'
+                  checked={autoRandomTrack}
+                  onChange={(e) => setAutoRandomTrack(e.target.checked)}
+                />
+              </label>
+
               <button
                 type='button'
-                onClick={startRace}
+                onClick={() => startRace(false)}
                 className='inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-base font-bold text-paper transition-opacity hover:opacity-90'
               >
                 <Play aria-hidden className='size-5' />
@@ -523,7 +586,7 @@ export default function TvHost() {
                 <div className='mt-5 flex gap-3'>
                   <button
                     type='button'
-                    onClick={startRace}
+                    onClick={() => startRace(autoRandomTrack)}
                     className='inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 font-bold text-paper hover:opacity-90'
                   >
                     <RotateCcw aria-hidden className='size-4' />

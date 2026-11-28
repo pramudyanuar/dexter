@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 
 import {
   createInitialRace,
+  createRandomTrack,
   standings,
   stepRace,
 } from '@/features/tv-controller/game';
@@ -18,13 +19,27 @@ jest.mock('@/integrations/supabase/config', () => ({
 
 describe('tv-controller game engine', () => {
   it('moves a kart forward when throttle A is pressed', () => {
-    const initial = createInitialRace([
-      { slot: 0, name: 'P1', isBot: false },
-      { slot: 1, name: 'Bot', isBot: true },
-    ]);
+    const track = createRandomTrack(101);
+    const initial = createInitialRace(
+      [
+        { slot: 0, name: 'P1', isBot: false },
+        { slot: 1, name: 'Bot', isBot: true },
+      ],
+      track,
+    );
     const startX = initial.karts[0].x;
+    const startY = initial.karts[0].y;
     const next = stepRace(initial, { 0: { ...EMPTY_INPUT, a: true } }, 0.04);
-    expect(next.karts[0].x).toBeGreaterThan(startX);
+    expect(
+      Math.hypot(next.karts[0].x - startX, next.karts[0].y - startY),
+    ).toBeGreaterThan(0);
+  });
+
+  it('generates distinct procedural circuits for different seeds', () => {
+    const a = createRandomTrack(1);
+    const b = createRandomTrack(999);
+    expect(a.points.length).toBeGreaterThanOrEqual(120);
+    expect(a.points[0]).not.toEqual(b.points[0]);
   });
 
   it('sorts standings by finished time and lap/checkpoint progress', () => {
