@@ -42,9 +42,17 @@ function makeClientId(): string {
   return Math.random().toString(36).slice(2);
 }
 
+function initialButtonLabel(param: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const val = new URLSearchParams(window.location.search).get(param)?.trim();
+  return val ? val.slice(0, 10) : fallback;
+}
+
 export default function PhoneController() {
   const mounted = useMounted();
   const [clientId] = React.useState(makeClientId);
+  const [labelA] = React.useState(() => initialButtonLabel('a', 'Gas'));
+  const [labelB] = React.useState(() => initialButtonLabel('b', 'Rem'));
   const [roomCode, setRoomCode] = React.useState(initialParamCode);
   const [name, setName] = React.useState(() =>
     typeof window !== 'undefined'
@@ -350,7 +358,7 @@ export default function PhoneController() {
         <div className='flex items-end gap-4 sm:gap-6'>
           <button
             type='button'
-            aria-label='Rem atau Mundur (B)'
+            aria-label={`${labelB} (B)`}
             {...padBtnProps('b')}
             className={`flex size-20 flex-col items-center justify-center rounded-full border-4 font-black transition-transform sm:size-24 ${
               activeKeys.b
@@ -359,12 +367,14 @@ export default function PhoneController() {
             }`}
           >
             <span className='text-2xl'>B</span>
-            <span className='text-[10px] font-semibold uppercase'>Rem</span>
+            <span className='text-[10px] font-semibold uppercase'>
+              {labelB}
+            </span>
           </button>
 
           <button
             type='button'
-            aria-label='Gas (A)'
+            aria-label={`${labelA} (A)`}
             {...padBtnProps('a')}
             className={`mb-6 flex size-24 flex-col items-center justify-center rounded-full border-4 font-black transition-transform sm:size-28 ${
               activeKeys.a
@@ -373,7 +383,9 @@ export default function PhoneController() {
             }`}
           >
             <span className='text-3xl'>A</span>
-            <span className='text-[11px] font-semibold uppercase'>Gas</span>
+            <span className='text-[11px] font-semibold uppercase'>
+              {labelA}
+            </span>
           </button>
         </div>
       </div>

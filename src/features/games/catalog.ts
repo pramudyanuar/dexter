@@ -35,6 +35,20 @@ export type GameCategory = keyof typeof GAME_CATEGORIES;
 
 const ALL_GAMES: readonly GameEntry[] = [
   {
+    id: 'bola',
+    categories: ['arcade', 'party'],
+    minutes: [2, 5],
+    players: '1–4',
+    online: true,
+    solo: true,
+    title: 'Bola Pixel',
+    href: '/games/bola',
+    description:
+      'Sepak bola retro 16-bit 1v1 atau 2v2! Main solo lawan Bot AI atau sambungkan HP lewat QR sebagai controller.',
+    controls:
+      'HP via QR (D-Pad, A Tendang, B Dash) atau PC (WASD/Panah, Spasi, Shift)',
+  },
+  {
     id: 'tv',
     categories: ['arcade', 'party'],
     minutes: [2, 10],

@@ -1831,7 +1831,78 @@ function TvArena() {
   );
 }
 
+function BolaPixel() {
+  return (
+    <Frame>
+      {/* Striped pixel grass */}
+      <rect x='16' y='12' width='32' height='76' fill='#1b5e34' />
+      <rect x='48' y='12' width='32' height='76' fill='#206b3c' />
+      <rect x='80' y='12' width='32' height='76' fill='#1b5e34' />
+      <rect x='112' y='12' width='32' height='76' fill='#206b3c' />
+      {/* Pitch lines */}
+      <rect
+        x='16'
+        y='12'
+        width='128'
+        height='76'
+        fill='none'
+        stroke='#d1fae5'
+        strokeWidth='2'
+      />
+      <line x1='80' y1='12' x2='80' y2='88' stroke='#d1fae5' strokeWidth='2' />
+      <circle
+        cx='80'
+        cy='50'
+        r='14'
+        fill='none'
+        stroke='#d1fae5'
+        strokeWidth='2'
+      />
+      {/* Goals */}
+      <rect
+        x='8'
+        y='34'
+        width='8'
+        height='32'
+        fill='#1e293b'
+        stroke={RED}
+        strokeWidth='2'
+      />
+      <rect
+        x='144'
+        y='34'
+        width='8'
+        height='32'
+        fill='#1e293b'
+        stroke={BLUE}
+        strokeWidth='2'
+      />
+      {/* Pixel players */}
+      <g className={move('group-hover:translate-x-2')}>
+        <rect x='46' y='44' width='10' height='10' fill={RED} />
+        <rect x='47' y='38' width='8' height='6' fill='#fde68a' />
+      </g>
+      <g className={move('group-hover:-translate-x-2')}>
+        <rect x='104' y='44' width='10' height='10' fill={BLUE} />
+        <rect x='105' y='38' width='8' height='6' fill='#fde68a' />
+      </g>
+      {/* Pixel ball */}
+      <rect
+        x='76'
+        y='46'
+        width='8'
+        height='8'
+        fill='#ffffff'
+        stroke='#0f172a'
+        strokeWidth='1.5'
+        className={move('group-hover:-translate-y-1')}
+      />
+    </Frame>
+  );
+}
+
 const ART: Record<string, () => React.JSX.Element> = {
+  bola: BolaPixel,
   tv: TvArena,
   wordle: Wordle,
   snake: Snake,

@@ -5,6 +5,11 @@
  * the game itself.
  */
 export const GAME_HINTS: Record<string, string[]> = {
+  bola: [
+    'Main solo (1v1/2v2 melawan Bot AI) atau pindai QR Code dari HP untuk bermain bersama hingga 4 orang.',
+    'Gunakan D-Pad untuk menggiring bola, tombol A (atau Spasi) untuk menendang keras, dan tombol B (atau Shift) untuk dash.',
+    'Pertandingan berdurasi 90 detik — jika skor seri, berlanjut ke Golden Goal!',
+  ],
   tv: [
     'Buka halaman ini di layar besar (TV/laptop), lalu pindai QR Code dari HP masing-masing pemain.',
     'Gunakan tombol Kiri/Kanan di HP untuk belok, tombol A untuk Gas, dan B untuk Rem.',
