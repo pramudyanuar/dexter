@@ -5,11 +5,9 @@ import {
   Check,
   Copy,
   Gamepad2,
-  Monitor,
   Play,
   RotateCcw,
   Smartphone,
-  SplitSquareHorizontal,
   Trophy,
   Tv,
   Users,
@@ -29,7 +27,6 @@ import {
   JERSEY_PALETTE,
   PIXEL_H,
   PIXEL_W,
-  type ScreenMode,
   type SoccerMatchState,
   type SoccerSetup,
   stepSoccer,
@@ -70,8 +67,7 @@ export default function PixelSoccerHost() {
   const [transportMode, setTransportMode] =
     React.useState<TransportMode>('local');
   const [pads, setPads] = React.useState<ConnectedPad[]>([]);
-  const [format, setFormat] = React.useState<'1v1' | '2v2'>('2v2');
-  const [screenMode, setScreenMode] = React.useState<ScreenMode>('split');
+  const [format, setFormat] = React.useState<'1v1' | '2v2'>('1v1');
   const [teamColors, setTeamColors] =
     React.useState<TeamColors>(DEFAULT_TEAM_COLORS);
   const [muted, setMuted] = React.useState(false);
@@ -86,7 +82,6 @@ export default function PixelSoccerHost() {
   const inputsRef = React.useRef<Record<number, ControllerInput>>({});
   const padsRef = React.useRef<ConnectedPad[]>([]);
   const phaseRef = React.useRef<RacePhase>('lobby');
-  const screenModeRef = React.useRef<ScreenMode>('split');
   const teamColorsRef = React.useRef<TeamColors>(DEFAULT_TEAM_COLORS);
   const mutedRef = React.useRef(false);
   const audioRef = React.useRef<AudioContext | null>(null);
@@ -98,10 +93,9 @@ export default function PixelSoccerHost() {
   React.useEffect(() => {
     padsRef.current = pads;
     phaseRef.current = phase;
-    screenModeRef.current = screenMode;
     teamColorsRef.current = teamColors;
     mutedRef.current = muted;
-  }, [muted, pads, phase, screenMode, teamColors]);
+  }, [muted, pads, phase, teamColors]);
 
   const playBeep = React.useCallback((freq: number, dur = 0.08) => {
     if (mutedRef.current || typeof window === 'undefined') return;
@@ -286,13 +280,7 @@ export default function PixelSoccerHost() {
       }
 
       const ctx = canvasRef.current?.getContext('2d');
-      if (ctx)
-        drawPixelSoccer(
-          ctx,
-          next,
-          screenModeRef.current,
-          teamColorsRef.current,
-        );
+      if (ctx) drawPixelSoccer(ctx, next, teamColorsRef.current);
 
       if (next.winner !== null) {
         setScore({
@@ -349,36 +337,6 @@ export default function PixelSoccerHost() {
         </div>
 
         <div className='flex flex-wrap items-center gap-2.5'>
-          <div
-            role='group'
-            aria-label='Mode layar'
-            className='flex gap-1 rounded-lg border border-line bg-paper p-1'
-          >
-            <button
-              type='button'
-              aria-pressed={screenMode === 'single'}
-              onClick={() => setScreenMode('single')}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-                screenMode === 'single'
-                  ? 'bg-accent text-paper'
-                  : 'text-mute hover:text-ink'
-              }`}
-            >
-              <Monitor aria-hidden className='size-3.5' />1 Layar
-            </button>
-            <button
-              type='button'
-              aria-pressed={screenMode === 'split'}
-              onClick={() => setScreenMode('split')}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-                screenMode === 'split'
-                  ? 'bg-accent text-paper'
-                  : 'text-mute hover:text-ink'
-              }`}
-            >
-              <SplitSquareHorizontal aria-hidden className='size-3.5' />2 Layar
-            </button>
-          </div>
           <button
             type='button'
             aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}

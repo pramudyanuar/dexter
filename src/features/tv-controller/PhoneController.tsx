@@ -1,6 +1,6 @@
 'use client';
 
-import { Gamepad2, Wifi } from 'lucide-react';
+import { Gamepad2, Maximize2, Minimize2, Wifi } from 'lucide-react';
 import * as React from 'react';
 
 import useMounted from '@/hooks/useMounted';
@@ -59,7 +59,26 @@ export default function PhoneController() {
   const [slot, setSlot] = React.useState<number | null>(null);
   const [phase, setPhase] = React.useState<RacePhase>('lobby');
   const [connected, setConnected] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    const onFs = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // Ignore if browser blocks or doesn't support fullscreen
+    }
+  };
 
   const inputRef = React.useRef<ControllerInput>({ ...EMPTY_INPUT });
   const seqRef = React.useRef(0);
@@ -318,16 +337,30 @@ export default function PhoneController() {
           </div>
         </div>
 
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-            connected && slot !== null
-              ? 'bg-accent/15 text-accent'
-              : 'bg-line text-mute'
-          }`}
-        >
-          <Wifi aria-hidden className='size-3.5' />
-          {slot !== null ? 'Siap' : 'Sync…'}
-        </span>
+        <div className='flex items-center gap-2'>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+              connected && slot !== null
+                ? 'bg-accent/15 text-accent'
+                : 'bg-line text-mute'
+            }`}
+          >
+            <Wifi aria-hidden className='size-3.5' />
+            {slot !== null ? 'Siap' : 'Sync…'}
+          </span>
+          <button
+            type='button'
+            aria-label={isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
+            onClick={toggleFullscreen}
+            className='flex size-8 items-center justify-center rounded-lg border border-line bg-paper text-ink hover:border-accent hover:text-accent'
+          >
+            {isFullscreen ? (
+              <Minimize2 aria-hidden className='size-4' />
+            ) : (
+              <Maximize2 aria-hidden className='size-4' />
+            )}
+          </button>
+        </div>
       </header>
 
       {error && (

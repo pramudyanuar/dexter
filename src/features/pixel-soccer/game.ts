@@ -8,8 +8,6 @@ export const PIXEL_W = 384;
 export const PIXEL_H = 216;
 export const MATCH_DURATION = 90;
 
-export type ScreenMode = 'single' | 'split';
-
 export const PITCH = {
   left: 26,
   right: 358,
@@ -699,7 +697,6 @@ function drawPitchScene(
 function drawScoreHud(
   ctx: CanvasRenderingContext2D,
   state: SoccerMatchState,
-  screenMode: ScreenMode,
   teamColors: TeamColors,
 ) {
   const midX = Math.floor(PIXEL_W / 2);
@@ -733,45 +730,6 @@ function drawScoreHud(
     9,
   );
 
-  if (screenMode === 'split') {
-    ctx.fillStyle = teamColors.red.trim;
-    ctx.font = 'bold 7px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`LAYAR 1 · ${teamColors.red.label.toUpperCase()}`, 6, 26);
-
-    ctx.fillStyle = teamColors.blue.trim;
-    ctx.textAlign = 'right';
-    ctx.fillText(
-      `LAYAR 2 · ${teamColors.blue.label.toUpperCase()}`,
-      PIXEL_W - 6,
-      26,
-    );
-
-    // Center mini radar
-    const rw = 64;
-    const rh = 34;
-    const rx = midX - rw / 2;
-    const ry = PIXEL_H - rh - 4;
-    ctx.fillStyle = 'rgba(9, 13, 20, 0.85)';
-    ctx.fillRect(rx, ry, rw, rh);
-    ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(rx, ry, rw, rh);
-    for (const p of state.players) {
-      const px = rx + ((p.x - PITCH.left) / (PITCH.right - PITCH.left)) * rw;
-      const py = ry + ((p.y - PITCH.top) / (PITCH.bottom - PITCH.top)) * rh;
-      ctx.fillStyle =
-        p.team === 'red' ? teamColors.red.shirt : teamColors.blue.shirt;
-      ctx.fillRect(Math.round(px) - 1, Math.round(py) - 1, 3, 3);
-    }
-    const bx =
-      rx + ((state.ball.x - PITCH.left) / (PITCH.right - PITCH.left)) * rw;
-    const by =
-      ry + ((state.ball.y - PITCH.top) / (PITCH.bottom - PITCH.top)) * rh;
-    ctx.fillStyle = '#fde047';
-    ctx.fillRect(Math.round(bx) - 1, Math.round(by) - 1, 2, 2);
-  }
-
   if (state.goalBannerTimer > 0) {
     ctx.fillStyle = 'rgba(9, 13, 20, 0.82)';
     ctx.fillRect(midX - 64, midY - 18, 128, 36);
@@ -791,58 +749,15 @@ function drawScoreHud(
 export function drawPixelSoccer(
   ctx: CanvasRenderingContext2D,
   state: SoccerMatchState,
-  screenMode: ScreenMode = 'single',
   teamColors: TeamColors = DEFAULT_TEAM_COLORS,
 ) {
   ctx.imageSmoothingEnabled = false;
   const sx = state.shakeTimer > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
   const sy = state.shakeTimer > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
 
-  if (screenMode === 'single') {
-    ctx.save();
-    ctx.translate(sx, sy);
-    drawPitchScene(ctx, state, teamColors);
-    ctx.restore();
-    drawScoreHud(ctx, state, 'single', teamColors);
-    return;
-  }
-
-  // Mode 2 Layar (Split-Screen): Left tracks Red P1, Right tracks Blue P2
-  const halfW = PIXEL_W / 2;
-  const zoom = 1.55;
-  const redFocus =
-    state.players.find((p) => p.team === 'red') ?? state.players[0];
-  const blueFocus =
-    state.players.find((p) => p.team === 'blue') ?? state.players[0];
-
-  const renderViewport = (clipX: number, focus: SoccerPlayer | undefined) => {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(clipX, 18, halfW, PIXEL_H - 18);
-    ctx.clip();
-
-    const fx = focus ? focus.x : PIXEL_W / 2;
-    const fy = focus ? focus.y : PIXEL_H / 2;
-    const viewW = halfW / zoom;
-    const viewH = (PIXEL_H - 18) / zoom;
-    const camX = Math.max(0, Math.min(PIXEL_W - viewW, fx - viewW / 2));
-    const camY = Math.max(18, Math.min(PIXEL_H - viewH, fy - viewH / 2));
-
-    ctx.translate(clipX + sx, 18 + sy);
-    ctx.scale(zoom, zoom);
-    ctx.translate(-camX, -camY);
-    drawPitchScene(ctx, state, teamColors);
-    ctx.restore();
-  };
-
-  ctx.fillStyle = '#090e17';
-  ctx.fillRect(0, 0, PIXEL_W, PIXEL_H);
-  renderViewport(0, redFocus);
-  renderViewport(halfW, blueFocus);
-
-  // Center split divider
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillRect(halfW - 1, 18, 2, PIXEL_H - 18);
-
-  drawScoreHud(ctx, state, 'split', teamColors);
+  ctx.save();
+  ctx.translate(sx, sy);
+  drawPitchScene(ctx, state, teamColors);
+  ctx.restore();
+  drawScoreHud(ctx, state, teamColors);
 }

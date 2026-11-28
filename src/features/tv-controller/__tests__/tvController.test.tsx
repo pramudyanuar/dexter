@@ -80,5 +80,8 @@ describe('TvHost & PhoneController', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hubungkan ke TV' }));
     expect(screen.getByLabelText('Analog Joystick')).toBeInTheDocument();
     expect(screen.getByLabelText('Gas (A)')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Layar penuh' }),
+    ).toBeInTheDocument();
   });
 });
