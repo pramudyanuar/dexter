@@ -40,13 +40,15 @@ describe('pixel-soccer engine', () => {
 });
 
 describe('PixelSoccerHost', () => {
-  it('renders lobby with QR invite and 1v1/2v2 format switch', () => {
+  it('renders lobby with QR invite, 1v1/2v2 switch, and 1/2 screen modes', () => {
     render(<PixelSoccerHost />);
     expect(
       screen.getByRole('heading', { name: 'Bola Pixel' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1V1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '2V2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1 Layar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 Layar' })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /Mulai Pertandingan/i }),
     ).toBeInTheDocument();

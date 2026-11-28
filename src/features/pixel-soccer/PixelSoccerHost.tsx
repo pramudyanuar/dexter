@@ -5,12 +5,16 @@ import {
   Check,
   Copy,
   Gamepad2,
+  Monitor,
   Play,
   RotateCcw,
   Smartphone,
+  SplitSquareHorizontal,
   Trophy,
   Tv,
   Users,
+  Volume2,
+  VolumeX,
   Wifi,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -23,6 +27,7 @@ import {
   drawPixelSoccer,
   PIXEL_H,
   PIXEL_W,
+  type ScreenMode,
   type SoccerMatchState,
   type SoccerSetup,
   stepSoccer,
@@ -63,6 +68,8 @@ export default function PixelSoccerHost() {
     React.useState<TransportMode>('local');
   const [pads, setPads] = React.useState<ConnectedPad[]>([]);
   const [format, setFormat] = React.useState<'1v1' | '2v2'>('2v2');
+  const [screenMode, setScreenMode] = React.useState<ScreenMode>('split');
+  const [muted, setMuted] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [score, setScore] = React.useState<{
     red: number;
@@ -74,6 +81,9 @@ export default function PixelSoccerHost() {
   const inputsRef = React.useRef<Record<number, ControllerInput>>({});
   const padsRef = React.useRef<ConnectedPad[]>([]);
   const phaseRef = React.useRef<RacePhase>('lobby');
+  const screenModeRef = React.useRef<ScreenMode>('split');
+  const mutedRef = React.useRef(false);
+  const audioRef = React.useRef<AudioContext | null>(null);
   const matchRef = React.useRef<SoccerMatchState>(createInitialMatch([]));
   const transportRef = React.useRef<ReturnType<typeof connectTvChannel> | null>(
     null,
@@ -82,7 +92,33 @@ export default function PixelSoccerHost() {
   React.useEffect(() => {
     padsRef.current = pads;
     phaseRef.current = phase;
-  }, [pads, phase]);
+    screenModeRef.current = screenMode;
+    mutedRef.current = muted;
+  }, [muted, pads, phase, screenMode]);
+
+  const playBeep = React.useCallback((freq: number, dur = 0.08) => {
+    if (mutedRef.current || typeof window === 'undefined') return;
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return;
+    try {
+      const ctx = (audioRef.current ??= new AudioCtx());
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + dur);
+    } catch {
+      // Ignore audio autoplay blocks
+    }
+  }, []);
 
   const controllerUrl = React.useMemo(() => {
     if (!mounted) return '';
@@ -232,11 +268,18 @@ export default function PixelSoccerHost() {
       const dt = (now - last) / 1000;
       last = now;
 
-      const next = stepSoccer(matchRef.current, inputsRef.current, dt);
+      const prev = matchRef.current;
+      const next = stepSoccer(prev, inputsRef.current, dt);
       matchRef.current = next;
 
+      if (next.scoreRed > prev.scoreRed || next.scoreBlue > prev.scoreBlue) {
+        playBeep(660, 0.25);
+      } else if (next.shakeTimer > 0.06 && prev.shakeTimer <= 0) {
+        playBeep(220, 0.06);
+      }
+
       const ctx = canvasRef.current?.getContext('2d');
-      if (ctx) drawPixelSoccer(ctx, next);
+      if (ctx) drawPixelSoccer(ctx, next, screenModeRef.current);
 
       if (next.winner !== null) {
         setScore({
@@ -259,7 +302,7 @@ export default function PixelSoccerHost() {
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [phase]);
+  }, [phase, playBeep]);
 
   const copyLink = async () => {
     if (!controllerUrl) return;
@@ -293,6 +336,48 @@ export default function PixelSoccerHost() {
         </div>
 
         <div className='flex flex-wrap items-center gap-2.5'>
+          <div
+            role='group'
+            aria-label='Mode layar'
+            className='flex gap-1 rounded-lg border border-line bg-paper p-1'
+          >
+            <button
+              type='button'
+              aria-pressed={screenMode === 'single'}
+              onClick={() => setScreenMode('single')}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                screenMode === 'single'
+                  ? 'bg-accent text-paper'
+                  : 'text-mute hover:text-ink'
+              }`}
+            >
+              <Monitor aria-hidden className='size-3.5' />1 Layar
+            </button>
+            <button
+              type='button'
+              aria-pressed={screenMode === 'split'}
+              onClick={() => setScreenMode('split')}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                screenMode === 'split'
+                  ? 'bg-accent text-paper'
+                  : 'text-mute hover:text-ink'
+              }`}
+            >
+              <SplitSquareHorizontal aria-hidden className='size-3.5' />2 Layar
+            </button>
+          </div>
+          <button
+            type='button'
+            aria-label={muted ? 'Nyalakan suara' : 'Matikan suara'}
+            onClick={() => setMuted((m) => !m)}
+            className='flex size-8 items-center justify-center rounded-lg border border-line bg-paper text-mute hover:border-accent hover:text-ink'
+          >
+            {muted ? (
+              <VolumeX aria-hidden className='size-4' />
+            ) : (
+              <Volume2 aria-hidden className='size-4' />
+            )}
+          </button>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
               connected
