@@ -25,6 +25,21 @@ describe('pixel-soccer engine', () => {
     expect(next.ball.vx).toBeGreaterThan(100);
   });
 
+  it('lets the ball cross the goal line unobstructed inside the goal mouth', () => {
+    const state = createInitialMatch([
+      { slot: 0, team: 'red', name: 'P1', isBot: false },
+      { slot: 1, team: 'blue', name: 'Bot', isBot: true },
+    ]);
+    state.ball.x = PITCH.right - 2;
+    state.ball.vx = 250;
+    state.ball.y = (PITCH.goalTop + PITCH.goalBottom) / 2;
+
+    const step1 = stepSoccer(state, {}, 0.02);
+    expect(step1.ball.vx).toBeGreaterThan(0);
+    const step2 = stepSoccer(step1, {}, 0.02);
+    expect(step2.scoreRed).toBe(1);
+  });
+
   it('awards a goal to Red when the ball enters the right goal mouth', () => {
     const state = createInitialMatch([
       { slot: 0, team: 'red', name: 'P1', isBot: false },

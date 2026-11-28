@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Gamepad2,
-  Wifi,
-} from 'lucide-react';
+import { Gamepad2, Wifi } from 'lucide-react';
 import * as React from 'react';
 
 import useMounted from '@/hooks/useMounted';
@@ -124,24 +117,85 @@ export default function PhoneController() {
     };
   }, [clientId, joinedCode, mounted, name]);
 
-  const sendInput = React.useCallback(
-    (key: keyof ControllerInput, pressed: boolean) => {
-      if (inputRef.current[key] === pressed) return;
-      inputRef.current = { ...inputRef.current, [key]: pressed };
-      setActiveKeys(inputRef.current);
-      if (pressed) vibrate(12);
+  const sendFullInput = React.useCallback(
+    (next: ControllerInput, haptic = false) => {
+      inputRef.current = next;
+      setActiveKeys(next);
+      if (haptic) vibrate(12);
       if (slot === null) return;
       seqRef.current += 1;
       transportRef.current?.send({
         type: 'input',
         clientId,
         slot,
-        input: inputRef.current,
+        input: next,
         seq: seqRef.current,
       });
     },
     [clientId, slot],
   );
+
+  const sendButton = React.useCallback(
+    (key: 'a' | 'b', pressed: boolean) => {
+      if (inputRef.current[key] === pressed) return;
+      sendFullInput({ ...inputRef.current, [key]: pressed }, pressed);
+    },
+    [sendFullInput],
+  );
+
+  const stickRef = React.useRef<HTMLDivElement | null>(null);
+  const [knob, setKnob] = React.useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+
+  const updateStick = React.useCallback(
+    (clientX: number, clientY: number) => {
+      const el = stickRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const maxR = rect.width * 0.36;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      const clamped = Math.min(dist, maxR);
+      const ang = Math.atan2(dy, dx);
+      const kx = dist > 0 ? Math.cos(ang) * clamped : 0;
+      const ky = dist > 0 ? Math.sin(ang) * clamped : 0;
+      setKnob({ x: kx, y: ky });
+
+      const nx = maxR > 0 ? kx / maxR : 0;
+      const ny = maxR > 0 ? ky / maxR : 0;
+      const mag = Math.hypot(nx, ny);
+      const ax = mag < 0.12 ? 0 : nx;
+      const ay = mag < 0.12 ? 0 : ny;
+      sendFullInput({
+        ...inputRef.current,
+        ax,
+        ay,
+        left: ax < -0.3,
+        right: ax > 0.3,
+        up: ay < -0.3,
+        down: ay > 0.3,
+      });
+    },
+    [sendFullInput],
+  );
+
+  const resetStick = React.useCallback(() => {
+    setKnob({ x: 0, y: 0 });
+    sendFullInput({
+      ...inputRef.current,
+      ax: 0,
+      ay: 0,
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+    });
+  }, [sendFullInput]);
 
   const connectManual = (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,17 +272,17 @@ export default function PhoneController() {
 
   const theme = slot !== null ? TV_SLOTS[slot] : TV_SLOTS[0];
 
-  const padBtnProps = (key: keyof ControllerInput) => ({
+  const padBtnProps = (key: 'a' | 'b') => ({
     onPointerDown: (e: React.PointerEvent) => {
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
-      sendInput(key, true);
+      sendButton(key, true);
     },
     onPointerUp: (e: React.PointerEvent) => {
       e.preventDefault();
-      sendInput(key, false);
+      sendButton(key, false);
     },
-    onPointerCancel: () => sendInput(key, false),
+    onPointerCancel: () => sendButton(key, false),
   });
 
   return (
@@ -286,72 +340,38 @@ export default function PhoneController() {
       )}
 
       {/* Gamepad Controls */}
-      <div className='my-auto flex w-full max-w-3xl items-center justify-between gap-4 self-center px-1 sm:px-6'>
-        {/* Left: D-Pad Steering */}
+      <div className='my-auto flex w-full max-w-3xl items-center justify-between gap-4 self-center px-2 sm:px-8'>
+        {/* Left: Virtual Analog Joystick */}
         <div
-          className='grid grid-cols-3 grid-rows-3 gap-2'
-          aria-label='Tombol arah'
+          ref={stickRef}
+          role='application'
+          aria-label='Analog Joystick'
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            vibrate(8);
+            updateStick(e.clientX, e.clientY);
+          }}
+          onPointerMove={(e) => {
+            if (e.buttons === 0 && e.pointerType === 'mouse') return;
+            if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+            updateStick(e.clientX, e.clientY);
+          }}
+          onPointerUp={(e) => {
+            e.preventDefault();
+            resetStick();
+          }}
+          onPointerCancel={resetStick}
+          className='relative flex size-40 touch-none items-center justify-center rounded-full border-4 border-line-strong bg-card/90 shadow-inner sm:size-48'
         >
-          <div />
-          <button
-            type='button'
-            aria-label='Atas'
-            {...padBtnProps('up')}
-            className={`flex size-16 items-center justify-center rounded-2xl border-2 transition-transform sm:size-20 ${
-              activeKeys.up
-                ? 'scale-95 border-accent bg-accent text-paper'
-                : 'border-line-strong bg-card text-ink'
-            }`}
-          >
-            <ChevronUp className='size-8' />
-          </button>
-          <div />
-
-          <button
-            type='button'
-            aria-label='Belok Kiri'
-            {...padBtnProps('left')}
-            className={`flex size-16 items-center justify-center rounded-2xl border-2 transition-transform sm:size-20 ${
-              activeKeys.left
-                ? 'scale-95 border-accent bg-accent text-paper'
-                : 'border-line-strong bg-card text-ink'
-            }`}
-          >
-            <ChevronLeft className='size-8' />
-          </button>
-          <div className='flex size-16 items-center justify-center rounded-2xl border border-line bg-paper/40 sm:size-20'>
-            <span
-              className='size-3 rounded-full opacity-50'
-              style={{ backgroundColor: theme.color }}
-            />
-          </div>
-          <button
-            type='button'
-            aria-label='Belok Kanan'
-            {...padBtnProps('right')}
-            className={`flex size-16 items-center justify-center rounded-2xl border-2 transition-transform sm:size-20 ${
-              activeKeys.right
-                ? 'scale-95 border-accent bg-accent text-paper'
-                : 'border-line-strong bg-card text-ink'
-            }`}
-          >
-            <ChevronRight className='size-8' />
-          </button>
-
-          <div />
-          <button
-            type='button'
-            aria-label='Bawah'
-            {...padBtnProps('down')}
-            className={`flex size-16 items-center justify-center rounded-2xl border-2 transition-transform sm:size-20 ${
-              activeKeys.down
-                ? 'scale-95 border-accent bg-accent text-paper'
-                : 'border-line-strong bg-card text-ink'
-            }`}
-          >
-            <ChevronDown className='size-8' />
-          </button>
-          <div />
+          <div className='pointer-events-none size-24 rounded-full border border-dashed border-line-strong/70 sm:size-28' />
+          <div
+            className='pointer-events-none absolute size-16 rounded-full border-2 border-white/40 shadow-lg transition-transform duration-75 sm:size-20'
+            style={{
+              backgroundColor: theme.color,
+              transform: `translate(${knob.x}px, ${knob.y}px)`,
+            }}
+          />
         </div>
 
         {/* Right: B (Brake) & A (Gas) Arcade Buttons */}

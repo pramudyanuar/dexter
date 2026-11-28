@@ -15,8 +15,8 @@ export const PITCH = {
   right: 358,
   top: 32,
   bottom: 196,
-  goalTop: 84,
-  goalBottom: 144,
+  goalTop: 78,
+  goalBottom: 150,
   goalDepth: 14,
 } as const;
 
@@ -301,15 +301,23 @@ export function stepSoccer(
       p.kickCooldown = Math.max(0, p.kickCooldown - clampedDt);
     if (p.kickAnim > 0) p.kickAnim = Math.max(0, p.kickAnim - clampedDt);
 
-    let mx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    let my = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+    let mx =
+      typeof input.ax === 'number' && input.ax !== 0
+        ? input.ax
+        : (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    let my =
+      typeof input.ay === 'number' && input.ay !== 0
+        ? input.ay
+        : (input.down ? 1 : 0) - (input.up ? 1 : 0);
     const len = Math.hypot(mx, my);
-    if (len > 0) {
+    if (len > 1) {
       mx /= len;
       my /= len;
-      p.dirX = mx;
-      p.dirY = my;
-      p.walkPhase += clampedDt * (p.dashTimer > 0 ? 18 : 11);
+    }
+    if (len > 0.05) {
+      p.dirX = mx / (len > 0 ? len : 1);
+      p.dirY = my / (len > 0 ? len : 1);
+      p.walkPhase += clampedDt * (p.dashTimer > 0 ? 18 : 11) * Math.min(len, 1);
     }
 
     if (input.b && p.dashCooldown <= 0 && len > 0) {
@@ -395,15 +403,16 @@ export function stepSoccer(
   }
 
   const inGoalMouth =
-    ball.y >= PITCH.goalTop + 2 && ball.y <= PITCH.goalBottom - 2;
+    ball.y >= PITCH.goalTop + 3 && ball.y <= PITCH.goalBottom - 3;
 
   let scoreRed = state.scoreRed;
   let scoreBlue = state.scoreBlue;
   let goalBannerTimer = 0;
   let lastScorerTeam = state.lastScorerTeam;
 
-  if (ball.x < PITCH.left && inGoalMouth) {
-    if (ball.x < PITCH.left - 4) {
+  if (inGoalMouth) {
+    // Allow ball to cross the goal line unobstructed inside the goal mouth
+    if (ball.x < PITCH.left - 3) {
       scoreBlue += 1;
       lastScorerTeam = 'blue';
       goalBannerTimer = 1.6;
@@ -411,14 +420,7 @@ export function stepSoccer(
       spawnParticles(particles, PITCH.left, ball.y, '#60a5fa', 18, 3);
       spawnParticles(particles, PITCH.left, ball.y, '#fde047', 10, 2);
       if (goldenGoal) winner = 'blue';
-    }
-  } else if (ball.x < PITCH.left + 4) {
-    ball.x = PITCH.left + 4;
-    ball.vx = Math.abs(ball.vx) * 0.78;
-  }
-
-  if (ball.x > PITCH.right && inGoalMouth) {
-    if (ball.x > PITCH.right + 4) {
+    } else if (ball.x > PITCH.right + 3) {
       scoreRed += 1;
       lastScorerTeam = 'red';
       goalBannerTimer = 1.6;
@@ -427,9 +429,14 @@ export function stepSoccer(
       spawnParticles(particles, PITCH.right, ball.y, '#fde047', 10, 2);
       if (goldenGoal) winner = 'red';
     }
-  } else if (ball.x > PITCH.right - 4) {
-    ball.x = PITCH.right - 4;
-    ball.vx = -Math.abs(ball.vx) * 0.78;
+  } else {
+    if (ball.x < PITCH.left + 4) {
+      ball.x = PITCH.left + 4;
+      ball.vx = Math.abs(ball.vx) * 0.78;
+    } else if (ball.x > PITCH.right - 4) {
+      ball.x = PITCH.right - 4;
+      ball.vx = -Math.abs(ball.vx) * 0.78;
+    }
   }
 
   return {

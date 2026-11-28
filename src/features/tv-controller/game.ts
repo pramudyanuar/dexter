@@ -297,7 +297,10 @@ export function stepRace(
 
     const throttle =
       input.a || input.up ? 1 : input.b || input.down ? -0.55 : 0;
-    const steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    const steer =
+      typeof input.ax === 'number' && input.ax !== 0
+        ? input.ax
+        : (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
     if (kart.boostTimer > 0) {
       kart.boostTimer = Math.max(0, kart.boostTimer - clampedDt);

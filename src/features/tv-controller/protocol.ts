@@ -3,6 +3,8 @@ export interface ControllerInput {
   right: boolean;
   up: boolean;
   down: boolean;
+  ax?: number;
+  ay?: number;
   a: boolean;
   b: boolean;
 }
@@ -12,6 +14,8 @@ export const EMPTY_INPUT: ControllerInput = {
   right: false,
   up: false,
   down: false,
+  ax: 0,
+  ay: 0,
   a: false,
   b: false,
 };

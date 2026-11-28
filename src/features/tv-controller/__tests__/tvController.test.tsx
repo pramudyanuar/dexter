@@ -78,7 +78,7 @@ describe('TvHost & PhoneController', () => {
       target: { value: 'zx99k' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Hubungkan ke TV' }));
-    expect(screen.getByLabelText('Belok Kiri')).toBeInTheDocument();
+    expect(screen.getByLabelText('Analog Joystick')).toBeInTheDocument();
     expect(screen.getByLabelText('Gas (A)')).toBeInTheDocument();
   });
 });
